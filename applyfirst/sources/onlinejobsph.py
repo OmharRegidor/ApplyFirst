@@ -10,6 +10,7 @@ can be unit-tested against saved fixtures with no network.
 
 from __future__ import annotations
 
+import html as _htmllib
 import re
 from datetime import datetime, timezone
 from urllib.parse import quote
@@ -27,6 +28,8 @@ SOURCE_NAME = "onlinejobs.ph"
 _ID_RE = re.compile(r"-(\d+)/?$")          # trailing numeric id in a job URL
 _BR_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
 _WS_RE = re.compile(r"[ \t]+")
+_TAG_RE = re.compile(r"<[^>]+>")
+_BLOCK_END_RE = re.compile(r"</(p|div|li|h[1-6])\s*>", re.IGNORECASE)
 
 
 class OnlineJobsPHSource:
@@ -161,12 +164,15 @@ def parse_search(html: str) -> list[RawJob]:
 def _html_to_text(node) -> str:
     """Convert a description node's HTML to clean multi-line text.
 
-    Handles <br> line breaks and onlinejobs' <ojfilter> word wrappers (their
-    inner text is preserved when tags are stripped).
+    <br> and closing block tags become newlines; remaining tags (including
+    onlinejobs' <ojfilter> word wrappers) are stripped, keeping their inner text.
+    Done with regex rather than selectolax ``.text()``, which collapses the
+    newlines we need to separate the buried "TO APPLY" instructions.
     """
-    inner = node.html or ""
-    inner = _BR_RE.sub("\n", inner)
-    text = HTMLParser(inner).text(strip=False) or ""
+    raw = node.html or ""
+    raw = _BR_RE.sub("\n", raw)
+    raw = _BLOCK_END_RE.sub("\n", raw)
+    text = _htmllib.unescape(_TAG_RE.sub("", raw)).replace("\xa0", " ")
     out: list[str] = []
     blanks = 0
     for line in text.splitlines():

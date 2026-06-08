@@ -67,6 +67,28 @@ pytest -q
 Flags: `--no-detail` skips fetching full descriptions (faster, fewer requests);
 `--db PATH` chooses the SQLite file (default `applyfirst.db`).
 
+## Email alerts + continuous mode (Milestone 2)
+
+Run it forever: it polls every ~5 min and **emails you the moment a new job appears**,
+with the full description and a heads-up listing any application instructions the
+employer buried in the post. The **first** poll of each keyword is a silent baseline
+(it learns the current jobs) so you're not flooded — only genuinely-new jobs alert.
+
+```bash
+# 1) configure email (free, one-time)
+copy .env.example .env          # then edit .env  (Gmail App Password — see the file)
+
+# 2) preview without sending (prints the alert to the console)
+python -m applyfirst.cli poll -k "virtual assistant" --preview
+
+# 3) run for real, continuously
+python -m applyfirst.cli run
+```
+
+To enable real emails, set `EMAIL_ENABLED=true` and your Gmail App Password in `.env`
+(steps are in `.env.example`). If email isn't configured, alerts print to the console
+so nothing is lost. `.env` is git-ignored — never commit it.
+
 Later milestones add: onboarding + profile, the AI tailoring engine (screening-question
-auto-answer + tailored resume PDF), email alerts, and the web dashboard. See the
-build milestones at the end of the design spec.
+auto-answer + tailored resume PDF), and the web dashboard. See the build milestones at
+the end of the design spec.

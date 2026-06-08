@@ -2,7 +2,8 @@
 
 Given the RawJobs parsed from a search page, decide which are genuinely new
 (by source + external_id) and persist them. To stay polite, we only fetch the
-full detail page for NEW jobs — never re-fetch ones we've already seen.
+full detail page for NEW jobs — never re-fetch ones we've already seen — and
+pause briefly between detail fetches.
 
 Edited-repost detection (the UPDATED status) is intentionally deferred to a
 later milestone so this stage makes at most one extra request per new job.
@@ -10,6 +11,8 @@ later milestone so this stage makes at most one extra request per new job.
 
 from __future__ import annotations
 
+import random
+import time
 from dataclasses import dataclass, field
 
 from applyfirst.models import RawJob
@@ -30,6 +33,7 @@ def detect_and_store(
     raw_jobs: list[RawJob],
     fetch_details: bool = True,
     max_desc_len: int = 50_000,
+    detail_delay: tuple[float, float] = (0.3, 0.8),
 ) -> DetectResult:
     result = DetectResult()
     for raw in raw_jobs:
@@ -48,6 +52,8 @@ def detect_and_store(
                 # Never lose a new job because its detail fetch failed — store it
                 # without a description; it can be re-fetched later.
                 result.detail_errors += 1
+            else:
+                time.sleep(random.uniform(*detail_delay))  # polite gap between detail fetches
 
         store.insert_job(raw, content_hash=chash, raw_description=description)
         result.new.append(raw)

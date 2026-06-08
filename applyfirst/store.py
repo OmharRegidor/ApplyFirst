@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS saved_search (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     keyword     TEXT NOT NULL UNIQUE,
     active      INTEGER NOT NULL DEFAULT 1,
+    baselined   INTEGER NOT NULL DEFAULT 0,
     created_at  TEXT NOT NULL
 );
 """
@@ -63,7 +64,17 @@ class Store:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL;")
         self.conn.executescript(SCHEMA)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self) -> None:
+        # Add columns introduced after a DB may already exist (idempotent).
+        try:
+            self.conn.execute(
+                "ALTER TABLE saved_search ADD COLUMN baselined INTEGER NOT NULL DEFAULT 0"
+            )
+        except sqlite3.OperationalError:
+            pass  # column already present
 
     def close(self) -> None:
         self.conn.close()
@@ -77,7 +88,8 @@ class Store:
     # --- saved searches ---
     def add_search(self, keyword: str) -> None:
         self.conn.execute(
-            "INSERT OR IGNORE INTO saved_search(keyword, active, created_at) VALUES (?, 1, ?)",
+            "INSERT OR IGNORE INTO saved_search(keyword, active, baselined, created_at) "
+            "VALUES (?, 1, 0, ?)",
             (keyword.strip(), utcnow_iso()),
         )
         self.conn.commit()
@@ -85,6 +97,19 @@ class Store:
     def active_keywords(self) -> list[str]:
         cur = self.conn.execute("SELECT keyword FROM saved_search WHERE active=1 ORDER BY id")
         return [row["keyword"] for row in cur.fetchall()]
+
+    def is_baselined(self, keyword: str) -> bool:
+        cur = self.conn.execute(
+            "SELECT baselined FROM saved_search WHERE keyword=?", (keyword.strip(),)
+        )
+        row = cur.fetchone()
+        return bool(row["baselined"]) if row is not None else False
+
+    def set_baselined(self, keyword: str) -> None:
+        self.conn.execute(
+            "UPDATE saved_search SET baselined=1 WHERE keyword=?", (keyword.strip(),)
+        )
+        self.conn.commit()
 
     # --- jobs ---
     def get_job(self, source: str, external_id: str) -> sqlite3.Row | None:
