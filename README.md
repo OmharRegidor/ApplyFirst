@@ -89,6 +89,21 @@ To enable real emails, set `EMAIL_ENABLED=true` and your Gmail App Password in `
 (steps are in `.env.example`). If email isn't configured, alerts print to the console
 so nothing is lost. `.env` is git-ignored — never commit it.
 
-Later milestones add: onboarding + profile, the AI tailoring engine (screening-question
-auto-answer + tailored resume PDF), and the web dashboard. See the build milestones at
-the end of the design spec.
+## AI tailoring (Milestones 3 + 4)
+
+The engine reads a job + your `profile.yaml` and drafts: answers to the buried
+screening questions, the compliance token to open with, a tailored cover letter, and
+resume tweaks — **truthful only** (it rephrases your real facts, never invents). If no
+key is set (or the API fails) it falls back to listing the questions for you to answer.
+
+```bash
+# 1) free Gemini key → https://aistudio.google.com/apikey  → put GEMINI_API_KEY in .env
+# 2) your resume → copy profile.example.yaml to profile.yaml and fill it in (git-ignored)
+
+# preview a full AI package for a job (most recent caught job, or a URL):
+python -m applyfirst.cli tailor
+python -m applyfirst.cli tailor "https://www.onlinejobs.ph/jobseekers/job/...-1663915"
+```
+
+Still to come: a tailored **resume PDF**, auto-including the AI package in the alert
+emails, and a web dashboard. See the build milestones at the end of the design spec.
