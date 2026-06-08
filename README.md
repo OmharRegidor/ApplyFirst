@@ -39,7 +39,34 @@ speed, is the edge.
 - **V1** (this repo) — personal, onlinejobs.ph only.
 - **V2** — public + paid: multi-user, auth, billing, more job sites (Upwork first).
 
-## Setup
+## Running Milestone 1 (the catch loop — CLI)
 
-_Build in progress — setup instructions land as milestones complete. See the build
-milestones at the end of the design spec._
+Milestone 1 is the scraper + store + detector: it fetches your keyword searches
+from onlinejobs.ph (public, no login), stores them in SQLite, and reports what's
+new. No AI / email / web yet.
+
+```bash
+# one-time setup
+python -m venv .venv
+.venv\Scripts\activate            # Windows  (source .venv/bin/activate on macOS/Linux)
+pip install -r requirements-dev.txt
+
+# run a poll cycle (keywords are saved for next time)
+python -m applyfirst.cli poll -k "virtual assistant" -k "customer service"
+
+# run again later — already-seen jobs are skipped (dedup)
+python -m applyfirst.cli poll
+
+# list recently caught jobs
+python -m applyfirst.cli list
+
+# run the parser tests (against saved fixtures, no network)
+pytest -q
+```
+
+Flags: `--no-detail` skips fetching full descriptions (faster, fewer requests);
+`--db PATH` chooses the SQLite file (default `applyfirst.db`).
+
+Later milestones add: onboarding + profile, the AI tailoring engine (screening-question
+auto-answer + tailored resume PDF), email alerts, and the web dashboard. See the
+build milestones at the end of the design spec.

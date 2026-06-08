@@ -20,6 +20,8 @@ env/
 *.sqlite
 *.sqlite3
 *.db
+*.db-wal
+*.db-shm
 
 # Generated artifacts (tailored resumes, scraped HTML, etc.)
 /data/
