@@ -1,0 +1,73 @@
+# Copy this to "profile.yaml" and fill it with YOUR real details.
+# profile.yaml is git-ignored (it's personal) — never commit it.
+# TRUTHFUL ONLY: the AI rephrases/emphasizes these facts, it never invents new ones.
+
+full_name: "Juan Dela Cruz"
+contact_email: "you@example.com"
+phone: "+63 900 000 0000"
+location: "Cebu, Philippines"
+links:
+  - "https://your-portfolio.example.com"
+  - "https://www.linkedin.com/in/you"
+
+# The kind of role you're targeting (helps the AI focus the tailoring).
+target_summary: "Virtual assistant / customer service & admin support for online businesses."
+
+# Your resume summary, in your voice (1-3 sentences).
+professional_summary: >
+  Reliable virtual assistant with 4 years supporting e-commerce and SaaS teams in
+  customer service, admin, and order management. Organized, detail-oriented, and
+  great with written English.
+
+# How cover letters should sound.
+voice_tone: "warm, concise, professional"
+
+# A base pitch the AI adapts per job (and the no-AI fallback uses as-is).
+base_pitch: >
+  Hi! I'd love to help with this role. I have several years of VA and customer-support
+  experience and I'm reliable, organized, and quick to learn new tools and processes.
+
+skills:
+  - "Customer service"
+  - "Email & chat support"
+  - "Order management"
+  - "Data entry"
+  - "Calendar & inbox management"
+
+tools:
+  - "Shopify"
+  - "Gorgias"
+  - "Zendesk"
+  - "Google Workspace"
+  - "Excel / Google Sheets"
+
+languages:
+  - "English (fluent)"
+  - "Filipino (native)"
+
+certifications:
+  - "Customer Service Fundamentals (2023)"
+
+experience:
+  - role_id: "cs-comfit"
+    title: "Customer Service Representative"
+    company: "Comfit (e-commerce)"
+    start: "2023"
+    end: "present"
+    bullets:
+      - "Handled 50+ customer tickets per day across email and chat."
+      - "Cut average response time by 30% using saved replies and triage."
+      - "Processed orders, refunds, and returns in Shopify."
+  - role_id: "va-freelance"
+    title: "General Virtual Assistant"
+    company: "Various clients (freelance)"
+    start: "2021"
+    end: "2023"
+    bullets:
+      - "Managed inboxes, calendars, and data entry for busy founders."
+      - "Built and maintained tracking sheets and simple SOPs."
+
+education:
+  - qualification: "BS Information Technology"
+    institution: "Your University"
+    year: "2021"

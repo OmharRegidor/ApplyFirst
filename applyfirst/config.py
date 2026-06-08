@@ -1,7 +1,7 @@
 """Settings loaded from environment / a local .env file.
 
-Secrets (email app password, etc.) live in .env which is git-ignored. CLI flags
-override these where provided.
+Secrets (email app password, Gemini key, etc.) live in .env which is git-ignored.
+CLI flags override these where provided.
 """
 
 from __future__ import annotations
@@ -23,6 +23,8 @@ class Settings:
     db: str = "applyfirst.db"
     poll_interval: int = 300
     keywords: list[str] = field(default_factory=list)
+    profile_path: str = "profile.yaml"
+    # email
     email_enabled: bool = False
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 465
@@ -30,6 +32,9 @@ class Settings:
     smtp_password: str | None = None
     alert_from: str | None = None
     alert_to: str | None = None
+    # AI
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.0-flash"
 
 
 def load_settings() -> Settings:
@@ -40,6 +45,7 @@ def load_settings() -> Settings:
         db=os.getenv("APPLYFIRST_DB", "applyfirst.db"),
         poll_interval=int(os.getenv("APPLYFIRST_POLL_INTERVAL_SECONDS", "300")),
         keywords=keywords,
+        profile_path=os.getenv("APPLYFIRST_PROFILE", "profile.yaml"),
         email_enabled=_as_bool(os.getenv("EMAIL_ENABLED")),
         smtp_host=os.getenv("SMTP_HOST", "smtp.gmail.com"),
         smtp_port=int(os.getenv("SMTP_PORT", "465")),
@@ -47,4 +53,6 @@ def load_settings() -> Settings:
         smtp_password=os.getenv("SMTP_PASSWORD") or None,
         alert_from=os.getenv("ALERT_FROM") or None,
         alert_to=os.getenv("ALERT_TO") or None,
+        gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
     )

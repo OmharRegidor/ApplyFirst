@@ -16,6 +16,9 @@ env/
 .env.*
 !.env.example
 
+# Personal profile (your resume data) — never commit
+profile.yaml
+
 # Database
 *.sqlite
 *.sqlite3
