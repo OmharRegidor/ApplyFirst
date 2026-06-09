@@ -34,7 +34,7 @@ class Settings:
     alert_to: str | None = None
     # AI
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-2.5-flash"
     # observability
     log_json: bool = False
     log_level: str = "INFO"
@@ -57,7 +57,7 @@ def load_settings() -> Settings:
         alert_from=os.getenv("ALERT_FROM") or None,
         alert_to=os.getenv("ALERT_TO") or None,
         gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
-        gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
         log_json=_as_bool(os.getenv("APPLYFIRST_LOG_JSON")),
         log_level=os.getenv("APPLYFIRST_LOG_LEVEL", "INFO"),
     )
