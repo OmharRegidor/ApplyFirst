@@ -2,18 +2,26 @@
 
 First time a keyword is polled, the current page is stored silently as a
 *baseline* (no alerts) so you aren't spammed with the whole backlog. After that,
-only genuinely-new jobs trigger an email.
+each genuinely-new job is (optionally) AI-tailored and emailed: answered screening
+questions, a ready cover letter, and a tailored resume PDF attached.
+
+If no profile is configured, it falls back to the pre-AI alert (raw description +
+detected screening hints).
 """
 
 from __future__ import annotations
 
 import random
+import re
 import time
 from dataclasses import dataclass
 
 from applyfirst.detector import detect_and_store
-from applyfirst.notify.compose import build_job_email
+from applyfirst.notify.compose import build_job_email, build_tailored_email
+from applyfirst.pdf import render_resume_pdf
 from applyfirst.screening import detect_screening_hints
+
+_NONALNUM = re.compile(r"[^A-Za-z0-9]+")
 
 
 @dataclass(slots=True)
@@ -24,21 +32,20 @@ class CycleResult:
     baselined: int = 0
 
 
-def run_cycle(
-    store,
-    source,
-    notifier=None,
-    fetch_details: bool = True,
-    verbose: bool = True,
-    keyword_pause: tuple[float, float] = (1.0, 2.5),
-) -> CycleResult:
+def _safe_filename(name: str) -> str:
+    base = _NONALNUM.sub("_", (name or "resume").strip()).strip("_") or "resume"
+    return f"{base}_resume.pdf"
+
+
+def run_cycle(store, source, notifier=None, engine=None, profile=None,
+              fetch_details: bool = True, verbose: bool = True,
+              keyword_pause: tuple[float, float] = (1.0, 2.5)) -> CycleResult:
     result = CycleResult()
     keywords = store.active_keywords()
 
     for i, keyword in enumerate(keywords):
         raw = source.search_latest(keyword)
 
-        # First poll of this keyword: store silently as a baseline, never alert.
         if not store.is_baselined(keyword):
             res = detect_and_store(source, store, raw, fetch_details=False)
             store.set_baselined(keyword)
@@ -59,25 +66,50 @@ def run_cycle(
             row = store.get_job(raw_job.source, raw_job.external_id)
             if row is None:
                 continue
-            hints = detect_screening_hints(row["raw_description"] or "")
-            if verbose:
-                print(f"   + {row['posted_at'] or '?'} UTC  {row['title']}  "
-                      f"[{row['employment_type'] or '-'}, {row['salary_text'] or '-'}]")
-                print(f"     {row['url']}")
-                if hints:
-                    print(f"     📋 {len(hints)} application-instruction line(s) detected")
+            subject, text, html, attachments = _compose_for(row, engine, profile, verbose)
             if notifier is not None:
-                subject, text, html = build_job_email(row, hints)
                 try:
-                    notifier.send(subject, text, html)
+                    notifier.send(subject, text, html, attachments)
                     result.emailed += 1
-                except Exception as exc:  # never let one bad send kill the cycle
+                except Exception as exc:
                     result.email_errors += 1
                     print(f"     ! email failed: {exc}")
 
         _pause(i, keywords, keyword_pause)
 
     return result
+
+
+def _compose_for(row, engine, profile, verbose):
+    description = row["raw_description"] or ""
+
+    if engine is not None and profile is not None:
+        res = engine.build(description, profile)
+        attachments = None
+        pdf_name = None
+        try:
+            pdf_bytes = render_resume_pdf(profile, res.package.resume_overrides)
+            pdf_name = _safe_filename(profile.full_name)
+            attachments = [(pdf_name, pdf_bytes, "application/pdf")]
+        except Exception as exc:
+            print(f"     ! PDF render failed: {exc}")
+        if verbose:
+            print(f"   + {row['posted_at'] or '?'} UTC  {row['title']}")
+            print(f"     {row['url']}")
+            print(f"     AI: {res.provider} · {len(res.package.screening_questions)} answer(s)"
+                  + (" · resume.pdf" if attachments else ""))
+        subject, text, html = build_tailored_email(row, res.package, res.ai_available, pdf_name)
+        return subject, text, html, attachments
+
+    # No profile configured → pre-AI alert.
+    hints = detect_screening_hints(description)
+    if verbose:
+        print(f"   + {row['posted_at'] or '?'} UTC  {row['title']}")
+        print(f"     {row['url']}")
+        if hints:
+            print(f"     📋 {len(hints)} instruction line(s) detected")
+    subject, text, html = build_job_email(row, hints)
+    return subject, text, html, None
 
 
 def _pause(i: int, keywords: list[str], bounds: tuple[float, float]) -> None:

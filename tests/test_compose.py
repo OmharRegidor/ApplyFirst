@@ -1,8 +1,9 @@
-"""Tests for alert-email composition."""
+"""Tests for alert-email composition (pre-AI and AI-tailored)."""
 
 from __future__ import annotations
 
-from applyfirst.notify.compose import build_job_email
+from applyfirst.notify.compose import build_job_email, build_tailored_email
+from applyfirst.tailor.contract import ScreeningQA, TailoredPackage
 
 
 def _job(**overrides):
@@ -19,7 +20,7 @@ def _job(**overrides):
     return job
 
 
-def test_build_email_includes_key_fields():
+def test_build_job_email_includes_key_fields():
     subject, text, html = build_job_email(_job(), hints=["1. What is your favorite hobby?"])
     assert "VA Role" in subject
     assert "https://www.onlinejobs.ph/jobseekers/job/x-1" in text
@@ -28,9 +29,31 @@ def test_build_email_includes_key_fields():
     assert html and "VA Role" in html
 
 
-def test_build_email_escapes_html_in_untrusted_fields():
-    subject, text, html = build_job_email(
-        _job(title="A & B <script>alert(1)</script>"), hints=[]
-    )
-    assert "<script>" not in html  # scraped/LLM text must be escaped in HTML
+def test_build_job_email_escapes_html_in_untrusted_fields():
+    _, _, html = build_job_email(_job(title="A & B <script>alert(1)</script>"), hints=[])
+    assert "<script>" not in html
     assert "&lt;script&gt;" in html
+
+
+def test_build_tailored_email_has_letter_answers_token_and_pdf():
+    pkg = TailoredPackage(
+        digest="They want a VA.",
+        cover_letter="banana — Dear hiring manager, I'd love to help.",
+        compliance_token="banana",
+        screening_questions=[ScreeningQA(question="favorite hobby?", drafted_answer="Reading")],
+    )
+    subject, text, html = build_tailored_email(_job(), pkg, ai_available=True,
+                                               pdf_filename="Juan_resume.pdf")
+    assert "VA Role" in subject
+    assert "banana" in text and "banana" in html       # compliance token surfaced
+    assert "Dear hiring manager" in text                # cover letter
+    assert "Reading" in text                            # drafted answer
+    assert "Juan_resume.pdf" in text                    # attachment noted
+    assert "They want a VA." in text and "They want a VA." in html  # digest in BOTH parts
+
+
+def test_build_tailored_email_flags_unavailable_ai():
+    pkg = TailoredPackage(cover_letter="", screening_questions=[ScreeningQA(question="q?")])
+    _, text, _ = build_tailored_email(_job(), pkg, ai_available=False)
+    assert "AI unavailable" in text
+    assert "answer manually" in text

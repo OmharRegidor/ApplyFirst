@@ -8,10 +8,13 @@ from __future__ import annotations
 
 
 class ConsoleNotifier:
-    def send(self, subject: str, text: str, html: str | None = None) -> None:
+    def send(self, subject, text, html=None, attachments=None) -> None:
         print("\n" + "=" * 66)
         print("EMAIL PREVIEW (not sent)")
         print("Subject:", subject)
+        if attachments:
+            for name, data, _mime in attachments:
+                print(f"Attachment: {name} ({len(data)} bytes)")
         print("-" * 66)
         print(text)
         print("=" * 66 + "\n")
