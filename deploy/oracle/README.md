@@ -1,0 +1,107 @@
+# Deploying ApplyFirst on an Oracle Cloud Always-Free VM
+
+A 24/7, $0 home for the continuous `run` loop. The app is **outbound-only** (it scrapes
+onlinejobs.ph, sends Gmail SMTP, and calls Gemini) — so **no inbound ports are needed**
+beyond SSH. State is a local SQLite file; nothing external to manage.
+
+What you'll end up with:
+- `applyfirst.service` — the poll loop, auto-restarted on crash (`Restart=always`).
+- `applyfirst-health.timer` — every 10 min, restarts the loop if its heartbeat goes stale
+  (catches a *hung* loop, which crash-restart can't).
+- Daily local SQLite backups (the loop does this itself, once per UTC day, in `backups/`).
+- Structured JSON logs in journald (`APPLYFIRST_LOG_JSON=1`).
+
+---
+
+## 1. Create the VM (Oracle Cloud Console)
+
+1. **Sign up** at https://www.oracle.com/cloud/free/ (needs a card for ID verification — ~$1 hold, refunded). Pick a home region close to you.
+2. **Compute → Instances → Create instance:**
+   - **Image:** Canonical Ubuntu 22.04 or 24.04.
+   - **Shape:** `VM.Standard.A1.Flex` (Ampere **ARM**, Always Free — 1 OCPU / 6 GB is plenty).
+     *If ARM capacity is unavailable, retry later / another AD, or use `VM.Standard.E2.1.Micro` (AMD, also Always Free).*
+   - **SSH keys:** upload your public key (or let it generate one — save the private key).
+   - Networking: leave defaults. **Do not add any ingress rules** — the app needs none.
+3. Create, then note the **public IP**.
+
+## 2. SSH in
+```bash
+ssh ubuntu@<PUBLIC_IP>          # Ubuntu images log in as 'ubuntu'
+```
+
+## 3. Provision
+```bash
+# grab just the deploy script (or clone the whole repo)
+sudo apt-get update -y && sudo apt-get install -y git
+git clone https://github.com/OmharRegidor/ApplyFirst.git /tmp/applyfirst-src
+sudo bash /tmp/applyfirst-src/deploy/oracle/setup.sh
+```
+`setup.sh` installs Python + deps, creates the `applyfirst` system user, puts the code in
+`/opt/applyfirst`, builds the venv, and installs (but does not start) the systemd units.
+
+## 4. Drop in your two private files (NOT in git)
+
+Easiest — copy the ones from your laptop:
+```bash
+# from your LAPTOP (PowerShell/terminal), in the project folder:
+scp .env         ubuntu@<PUBLIC_IP>:/tmp/.env
+scp profile.yaml ubuntu@<PUBLIC_IP>:/tmp/profile.yaml
+
+# then on the VM:
+sudo install -o applyfirst -g applyfirst -m 600 /tmp/.env         /opt/applyfirst/.env
+sudo install -o applyfirst -g applyfirst -m 644 /tmp/profile.yaml /opt/applyfirst/profile.yaml
+rm /tmp/.env /tmp/profile.yaml
+```
+(Or `sudo -u applyfirst nano /opt/applyfirst/.env` and paste, starting from `.env.example`.)
+**`.env` must be mode 600** — it holds your SMTP App Password and Gemini key.
+
+## 5. Start it
+```bash
+sudo systemctl enable --now applyfirst.service
+sudo systemctl enable --now applyfirst-health.timer
+```
+
+## 6. Verify
+```bash
+systemctl status applyfirst.service          # should be "active (running)"
+journalctl -u applyfirst -f                   # live logs (Ctrl-C to stop watching)
+sudo -u applyfirst /opt/applyfirst/.venv/bin/python -m applyfirst.cli health   # exit 0 once the first cycle ran
+sudo -u applyfirst /opt/applyfirst/.venv/bin/python -m applyfirst.cli list      # jobs caught so far
+```
+The first cycle **baselines your keywords silently** (no email). New posts after that
+trigger alerts to `ALERT_TO`.
+
+---
+
+## Day-2 operations
+
+| Task | Command |
+|---|---|
+| Live logs | `journalctl -u applyfirst -f` |
+| JSON events only | `journalctl -u applyfirst -o cat \| grep '^{'` |
+| Health (exit 1 = stale) | `sudo -u applyfirst /opt/applyfirst/.venv/bin/python -m applyfirst.cli health` |
+| Manual backup | `sudo -u applyfirst /opt/applyfirst/.venv/bin/python -m applyfirst.cli backup` |
+| Backups on disk | `ls -lh /opt/applyfirst/backups/` |
+| Restart | `sudo systemctl restart applyfirst.service` |
+| Stop | `sudo systemctl disable --now applyfirst.service applyfirst-health.timer` |
+| Update to latest code | `sudo bash /opt/applyfirst/deploy/oracle/setup.sh && sudo systemctl restart applyfirst.service` |
+| Change keywords/interval | edit `/opt/applyfirst/.env`, then `sudo systemctl restart applyfirst.service` |
+
+### Watchdog from outside the box (optional)
+The internal timer restarts a hung loop. To also be alerted if the **whole VM** dies, point a
+free https://uptimerobot.com "heartbeat" monitor at a tiny cron that curls UptimeRobot only
+when `health` passes — ping me and I'll add that.
+
+### Security notes
+- `.env` is mode 600, owned by `applyfirst`; the service runs unprivileged with
+  `ProtectSystem`/`ProtectHome`/`NoNewPrivileges`.
+- No inbound ports are opened. Keep the VM patched: `sudo apt-get update && sudo apt-get upgrade -y`.
+- Rotate the Gmail App Password + Gemini key if they were ever shared in plaintext; update `.env` and restart.
+
+### Troubleshooting
+- **`active (running)` but no alerts:** expected at first — the first poll is a silent baseline.
+  Watch `journalctl -u applyfirst -f` over the next interval for `new=` > 0.
+- **AI answers look generic / `rules-fallback`:** the Gemini key is out of quota (HTTP 429) or unset;
+  the app degrades to rules-based answers. Check quota at https://ai.dev/rate-limit.
+- **Service keeps restarting:** `journalctl -u applyfirst -n 50` — usually a bad `.env`
+  (missing SMTP creds with `EMAIL_ENABLED=true`) or no network egress.

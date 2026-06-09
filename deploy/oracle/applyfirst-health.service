@@ -1,0 +1,10 @@
+[Unit]
+Description=ApplyFirst health watchdog - restart the loop if its heartbeat is stale
+# systemd's Restart=always already recovers a CRASHED process; this watchdog catches
+# a HUNG-but-alive loop (process up, but no poll cycle for too long) and restarts it.
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/applyfirst
+# Runs as root (no User=) so it can `systemctl restart`. health only reads the DB.
+ExecStart=/opt/applyfirst/deploy/oracle/health-check.sh

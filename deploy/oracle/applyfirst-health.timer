@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the ApplyFirst health watchdog every 10 minutes
+
+[Timer]
+# Give the loop time to complete its first cycle (and write a heartbeat) after boot,
+# so the watchdog doesn't restart a service that simply hasn't polled yet.
+OnBootSec=5min
+OnUnitActiveSec=10min
+Unit=applyfirst-health.service
+
+[Install]
+WantedBy=timers.target

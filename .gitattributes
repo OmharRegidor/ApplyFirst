@@ -1,0 +1,5 @@
+# Files that run on the Linux VM must keep LF endings even when committed from Windows
+# (a CRLF in a shell shebang breaks `bash`; systemd is happier with LF too).
+*.sh        text eol=lf
+*.service   text eol=lf
+*.timer     text eol=lf
