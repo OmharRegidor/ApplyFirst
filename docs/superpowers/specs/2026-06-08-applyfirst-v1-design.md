@@ -1,9 +1,9 @@
 # ApplyFirst — V1 Design Spec
 
 - **Date:** 2026-06-08 (realigned 2026-06-09)
-- **Version:** 1.3 (**realigned to the as-built CLI**; the web app, onboarding wizard, and
-  tokenized private links are deferred to V2 — see §19 changelog)
-- **Status:** ✅ V1 implemented as a **CLI tool** · Milestones 0–5 (code) COMPLETE · **soak next**
+- **Version:** 1.3.1 (**realigned to the as-built CLI** + V1.x hardening landed; the web app,
+  onboarding wizard, and tokenized private links are deferred to V2 — see §19 changelog)
+- **Status:** ✅ V1 implemented as a **CLI tool** · Milestones 0–5 + V1.x hardening COMPLETE · **soak next**
 - **Owner:** Omhar (single user for V1)
 - **Working name:** ApplyFirst
 - **Repo:** https://github.com/OmharRegidor/ApplyFirst
@@ -289,6 +289,8 @@ CERTIFICATIONS, LANGUAGES) and returns bytes attached to the email.
 | `run` | **Continuous** loop, email new (AI-tailored) jobs | `-k/--keyword`, `--interval` (sec, overrides default 300), `--preview`, `--db` |
 | `tailor [URL]` | Build a full package for **one** job (most-recent caught job, or a URL) — prints it and writes `output/tailored_resume.pdf` | `--db` |
 | `list` | List recently caught jobs | `--limit` (default 30), `--db` |
+| `health` | Report the `run` loop's heartbeat; **exit 1 when stale** (for cron/uptime watchdogs) | `--max-stale` (default 2×interval, min 600), `--db` |
+| `backup` | Write a gzipped SQLite backup (`run` also auto-backs-up once/UTC-day) | `--dir` (default `backups`), `--keep` (default 7), `--db` |
 
 - **Email vs preview:** real send only when `EMAIL_ENABLED` is truthy **and** SMTP creds are present
   (and `--preview` not set); otherwise the email is printed to the console (with attachment sizes).
@@ -298,7 +300,8 @@ CERTIFICATIONS, LANGUAGES) and returns bytes attached to the email.
 **Configuration (`.env`, read via `python-dotenv`):** `APPLYFIRST_KEYWORDS`, `APPLYFIRST_DB`
 (`applyfirst.db`), `APPLYFIRST_POLL_INTERVAL_SECONDS` (`300`), `APPLYFIRST_PROFILE` (`profile.yaml`),
 `EMAIL_ENABLED`, `SMTP_HOST` (`smtp.gmail.com`), `SMTP_PORT` (`465`), `SMTP_USER`, `SMTP_PASSWORD`,
-`ALERT_FROM`, `ALERT_TO`, `GEMINI_API_KEY`, `GEMINI_MODEL` (`gemini-2.0-flash`).
+`ALERT_FROM`, `ALERT_TO`, `GEMINI_API_KEY`, `GEMINI_MODEL` (`gemini-2.0-flash`),
+`APPLYFIRST_LOG_JSON` (`false`), `APPLYFIRST_LOG_LEVEL` (`INFO`).
 
 **Deferred to V2:** onboarding wizard, dashboard, per-job token-guarded page, settings page,
 "Mark applied / Skip", AI-overridden-bullet visual flagging.
@@ -334,10 +337,13 @@ email isn't configured. One email per new job.
 | No-spam on first run | Per-keyword **baseline** suppresses the backlog. |
 | Politeness | Per-keyword (1.0–2.5 s) and per-detail (0.3–0.8 s) pauses; ~10% loop jitter (cap 30 s). |
 
-**Known gaps (V1.x hardening / V2):** no ETag/If-Modified caching; no exponential backoff or
-alert-after-N-failures; no `/healthz` / uptime ping; no daily SQLite backup; no structured logging;
-**on PDF-render failure the email still ships but doesn't tell the owner the resume was omitted**
-(console warns; backlog item).
+**V1.x hardening — DONE ✅:** structured JSON logging (`APPLYFIRST_LOG_JSON`, stderr); run-loop
+**heartbeat + `health` command** (exit 1 when stale) for external watchdogs; **daily local SQLite
+backup** (`backup` command + auto once/UTC-day in `run`); the **PDF-render-failure note** now appears
+in the alert email.
+
+**Remaining gaps (V2 candidates):** no ETag/If-Modified caching; no exponential backoff or
+alert-after-N-failures; backups are local-only (no off-box upload yet).
 
 ---
 
@@ -394,8 +400,8 @@ rate-limiting, Caddy/HTTPS, `Cache-Control: no-store`. None apply to a local CLI
 2. **HTML structure changes:** onlinejobs.ph could change markup; mitigated by soft-fail parsing + a
    small parser test suite (no alerting yet).
 3. **Free-tier LLM limits:** burst rate limits; mitigated by retry + **rules fallback**.
-4. **Unattended uptime:** `run` is a bare loop with no watchdog — a silent hang isn't detected yet
-   (no `/healthz`/uptime ping). A soak risk; hardening candidate.
+4. **Unattended uptime:** `run` writes a heartbeat each cycle and the `health` command exits non-zero
+   when stale — point cron / an UptimeRobot heartbeat at it to get alerted on a silent hang.
 5. **ToS / legal:** public personal reads are low-risk; **named gate before V2 monetization.**
 6. **Where to host the 24/7 `run`:** undecided — pick during the soak (local, Oracle Free, or Actions).
 
@@ -426,12 +432,20 @@ UptimeRobot + daily SQLite backup → Backblaze B2 + a chosen host.
    truthful-only; escaping). *(Trust-UX web flagging → V2.)*
 5. **Tailored email + attached PDF — DONE ✅** (`build_tailored_email`; PDF attachment over SMTP;
    pre-AI fallback preserved; digest in text+HTML; fpdf2 wrapmode hang fixed + `pytest-timeout` guard).
-6. **Soak (1–2 weeks) — NEXT.** Run `run` continuously; measure §14 metrics; decide host + whether to
-   build the V2 web layer. Optional V1.x hardening first (logging, `/healthz`, backup, PDF-fail note).
+6. **V1.x hardening — DONE ✅** (structured JSON logging, run-loop heartbeat + `health` command,
+   local SQLite backup + daily auto-backup, PDF-fail note in the alert email).
+7. **Soak (1–2 weeks) — NEXT.** Run `run` continuously (point a watchdog at `health`); measure §14
+   metrics; decide host + whether to build the V2 web layer.
 
 ---
 
 ## 19. Changelog
+**v1.3.1 (2026-06-09 — V1.x hardening landed):** Added opt-in structured JSON logging
+(`APPLYFIRST_LOG_JSON`, stderr); a run-loop heartbeat (`meta` table) + a `health` subcommand that
+exits non-zero when stale (cron/UptimeRobot watchdog); local gzipped SQLite backups (a `backup`
+subcommand + automatic once-per-UTC-day backup inside `run`); and an alert-email note when the resume
+PDF fails to render. Milestones renumbered: V1.x hardening DONE, soak is now milestone 7.
+
 **v1.3 (2026-06-09 — realigned to as-built):** V1 shipped as a **CLI** (`poll`/`run`/`tailor`/`list`),
 not a FastAPI web app. Email is the deliverable — **full package inline + tailored resume PDF
 attached** — instead of a tokenized private web link. **fpdf2** replaces WeasyPrint (pure-Python, no
