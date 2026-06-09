@@ -43,3 +43,7 @@ test-results/
 Thumbs.db
 .idea/
 .vscode/
+*.stackdump
+
+# Noxa dev-team process artifacts (local plan/review scratch)
+.noxa/
