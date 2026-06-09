@@ -57,3 +57,19 @@ def test_build_tailored_email_flags_unavailable_ai():
     _, text, _ = build_tailored_email(_job(), pkg, ai_available=False)
     assert "AI unavailable" in text
     assert "answer manually" in text
+
+
+def test_build_tailored_email_notes_pdf_failure():
+    pkg = TailoredPackage(cover_letter="Hello.")
+    _, text, html = build_tailored_email(_job(), pkg, ai_available=True,
+                                         pdf_filename=None, pdf_failed=True)
+    assert "Resume PDF could not be generated" in text
+    assert "Resume PDF could not be generated" in html
+
+
+def test_build_tailored_email_no_pdf_note_when_attached():
+    pkg = TailoredPackage(cover_letter="Hello.")
+    _, text, _ = build_tailored_email(_job(), pkg, ai_available=True,
+                                      pdf_filename="Juan_resume.pdf", pdf_failed=False)
+    assert "could not be generated" not in text
+    assert "Juan_resume.pdf" in text

@@ -75,7 +75,8 @@ def build_job_email(job: Mapping, hints: list[str]) -> tuple[str, str, str]:
 
 
 def build_tailored_email(job: Mapping, package, ai_available: bool,
-                         pdf_filename: str | None = None) -> tuple[str, str, str]:
+                         pdf_filename: str | None = None,
+                         pdf_failed: bool = False) -> tuple[str, str, str]:
     title, url, etype, salary, posted, keyword = _meta(job)
 
     subject = f"🆕 {title} [{etype}] — onlinejobs.ph"
@@ -97,6 +98,9 @@ def build_tailored_email(job: Mapping, package, ai_available: bool,
                       f"   A: {qa.drafted_answer or '(answer manually)'}", ""]
     if pdf_filename:
         lines += [f"📎 Tailored resume attached: {pdf_filename}", ""]
+    elif pdf_failed:
+        lines += ["⚠ Resume PDF could not be generated — run `applyfirst tailor` "
+                  "to make one manually.", ""]
     if package.digest:
         lines += ["─" * 30, "WHAT THEY WANT", "─" * 30, package.digest, ""]
     lines += ["— Caught & tailored by ApplyFirst"]
@@ -118,7 +122,13 @@ def build_tailored_email(job: Mapping, package, ai_available: bool,
             for q in package.screening_questions
         )
         qa_html = f'<h3 style="margin:16px 0 6px">Screening questions — drafted answers</h3><ol>{items}</ol>'
-    pdf_html = f'<p>📎 Tailored resume attached: {esc(pdf_filename)}</p>' if pdf_filename else ""
+    if pdf_filename:
+        pdf_html = f'<p>📎 Tailored resume attached: {esc(pdf_filename)}</p>'
+    elif pdf_failed:
+        pdf_html = ('<p style="color:#b45309">⚠ Resume PDF could not be generated — '
+                    "run <code>applyfirst tailor</code> to make one manually.</p>")
+    else:
+        pdf_html = ""
     digest_html = ""
     if package.digest:
         digest_html = ('<h3 style="margin:16px 0 6px">What they want</h3>'

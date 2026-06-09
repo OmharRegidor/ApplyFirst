@@ -42,6 +42,11 @@ CREATE TABLE IF NOT EXISTS saved_search (
     baselined   INTEGER NOT NULL DEFAULT 0,
     created_at  TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS meta (
+    key     TEXT PRIMARY KEY,
+    value   TEXT
+);
 """
 
 
@@ -78,6 +83,24 @@ class Store:
 
     def close(self) -> None:
         self.conn.close()
+
+    # --- meta (key/value): heartbeats, last-backup date, etc. ---
+    def set_meta(self, key: str, value: str) -> None:
+        self.conn.execute(
+            "INSERT INTO meta(key, value) VALUES(?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, value),
+        )
+        self.conn.commit()
+
+    def get_meta(self, key: str, default: str | None = None) -> str | None:
+        cur = self.conn.execute("SELECT value FROM meta WHERE key=?", (key,))
+        row = cur.fetchone()
+        return row["value"] if row is not None else default
+
+    def touch_heartbeat(self) -> None:
+        """Record that a poll cycle just completed (read by the `health` command)."""
+        self.set_meta("last_cycle_at", utcnow_iso())
 
     def __enter__(self) -> "Store":
         return self

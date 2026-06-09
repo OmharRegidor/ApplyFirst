@@ -11,17 +11,20 @@ detected screening hints).
 
 from __future__ import annotations
 
+import logging
 import random
 import re
 import time
 from dataclasses import dataclass
 
+from applyfirst import log
 from applyfirst.detector import detect_and_store
 from applyfirst.notify.compose import build_job_email, build_tailored_email
 from applyfirst.pdf import render_resume_pdf
 from applyfirst.screening import detect_screening_hints
 
 _NONALNUM = re.compile(r"[^A-Za-z0-9]+")
+_LOG = log.get_logger("pipeline")
 
 
 @dataclass(slots=True)
@@ -74,9 +77,18 @@ def run_cycle(store, source, notifier=None, engine=None, profile=None,
                 except Exception as exc:
                     result.email_errors += 1
                     print(f"     ! email failed: {exc}")
+                    log.event(_LOG, "email_failed", level=logging.ERROR,
+                              title=row["title"], error=str(exc))
 
         _pause(i, keywords, keyword_pause)
 
+    # Heartbeat for the `health` command — never let it break a cycle.
+    try:
+        store.touch_heartbeat()
+    except Exception:
+        pass
+    log.event(_LOG, "cycle_complete", new=result.new_total, emailed=result.emailed,
+              email_errors=result.email_errors, baselined=result.baselined)
     return result
 
 
@@ -93,12 +105,15 @@ def _compose_for(row, engine, profile, verbose):
             attachments = [(pdf_name, pdf_bytes, "application/pdf")]
         except Exception as exc:
             print(f"     ! PDF render failed: {exc}")
+            log.event(_LOG, "pdf_render_failed", level=logging.WARNING,
+                      title=row["title"], error=str(exc))
         if verbose:
             print(f"   + {row['posted_at'] or '?'} UTC  {row['title']}")
             print(f"     {row['url']}")
             print(f"     AI: {res.provider} · {len(res.package.screening_questions)} answer(s)"
                   + (" · resume.pdf" if attachments else ""))
-        subject, text, html = build_tailored_email(row, res.package, res.ai_available, pdf_name)
+        subject, text, html = build_tailored_email(
+            row, res.package, res.ai_available, pdf_name, pdf_failed=attachments is None)
         return subject, text, html, attachments
 
     # No profile configured → pre-AI alert.

@@ -29,6 +29,7 @@ profile.yaml
 # Generated artifacts (tailored resumes, scraped HTML, etc.)
 /data/
 /output/
+/backups/
 
 # Logs
 *.log
