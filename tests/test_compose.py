@@ -52,6 +52,17 @@ def test_build_tailored_email_has_letter_answers_token_and_pdf():
     assert "They want a VA." in text and "They want a VA." in html  # digest in BOTH parts
 
 
+def test_build_tailored_email_includes_application_subject():
+    pkg = TailoredPackage(
+        application_subject="AI Automation Engineer | Multi-Agent Pipelines – Omhar Regidor",
+        cover_letter="Hi, I'm Omhar.",
+    )
+    _, text, html = build_tailored_email(_job(), pkg, ai_available=True, pdf_filename="x.pdf")
+    assert "SUBJECT TO PASTE" in text
+    assert "AI Automation Engineer" in text
+    assert "Subject to paste" in html and "AI Automation Engineer" in html
+
+
 def test_build_tailored_email_flags_unavailable_ai():
     pkg = TailoredPackage(cover_letter="", screening_questions=[ScreeningQA(question="q?")])
     _, text, _ = build_tailored_email(_job(), pkg, ai_available=False)

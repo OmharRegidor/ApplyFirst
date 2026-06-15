@@ -18,6 +18,34 @@ from applyfirst.tailor.prompt import build_system_prompt, build_user_prompt
 
 _NUMBERED = re.compile(r"^\d+[\.\)]")
 
+# Keyword → subject_library category, used by the no-AI fallback to pick a subject.
+_CATEGORY_HINTS = [
+    ("react_native_mobile", ("react native", "mobile", "android", "ios", "app store")),
+    ("ai_agentic_automation", ("ai ", "agent", "automation", "llm", "gpt", "claude", "chatbot")),
+    ("backend_api", ("backend", "back-end", "api", "node", "express", "postgres", "database")),
+    ("ecommerce_msme", ("ecommerce", "e-commerce", "shopify", "woocommerce", "pos", "inventory", "crm")),
+    ("frontend_react", ("frontend", "front-end", "react", "ui", "tailwind", "next.js", "nextjs")),
+    ("technical_va", ("virtual assistant", "va ", "admin", "operations")),
+]
+
+
+def _pick_subject_fallback(job_description: str, profile: Profile) -> str:
+    """No-AI subject pick: keyword-match the job to a subject_library category."""
+    library = getattr(profile, "subject_library", None) or {}
+    if not library:
+        return ""
+    desc = (job_description or "").lower()
+    for category, needles in _CATEGORY_HINTS:
+        if category in library and library[category] and any(n in desc for n in needles):
+            return library[category][0]
+    # default: first subject in the full-stack/software category, else the first of any.
+    if library.get("fullstack_software"):
+        return library["fullstack_software"][0]
+    for subjects in library.values():
+        if subjects:
+            return subjects[0]
+    return ""
+
 
 def parse_package(raw: str) -> TailoredPackage:
     """Parse an LLM response into a TailoredPackage, tolerating fences/prose."""
@@ -71,6 +99,7 @@ class TailoringEngine:
         digest = " ".join(job_description.split())[:240]
         return TailoredPackage(
             digest=digest,
+            application_subject=_pick_subject_fallback(job_description, profile),
             screening_questions=questions,
             compliance_token=None,
             cover_letter=profile.base_pitch.strip(),

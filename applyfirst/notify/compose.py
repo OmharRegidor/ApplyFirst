@@ -88,9 +88,11 @@ def build_tailored_email(job: Mapping, package, ai_available: bool,
     ]
     if not ai_available:
         lines += ["(AI unavailable — answers are blank; edit before sending.)", ""]
+    if package.application_subject:
+        lines += ["📌 SUBJECT TO PASTE", "─" * 30, package.application_subject, ""]
     if package.compliance_token:
         lines += [f"⚠ START YOUR REPLY WITH: {package.compliance_token}", ""]
-    lines += ["✍️ READY-TO-PASTE COVER LETTER", "─" * 30, package.cover_letter or "—", ""]
+    lines += ["✍️ MESSAGE — READY-TO-PASTE COVER LETTER", "─" * 30, package.cover_letter or "—", ""]
     if package.screening_questions:
         lines += ["📋 SCREENING QUESTIONS — DRAFTED ANSWERS", "─" * 30]
         for i, qa in enumerate(package.screening_questions, 1):
@@ -114,6 +116,12 @@ def build_tailored_email(job: Mapping, package, ai_available: bool,
         token = ('<p style="background:#fee2e2;border:1px solid #fecaca;border-radius:6px;'
                  f'padding:8px 12px"><strong>⚠ Start your reply with:</strong> '
                  f'{esc(package.compliance_token)}</p>')
+    subj_html = ""
+    if package.application_subject:
+        subj_html = ('<h3 style="margin:16px 0 6px">📌 Subject to paste</h3>'
+                     '<pre style="white-space:pre-wrap;font-family:inherit;background:#eef2ff;'
+                     'border:1px solid #c7d2fe;padding:12px;border-radius:8px;margin:0">'
+                     f'{esc(package.application_subject)}</pre>')
     qa_html = ""
     if package.screening_questions:
         items = "".join(
@@ -141,8 +149,8 @@ def build_tailored_email(job: Mapping, package, ai_available: bool,
         f'{esc(str(posted))} UTC · matched &ldquo;{esc(keyword)}&rdquo;</p>'
         f'<p><a href="{esc(url)}" style="background:#2563eb;color:#fff;padding:9px 16px;'
         'border-radius:6px;text-decoration:none;display:inline-block">Apply on onlinejobs.ph →</a></p>'
-        f'{warn}{token}'
-        '<h3 style="margin:16px 0 6px">Ready-to-paste cover letter</h3>'
+        f'{warn}{token}{subj_html}'
+        '<h3 style="margin:16px 0 6px">Message — ready-to-paste cover letter</h3>'
         '<pre style="white-space:pre-wrap;font-family:inherit;background:#f6f7f9;padding:12px;'
         f'border-radius:8px;margin:0">{esc(package.cover_letter or "—")}</pre>'
         f'{qa_html}{pdf_html}{digest_html}'

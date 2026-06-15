@@ -37,6 +37,8 @@ class Profile(BaseModel):
     professional_summary: str = ""
     voice_tone: str = "warm, concise, professional"
     base_pitch: str = ""
+    # Role-categorized email subject lines the AI chooses from per job.
+    subject_library: dict[str, list[str]] = Field(default_factory=dict)
     skills: list[str] = Field(default_factory=list)
     tools: list[str] = Field(default_factory=list)
     languages: list[str] = Field(default_factory=list)

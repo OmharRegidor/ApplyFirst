@@ -27,6 +27,7 @@ class ResumeOverrides(BaseModel):
 
 class TailoredPackage(BaseModel):
     digest: str = ""
+    application_subject: str = ""
     screening_questions: list[ScreeningQA] = Field(default_factory=list)
     compliance_token: str | None = None
     cover_letter: str = ""
