@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}{{ job['title'] }} · ApplyFirst{% endblock %}
+{% block content %}
+
+<a href="/" class="mb-4 inline-flex items-center gap-1 text-sm text-neutral-400 hover:text-neutral-200">‹ All jobs</a>
+
+<!-- Header -->
+<div class="mb-5">
+  <h1 class="text-xl font-semibold leading-snug text-neutral-100">{{ job['title'] }}</h1>
+  <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-500">
+    {% if job['employer'] %}<span class="text-neutral-300">{{ job['employer'] }}</span><span class="text-neutral-700">·</span>{% endif %}
+    <span>{{ job['employment_type'] or '—' }}</span><span class="text-neutral-700">·</span>
+    <span>{{ job['salary_text'] or '—' }}</span><span class="text-neutral-700">·</span>
+    <span>posted {{ (job['posted_at'] or '?')[:16] }}</span>
+    {% if job['matched_keyword'] %}<span class="text-neutral-700">·</span>
+      <span class="rounded bg-neutral-800 px-1.5 py-0.5 text-neutral-400">{{ job['matched_keyword'] }}</span>{% endif %}
+    <span class="rounded bg-neutral-800 px-1.5 py-0.5 text-neutral-400">{{ job['status'] }}</span>
+  </div>
+  {% if job['url'] %}
+    <a href="{{ job['url'] }}" target="_blank" rel="noopener noreferrer"
+       class="mt-3 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500">
+      Apply on onlinejobs.ph →
+    </a>
+  {% endif %}
+</div>
+
+{% if package %}
+  <!-- Grab & Go: copy in apply order -->
+  <section class="mb-6 space-y-3">
+    <h2 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Ready to paste</h2>
+
+    {% if package.application_subject %}
+      <div class="rounded-lg border border-neutral-800 bg-neutral-900/60">
+        <div class="flex items-center justify-between gap-2 border-b border-neutral-800 px-3 py-2">
+          <span class="text-xs font-medium text-neutral-400">📌 Subject</span>
+          <button type="button" onclick="afCopy(this,'subj')"
+                  class="rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-100 hover:bg-neutral-700">Copy</button>
+        </div>
+        <pre id="subj" class="af-pre px-3 py-2.5 text-sm text-neutral-100">{{ package.application_subject }}</pre>
+      </div>
+    {% endif %}
+
+    <div class="rounded-lg border border-neutral-800 bg-neutral-900/60">
+      <div class="flex items-center justify-between gap-2 border-b border-neutral-800 px-3 py-2">
+        <span class="text-xs font-medium text-neutral-400">✍️ Message (cover letter)</span>
+        <button type="button" onclick="afCopy(this,'cover')"
+                class="rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-100 hover:bg-neutral-700">Copy</button>
+      </div>
+      <pre id="cover" class="af-pre px-3 py-2.5 text-sm leading-relaxed text-neutral-200">{{ package.cover_letter or '—' }}</pre>
+    </div>
+
+    {% if package.compliance_token %}
+      <p class="rounded-md border border-amber-900/60 bg-amber-950/40 px-3 py-2 text-sm text-amber-300">
+        ⚠ Start your reply with: <strong>{{ package.compliance_token }}</strong>
+      </p>
+    {% endif %}
+  </section>
+
+  {% if package.screening_questions and package.screening_questions|length > 0 %}
+    <section class="mb-6">
+      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Screening answers</h2>
+      <div class="space-y-3">
+        {% for qa in package.screening_questions %}
+          <div class="rounded-lg border border-neutral-800 bg-neutral-900/60">
+            <div class="flex items-start justify-between gap-2 border-b border-neutral-800 px-3 py-2">
+              <span class="text-sm text-neutral-300">{{ qa.question }}</span>
+              <button type="button" onclick="afCopy(this,'ans-{{ loop.index }}')"
+                      class="shrink-0 rounded border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs font-medium text-neutral-100 hover:bg-neutral-700">Copy</button>
+            </div>
+            <pre id="ans-{{ loop.index }}" class="af-pre px-3 py-2.5 text-sm text-neutral-200">{{ qa.drafted_answer or '(answer manually)' }}</pre>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if package.digest %}
+    <section class="mb-6">
+      <h2 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">What they want</h2>
+      <p class="af-pre rounded-lg border border-neutral-800 bg-neutral-900/40 px-3 py-2.5 text-sm text-neutral-300">{{ package.digest }}</p>
+    </section>
+  {% endif %}
+
+  {% set ro = package.resume_overrides %}
+  {% if ro and (ro.summary or (ro.emphasize_skills and ro.emphasize_skills|length > 0)) %}
+    <section class="mb-6">
+      <h2 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">Résumé emphasis</h2>
+      {% if ro.summary %}<p class="mb-2 text-sm text-neutral-300">{{ ro.summary }}</p>{% endif %}
+      {% if ro.emphasize_skills %}
+        <div class="flex flex-wrap gap-1.5">
+          {% for sk in ro.emphasize_skills %}
+            <span class="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300">{{ sk }}</span>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <p class="mb-6 text-xs text-neutral-600">
+    Tailored by {{ tailored['provider'] or 'rules' }}{% if tailored['created_at'] %} · {{ tailored['created_at'][:16] }} UTC{% endif %}
+  </p>
+
+{% else %}
+  <div class="mb-6 rounded-lg border border-neutral-800 bg-neutral-900/40 px-4 py-4 text-sm text-neutral-400">
+    🗒 The tailored package for this job was emailed, not stored — check your inbox.
+    <span class="block text-xs text-neutral-600">(Packages are saved for jobs caught after the dashboard was added.)</span>
+  </div>
+{% endif %}
+
+<!-- Full job post -->
+<section>
+  <h2 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">Job description</h2>
+  <pre class="af-pre rounded-lg border border-neutral-800 bg-neutral-900/40 px-3 py-3 text-sm leading-relaxed text-neutral-300">{{ job['raw_description'] or '(no description captured)' }}</pre>
+</section>
+
+{% endblock %}

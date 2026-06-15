@@ -105,3 +105,49 @@ when `health` passes — ping me and I'll add that.
   the app degrades to rules-based answers. Check quota at https://ai.dev/rate-limit.
 - **Service keeps restarting:** `journalctl -u applyfirst -n 50` — usually a bad `.env`
   (missing SMTP creds with `EMAIL_ENABLED=true`) or no network egress.
+
+---
+
+## Optional — the read-only web dashboard (private, via Tailscale)
+
+`applyfirst.web` is a tiny FastAPI dashboard to browse caught jobs and their AI-tailored
+packages from your phone/laptop. It is **read-only** (opens the DB with `query_only=ON`) and is
+reached **privately over Tailscale**. It binds to all interfaces, but the OCI security list opens
+**only port 22**, so `:8000` is **never** exposed to the public internet — it is reachable only via
+the private tailnet (and localhost). No new inbound ports are opened.
+
+### 1. Install dependencies + the unit (on the VM)
+```bash
+# pulls fastapi/uvicorn/jinja2 from requirements.txt and installs the new unit
+sudo bash /opt/applyfirst/deploy/oracle/setup.sh
+sudo install -m 644 /opt/applyfirst/deploy/oracle/applyfirst-dash.service /etc/systemd/system/applyfirst-dash.service
+sudo systemctl daemon-reload
+```
+
+### 2. Install Tailscale (one-time, interactive)
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up        # prints a URL — open it in your browser and approve the device
+tailscale ip -4          # note the 100.x.y.z address (or use the MagicDNS name: 'applyfirst')
+```
+Install the **Tailscale app** on your phone/laptop and sign in with the **same account**.
+
+### 3. Start the dashboard
+```bash
+sudo systemctl enable --now applyfirst-dash.service
+systemctl status applyfirst-dash.service     # active (running)
+curl -s localhost:8000/healthz               # -> ok
+```
+
+### 4. Open it
+From any device on your tailnet: **`http://applyfirst:8000`** (MagicDNS) or `http://100.x.y.z:8000`.
+
+> The dashboard shows the package only for jobs caught **after** it was deployed (the poller
+> persists each package at send time). Older jobs show "emailed only — check your inbox."
+
+| Task | Command |
+|---|---|
+| Dashboard logs | `journalctl -u applyfirst-dash -f` |
+| Restart dashboard | `sudo systemctl restart applyfirst-dash.service` |
+| Stop dashboard | `sudo systemctl disable --now applyfirst-dash.service` |
+| Confirm caps | `systemctl show applyfirst-dash -p MemoryMax -p CPUQuota` |

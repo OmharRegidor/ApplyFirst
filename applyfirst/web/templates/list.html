@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Caught jobs · ApplyFirst{% endblock %}
+{% block content %}
+
+{% if db_error %}
+  <div class="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+    Can't read the catcher database. Is <code class="text-red-200">applyfirst.service</code> running?
+  </div>
+{% else %}
+
+  {% if health and health.stale and health.total_jobs > 0 %}
+    <div class="mb-4 rounded-lg border border-amber-900/60 bg-amber-950/40 px-4 py-2.5 text-sm text-amber-300">
+      ⚠ Last poll {{ health.age_human }} — the catcher may be stalled.
+    </div>
+  {% endif %}
+
+  <!-- Filters -->
+  <form method="get" action="/" class="mb-5 flex flex-wrap items-center gap-2">
+    <input type="search" name="q" value="{{ q or '' }}" placeholder="Search title…"
+           class="min-w-0 flex-1 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 placeholder-neutral-500 focus:border-neutral-600 focus:outline-none">
+    <select name="status"
+            class="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-300 focus:border-neutral-600 focus:outline-none">
+      <option value="">All statuses</option>
+      {% for s in ['DISCOVERED','NOTIFIED','VIEWED','APPLIED','SKIPPED','FAILED'] %}
+        <option value="{{ s }}" {{ 'selected' if status == s else '' }}>{{ s|capitalize }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit"
+            class="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm font-medium text-neutral-100 hover:bg-neutral-700">
+      Filter
+    </button>
+    {% if q or status %}
+      <a href="/" class="px-2 py-1.5 text-sm text-neutral-500 hover:text-neutral-300">Clear</a>
+    {% endif %}
+  </form>
+
+  {% if jobs and jobs|length > 0 %}
+    <ul class="divide-y divide-neutral-800 overflow-hidden rounded-lg border border-neutral-800">
+      {% for j in jobs %}
+        {% set st = j['status'] %}
+        {% set dot = {'APPLIED':'#16a34a','SKIPPED':'#737373','FAILED':'#dc2626','NOTIFIED':'#2563eb','VIEWED':'#7c3aed'}.get(st, '#a3a3a3') %}
+        <li>
+          <a href="/job/{{ j['id'] }}" class="block px-4 py-3 transition hover:bg-neutral-900">
+            <div class="flex items-start gap-3">
+              <span class="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full" style="background:{{ dot }}" title="{{ st }}"></span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="truncate font-medium text-neutral-100">{{ j['title'] }}</span>
+                  {% if j['has_tailored'] %}
+                    <span class="shrink-0 rounded bg-blue-950 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-300">AI</span>
+                  {% endif %}
+                </div>
+                <div class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-neutral-500">
+                  {% if j['employer'] %}<span class="text-neutral-400">{{ j['employer'] }}</span><span class="text-neutral-700">·</span>{% endif %}
+                  <span>{{ j['employment_type'] or '—' }}</span>
+                  <span class="text-neutral-700">·</span>
+                  <span>{{ j['salary_text'] or '—' }}</span>
+                  <span class="text-neutral-700">·</span>
+                  <span>{{ (j['posted_at'] or j['scraped_at'] or '')[:16] }}</span>
+                  {% if j['matched_keyword'] %}
+                    <span class="text-neutral-700">·</span>
+                    <span class="rounded bg-neutral-800 px-1.5 py-0.5 text-[11px] text-neutral-400">{{ j['matched_keyword'] }}</span>
+                  {% endif %}
+                </div>
+              </div>
+              <span class="mt-1 shrink-0 text-neutral-600">›</span>
+            </div>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="rounded-lg border border-dashed border-neutral-800 px-6 py-16 text-center">
+      {% if q or status %}
+        <p class="text-sm text-neutral-400">No jobs match this filter.</p>
+        <a href="/" class="mt-2 inline-block text-sm text-blue-400 hover:underline">Clear filter</a>
+      {% else %}
+        <p class="text-sm text-neutral-300">No jobs caught yet.</p>
+        <p class="mt-1 text-xs text-neutral-500">
+          Watching {{ keywords|length }} keyword{{ '' if keywords|length == 1 else 's' }}
+          {% if keywords %}— {{ keywords|join(', ') }}{% endif %}. Caught jobs will appear here.
+        </p>
+      {% endif %}
+    </div>
+  {% endif %}
+
+{% endif %}
+{% endblock %}

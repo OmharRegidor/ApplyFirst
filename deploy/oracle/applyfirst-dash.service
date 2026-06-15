@@ -1,0 +1,30 @@
+[Unit]
+Description=ApplyFirst dashboard - read-only web UI for caught jobs (private, Tailscale-only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=applyfirst
+Group=applyfirst
+WorkingDirectory=/opt/applyfirst
+# Bind to all interfaces so the app is reachable over the Tailscale interface.
+# The OCI security list opens ONLY port 22, so :8000 is never exposed to the public
+# internet — it is reachable only via the private tailnet (and localhost).
+ExecStart=/opt/applyfirst/.venv/bin/uvicorn applyfirst.web.app:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+
+# Resource caps so the dashboard can NEVER starve the poller on a 1 GB box.
+MemoryMax=160M
+CPUQuota=50%
+
+# --- hardening (read-only web app; only needs to read its own dir) ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/applyfirst
+
+[Install]
+WantedBy=multi-user.target

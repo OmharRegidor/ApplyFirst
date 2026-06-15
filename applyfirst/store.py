@@ -8,6 +8,7 @@ background tailoring worker (added in a later milestone) can share it under WAL.
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,6 +48,19 @@ CREATE TABLE IF NOT EXISTS meta (
     key     TEXT PRIMARY KEY,
     value   TEXT
 );
+
+-- The AI-tailored application package, persisted at email-send time so the
+-- read-only dashboard can show what was sent. One current package per job.
+CREATE TABLE IF NOT EXISTS tailored (
+    job_id              INTEGER PRIMARY KEY REFERENCES job(id) ON DELETE CASCADE,
+    application_subject TEXT,
+    cover_letter        TEXT,
+    screening_json      TEXT,
+    package_json        TEXT,
+    provider            TEXT,
+    ai_available        INTEGER,
+    created_at          TEXT NOT NULL
+);
 """
 
 
@@ -68,6 +82,9 @@ class Store:
         self.conn = sqlite3.connect(self.path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL;")
+        # Wait up to 5s for a lock instead of erroring instantly — lets the
+        # poller and a second reader/writer (e.g. the dashboard) coexist safely.
+        self.conn.execute("PRAGMA busy_timeout=5000;")
         self.conn.executescript(SCHEMA)
         self._migrate()
         self.conn.commit()
@@ -175,3 +192,34 @@ class Store:
 
     def count_jobs(self) -> int:
         return int(self.conn.execute("SELECT COUNT(*) FROM job").fetchone()[0])
+
+    # --- tailored packages (persisted at send time; read by the dashboard) ---
+    def save_tailored(self, job_id: int, result) -> None:
+        """Persist the AI package for a job (upsert). `result` is a TailorResult."""
+        pkg = result.package
+        screening = [qa.model_dump() for qa in pkg.screening_questions]
+        self.conn.execute(
+            """
+            INSERT INTO tailored (job_id, application_subject, cover_letter, screening_json,
+                                  package_json, provider, ai_available, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(job_id) DO UPDATE SET
+                application_subject = excluded.application_subject,
+                cover_letter        = excluded.cover_letter,
+                screening_json      = excluded.screening_json,
+                package_json        = excluded.package_json,
+                provider            = excluded.provider,
+                ai_available        = excluded.ai_available,
+                created_at          = excluded.created_at
+            """,
+            (
+                job_id, pkg.application_subject, pkg.cover_letter,
+                json.dumps(screening, ensure_ascii=False), pkg.model_dump_json(),
+                result.provider, int(bool(result.ai_available)), utcnow_iso(),
+            ),
+        )
+        self.conn.commit()
+
+    def get_tailored(self, job_id: int) -> sqlite3.Row | None:
+        cur = self.conn.execute("SELECT * FROM tailored WHERE job_id=?", (job_id,))
+        return cur.fetchone()

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}ApplyFirst{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <style>
+    :root { color-scheme: dark; }
+    .af-copied { background:#16a34a !important; color:#fff !important; border-color:#16a34a !important; }
+    pre.af-pre { white-space: pre-wrap; word-break: break-word; }
+  </style>
+</head>
+<body hx-boost="true"
+      class="h-full min-h-full bg-neutral-950 text-neutral-200 antialiased"
+      style="font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;">
+
+  <!-- Sticky status bar -->
+  <header class="sticky top-0 z-20 border-b border-neutral-800 bg-neutral-900/85 backdrop-blur">
+    <div class="mx-auto flex max-w-4xl items-center gap-3 px-4 py-2.5">
+      <a href="/" class="flex items-center gap-2 font-semibold tracking-tight text-neutral-100">
+        <span class="text-base">ApplyFirst</span>
+      </a>
+      <div class="ml-auto flex items-center gap-3 text-xs text-neutral-400">
+        {% if health %}
+          {% set dot = '#16a34a' if not health.stale else '#d97706' %}
+          <span class="inline-flex items-center gap-1.5">
+            <span class="inline-block h-2 w-2 rounded-full" style="background:{{ dot }}"></span>
+            <span class="hidden sm:inline">poll</span> {{ health.age_human }}
+          </span>
+          <span class="text-neutral-600">·</span>
+          <span>{{ health.total_jobs }} job{{ '' if health.total_jobs == 1 else 's' }}</span>
+        {% else %}
+          <span class="inline-flex items-center gap-1.5">
+            <span class="inline-block h-2 w-2 rounded-full" style="background:#dc2626"></span>
+            offline
+          </span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="htmx-indicator h-0.5 w-full animate-pulse bg-blue-500"></div>
+  </header>
+
+  <main class="mx-auto max-w-4xl px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="mx-auto max-w-4xl px-4 pb-10 pt-4 text-center text-xs text-neutral-600">
+    Caught &amp; tailored by ApplyFirst · read-only dashboard
+  </footer>
+
+  <script>
+    function afCopy(btn, targetId) {
+      var el = document.getElementById(targetId);
+      var text = el ? el.textContent : (btn.getAttribute('data-copy') || '');
+      var done = function () {
+        var old = btn.getAttribute('data-label') || btn.textContent;
+        btn.setAttribute('data-label', old);
+        btn.textContent = '✓ Copied';
+        btn.classList.add('af-copied');
+        setTimeout(function () { btn.textContent = old; btn.classList.remove('af-copied'); }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () {});
+      }
+    }
+  </script>
+</body>
+</html>

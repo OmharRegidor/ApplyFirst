@@ -69,7 +69,7 @@ def run_cycle(store, source, notifier=None, engine=None, profile=None,
             row = store.get_job(raw_job.source, raw_job.external_id)
             if row is None:
                 continue
-            subject, text, html, attachments = _compose_for(row, engine, profile, verbose)
+            subject, text, html, attachments = _compose_for(store, row, engine, profile, verbose)
             if notifier is not None:
                 try:
                     notifier.send(subject, text, html, attachments)
@@ -92,11 +92,18 @@ def run_cycle(store, source, notifier=None, engine=None, profile=None,
     return result
 
 
-def _compose_for(row, engine, profile, verbose):
+def _compose_for(store, row, engine, profile, verbose):
     description = row["raw_description"] or ""
 
     if engine is not None and profile is not None:
         res = engine.build(description, profile)
+        # Persist the package so the read-only dashboard can show what was sent.
+        # Persistence must never break the email path.
+        try:
+            store.save_tailored(row["id"], res)
+        except Exception as exc:
+            log.event(_LOG, "tailored_persist_failed", level=logging.WARNING,
+                      title=row["title"], error=str(exc))
         attachments = None
         pdf_name = None
         try:
