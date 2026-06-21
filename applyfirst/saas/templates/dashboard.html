@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · ApplyFirst{% endblock %}
+{% block content %}
+<div class="card">
+  <h1 style="margin:0 0 8px">Welcome, {{ user.display_name or user.email }}</h1>
+  <p class="muted" style="margin:0 0 20px">
+    You're signed in. Next we'll set up your profile, connect Gmail, and choose the
+    keywords we watch for you. <span class="muted">(Onboarding ships in M2.)</span>
+  </p>
+  <p class="muted" style="font-size:13px; margin:0">
+    Reminder: ApplyFirst writes your applications and sends them to <strong>your</strong>
+    inbox — you copy, paste, and send. You stay in control.
+  </p>
+</div>
+{% endblock %}
