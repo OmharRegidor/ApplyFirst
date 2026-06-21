@@ -1,0 +1,36 @@
+[Unit]
+Description=ApplyFirst SaaS - multi-tenant polling worker (continuous loop)
+After=network-online.target
+Wants=network-online.target
+# Crash-loop guard: if it restarts >10 times in 5 min, stop trying.
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=applyfirst
+Group=applyfirst
+WorkingDirectory=/opt/applyfirst
+# Secrets via python-dotenv (/opt/applyfirst/.env, mode 600), incl. the master encryption key
+# path and the owner-alert channel for the dead-man's switch.
+Environment=APPLYFIRST_LOG_JSON=1
+# Poll cadence 4-7 min (interval ± jitter fraction): 330 ± 0.27*330 ≈ 241-419 s.
+Environment=APPLYFIRST_WORKER_INTERVAL=330
+Environment=APPLYFIRST_WORKER_JITTER=0.27
+ExecStart=/opt/applyfirst/.venv/bin/python -m applyfirst.saas.worker
+Restart=always
+RestartSec=10
+
+# Modest cap — one Python process; tailoring/sends are I/O-bound.
+MemoryMax=300M
+CPUQuota=60%
+
+# --- hardening ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/applyfirst
+
+[Install]
+WantedBy=multi-user.target

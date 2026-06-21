@@ -18,17 +18,39 @@ Routes:
 
 from __future__ import annotations
 
+import logging
+import sqlite3
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from applyfirst import log
 from applyfirst.saas import crypto, db, google_oauth, onboarding, preview, session
 from applyfirst.saas.config import SaaSConfig, load_saas_config
 from applyfirst.saas.tenant import tenant_scope
 
+_LOG = log.get_logger("saas.app")
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+# /health reports the worker stale (503) once last_cycle_at is older than this × the poll
+# interval — generous enough that ordinary jitter never trips it.
+_HEALTH_STALE_FACTOR = 2.5
+
+
+def _client_ip(request: Request, trust_proxy: bool) -> str:
+    """Caller IP for rate limiting — the LAST X-Forwarded-For hop (the one Caddy appended).
+
+    Caddy *appends* the real peer to any client-supplied XFF, so the trustworthy value is the
+    last entry; taking the first would let a client forge a fresh bucket per request and dodge
+    the limiter. The Caddyfile also pins XFF to the real peer (header_up) as defense-in-depth.
+    """
+    if trust_proxy:
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            return xff.split(",")[-1].strip()
+    return request.client.host if request.client else "unknown"
 
 
 def create_app(config: SaaSConfig | None = None) -> FastAPI:
@@ -51,6 +73,27 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         )
         return resp
 
+    @app.middleware("http")
+    async def _rate_limit(request: Request, call_next):
+        # Bound brute-force / abuse on the auth surface. One shared DB-backed counter so the
+        # limit holds across all uvicorn workers (no Redis). Other paths are untouched.
+        if request.url.path.startswith("/auth/") and cfg.auth_rate_limit > 0:
+            ip = _client_ip(request, cfg.trust_proxy)
+            conn = db.connect(cfg.db_path)
+            try:
+                allowed = db.record_auth_hit(conn, ip, cfg.auth_rate_limit, cfg.auth_rate_window)
+            except sqlite3.Error as exc:
+                # The limiter is a security control — fail CLOSED if its store is unavailable.
+                log.event(_LOG, "rate_limit_store_unavailable", level=logging.ERROR,
+                          error=str(exc)[:200])
+                return PlainTextResponse("service temporarily unavailable", status_code=503)
+            finally:
+                conn.close()
+            if not allowed:
+                return PlainTextResponse("rate limit exceeded; please slow down",
+                                         status_code=429)
+        return await call_next(request)
+
     # --- dependencies --------------------------------------------------------
 
     def get_cfg(request: Request) -> SaaSConfig:
@@ -72,6 +115,24 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         if user is None:
             raise HTTPException(status_code=401, detail="authentication required")
         return user
+
+    async def require_csrf(request: Request, user: db.User = Depends(require_user)) -> None:
+        """Reject state-changing POSTs lacking a valid session-bound CSRF token.
+
+        Accepts the token from a hidden ``csrf`` form field (browser forms) or an
+        ``X-CSRF-Token`` header. ``request.form()`` is cached by Starlette, so a route's own
+        ``Form(...)`` params still parse normally.
+        """
+        cfg_ = request.app.state.cfg
+        token = request.headers.get("x-csrf-token")
+        if not token:
+            form = await request.form()
+            token = form.get("csrf", "")
+        if not session.verify_csrf(cfg_.session_secret, token, user.id):
+            raise HTTPException(status_code=403, detail="invalid or missing CSRF token")
+
+    def csrf_for(user: db.User) -> str:
+        return session.issue_csrf(cfg.session_secret, user.id)
 
     # --- pages ---------------------------------------------------------------
 
@@ -110,6 +171,9 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             "profile": profile,
             "gmail_connected": db.gmail_connected(conn, user.id),
             "keywords": db.list_keywords(conn, user.id),
+            "usage_today": db.get_ai_usage_today(conn, user.id),
+            "daily_cap": cfg.daily_tailor_cap,
+            "csrf_token": csrf_for(user),
         })
 
     # --- auth ----------------------------------------------------------------
@@ -157,7 +221,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         session.clear_oauth_txn(resp, cfg_.secure_cookies)
         return resp
 
-    @app.post("/auth/logout")
+    @app.post("/auth/logout", dependencies=[Depends(require_csrf)])
     def auth_logout(cfg_: SaaSConfig = Depends(get_cfg)):
         resp = RedirectResponse("/login", status_code=302)
         session.clear_session(resp, cfg_.secure_cookies)
@@ -186,6 +250,41 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
     def healthz():
         return "ok"
 
+    @app.get("/health")
+    def health(request: Request):
+        """Readiness probe: DB reachable + worker not stale. 503 → UptimeRobot pages.
+
+        A worker that has never recorded a cycle is reported as 'starting' (200), so a
+        fresh deploy doesn't page before the first poll completes.
+        """
+        from datetime import datetime, timezone
+        cfg_ = request.app.state.cfg
+        conn = db.connect(cfg_.db_path)
+        try:
+            conn.execute("SELECT 1").fetchone()
+            last = db.get_worker_meta(conn, "last_cycle_at")
+            blind = db.get_worker_meta(conn, "blind_cycles")
+        finally:
+            conn.close()
+
+        worker_state, stale = "starting", False
+        if last:
+            try:
+                age = (datetime.now(timezone.utc)
+                       - datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                       ).total_seconds()
+                stale = age > cfg_.worker_interval * _HEALTH_STALE_FACTOR
+                worker_state = "stale" if stale else "ok"
+            except ValueError:
+                # Unparseable timestamp = something corrupted it → degraded, not "ok".
+                worker_state, stale = "unknown", True
+
+        return JSONResponse(
+            {"status": "degraded" if stale else "ok", "db": "ok", "worker": worker_state,
+             "last_cycle_at": last, "blind_cycles": int(blind or 0)},
+            status_code=503 if stale else 200,
+        )
+
     # --- onboarding wizard ---------------------------------------------------
 
     @app.get("/onboarding")
@@ -200,6 +299,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
                                  conn=Depends(get_conn)):
         return _TEMPLATES.TemplateResponse(request, "onboarding_connect_gmail.html", {
             "user": user, "gmail_connected": db.gmail_connected(conn, user.id),
+            "csrf_token": csrf_for(user),
         })
 
     @app.get("/onboarding/profile", response_class=HTMLResponse)
@@ -209,9 +309,10 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         return _TEMPLATES.TemplateResponse(request, "onboarding_profile.html", {
             "user": user, "profile": profile,
             "default_name": (profile.full_name if profile else "") or user.display_name or "",
+            "csrf_token": csrf_for(user),
         })
 
-    @app.post("/onboarding/profile")
+    @app.post("/onboarding/profile", dependencies=[Depends(require_csrf)])
     def onboarding_profile_save(
         user: db.User = Depends(require_user), conn=Depends(get_conn),
         full_name: str = Form(""), job_type: str = Form(""),
@@ -232,15 +333,16 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             return RedirectResponse("/onboarding/profile", status_code=302)
         return _TEMPLATES.TemplateResponse(request, "onboarding_keywords.html", {
             "user": user, "keywords": db.list_keywords(conn, user.id),
+            "csrf_token": csrf_for(user),
         })
 
-    @app.post("/onboarding/keywords")
+    @app.post("/onboarding/keywords", dependencies=[Depends(require_csrf)])
     def onboarding_keywords_add(user: db.User = Depends(require_user), conn=Depends(get_conn),
                                 keyword: str = Form("")):
         db.add_keyword(conn, user.id, keyword)
         return RedirectResponse("/onboarding/keywords", status_code=302)
 
-    @app.post("/onboarding/keywords/{keyword_id}/delete")
+    @app.post("/onboarding/keywords/{keyword_id}/delete", dependencies=[Depends(require_csrf)])
     def onboarding_keywords_delete(keyword_id: str, user: db.User = Depends(require_user),
                                    conn=Depends(get_conn)):
         db.delete_keyword(conn, user.id, keyword_id)
@@ -261,9 +363,10 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         return _TEMPLATES.TemplateResponse(request, "onboarding_preview.html", {
             "user": user, "preview": pv,
             "gmail_connected": db.gmail_connected(conn, user.id),
+            "csrf_token": csrf_for(user),
         })
 
-    @app.post("/onboarding/activate")
+    @app.post("/onboarding/activate", dependencies=[Depends(require_csrf)])
     def onboarding_activate(user: db.User = Depends(require_user), conn=Depends(get_conn)):
         profile = db.get_profile(conn, user.id)
         if profile is None or not profile.is_complete or not db.list_keywords(conn, user.id):
@@ -309,7 +412,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         session.clear_oauth_txn(resp, cfg_.secure_cookies)
         return resp
 
-    @app.post("/auth/disconnect-gmail")
+    @app.post("/auth/disconnect-gmail", dependencies=[Depends(require_csrf)])
     def disconnect_gmail(user: db.User = Depends(require_user), conn=Depends(get_conn)):
         try:
             token = db.get_gmail_refresh_token(conn, user.id, crypto.load_master_key())

@@ -1,0 +1,27 @@
+# /etc/caddy/Caddyfile — ApplyFirst SaaS reverse proxy.
+#
+# Caddy auto-provisions + renews a Let's Encrypt certificate for the domain and terminates
+# TLS, forwarding to the loopback-bound uvicorn (applyfirst-saas-web.service). Set the domain
+# via Caddy's environment, e.g. in /etc/default/caddy:
+#     APPLYFIRST_DOMAIN=apply.example.com
+# then: sudo systemctl reload caddy
+
+# Defaults to localhost if APPLYFIRST_DOMAIN is unset, so Caddy still parses + starts (no public
+# TLS) rather than failing the whole ingress on a missed setup step.
+{$APPLYFIRST_DOMAIN:localhost} {
+	encode zstd gzip
+
+	# HSTS is best set at the TLS edge; the app sets its own CSP / X-Frame-Options / nosniff.
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+	reverse_proxy 127.0.0.1:8000 {
+		# Pin X-Forwarded-For to the REAL TCP peer so a client can't forge it to dodge the
+		# app's /auth/* rate limiter (the app reads the last XFF hop as defense-in-depth).
+		header_up X-Forwarded-For {http.request.remote.host}
+	}
+
+	log {
+		output file /var/log/caddy/applyfirst.log
+		format json
+	}
+}

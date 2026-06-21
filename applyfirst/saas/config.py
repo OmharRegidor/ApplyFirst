@@ -35,7 +35,23 @@ class SaaSConfig:
     gemini_model: str = "gemini-2.5-flash"
     daily_tailor_cap: int = 10          # per-user tailoring calls/day
     worker_interval: int = 600          # seconds between poll cycles
-    worker_jitter: float = 0.25         # ± fraction of the interval
+    worker_jitter: float = 0.25         # ± fraction of the interval (two-sided)
+    # M5 owner alerting (dead-man's switch → the OWNER, never tenants). Prefer a webhook;
+    # else SMTP; else log-only. Supply ONE channel — all are optional/default-safe.
+    owner_alert_email: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int = 465
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    alert_webhook_url: str | None = None
+    # M5 /auth/* rate limiting (DB-backed fixed window, shared across uvicorn workers)
+    auth_rate_limit: int = 20           # max /auth/* requests per IP per window (0 disables)
+    auth_rate_window: int = 60          # window length, seconds
+    trust_proxy: bool = True            # read client IP from X-Forwarded-For (Caddy is the only ingress)
+    # M5 nightly backup
+    backup_dir: str = "backups"
+    backup_keep: int = 7
+    backup_remote_cmd: str | None = None  # off-box push template; "{path}" → the .db.gz (inert if unset)
 
     @property
     def redirect_uri(self) -> str:
@@ -82,7 +98,19 @@ def load_saas_config() -> SaaSConfig:
         secure_cookies=secure,
         gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
-        daily_tailor_cap=int(os.getenv("APPLYFIRST_DAILY_TAILOR_CAP", "10")),
-        worker_interval=int(os.getenv("APPLYFIRST_WORKER_INTERVAL", "600")),
-        worker_jitter=float(os.getenv("APPLYFIRST_WORKER_JITTER", "0.25")),
+        daily_tailor_cap=int(os.getenv("APPLYFIRST_DAILY_TAILOR_CAP") or "10"),
+        worker_interval=int(os.getenv("APPLYFIRST_WORKER_INTERVAL") or "600"),
+        worker_jitter=float(os.getenv("APPLYFIRST_WORKER_JITTER") or "0.25"),
+        owner_alert_email=os.getenv("APPLYFIRST_OWNER_EMAIL") or None,
+        smtp_host=os.getenv("APPLYFIRST_SMTP_HOST") or None,
+        smtp_port=int(os.getenv("APPLYFIRST_SMTP_PORT") or "465"),
+        smtp_user=os.getenv("APPLYFIRST_SMTP_USER") or None,
+        smtp_password=os.getenv("APPLYFIRST_SMTP_PASSWORD") or None,
+        alert_webhook_url=os.getenv("APPLYFIRST_ALERT_WEBHOOK") or None,
+        auth_rate_limit=int(os.getenv("APPLYFIRST_AUTH_RATE_LIMIT") or "20"),
+        auth_rate_window=int(os.getenv("APPLYFIRST_AUTH_RATE_WINDOW") or "60"),
+        trust_proxy=_as_bool(os.getenv("APPLYFIRST_TRUST_PROXY"), default=True),
+        backup_dir=os.getenv("APPLYFIRST_BACKUP_DIR") or "backups",
+        backup_keep=int(os.getenv("APPLYFIRST_BACKUP_KEEP") or "7"),
+        backup_remote_cmd=os.getenv("APPLYFIRST_BACKUP_REMOTE") or None,
     )

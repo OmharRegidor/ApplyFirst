@@ -1,0 +1,18 @@
+[Unit]
+Description=ApplyFirst SaaS - nightly SQLite backup (online .backup + gzip + prune)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=applyfirst
+Group=applyfirst
+WorkingDirectory=/opt/applyfirst
+Environment=APPLYFIRST_LOG_JSON=1
+ExecStart=/opt/applyfirst/deploy/oracle/saas-backup.sh
+
+# --- hardening (reads the DB, writes the local backups/ dir; optional remote push) ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/applyfirst

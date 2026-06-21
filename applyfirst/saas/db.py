@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -29,7 +30,7 @@ TENANT_TABLES = frozenset({
     "user_job_alerts", "ai_usage",
 })
 
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
 
 
 def _now_iso() -> str:
@@ -131,6 +132,9 @@ def migrate(conn: sqlite3.Connection) -> None:
     if version < 3:
         _migrate_v3(conn)
         conn.execute("PRAGMA user_version=3;")
+    if version < 4:
+        _migrate_v4(conn)
+        conn.execute("PRAGMA user_version=4;")
     conn.commit()
 
 
@@ -477,6 +481,19 @@ def _migrate_v3(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_v4(conn: sqlite3.Connection) -> None:
+    """M5: a shared fixed-window rate-limit counter for /auth/* (no user_id — keyed by IP)."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS auth_rate_hits (
+            bucket   TEXT PRIMARY KEY,   -- "<ip>|<window_index>"
+            hits     INTEGER NOT NULL,
+            expires  REAL NOT NULL       -- epoch seconds; rows pruned past this
+        );
+        """
+    )
+
+
 @dataclass(slots=True)
 class Job:
     id: str
@@ -630,6 +647,46 @@ def try_increment_ai_usage(conn: sqlite3.Connection, user_id: str, cap: int) -> 
     row = cur.fetchone()
     conn.commit()
     return row is not None
+
+
+def get_ai_usage_today(conn: sqlite3.Connection, user_id: str) -> int:
+    """Today's tailoring-call count for a user (read-only; 0 when no row).
+
+    Mirrors ``try_increment_ai_usage``'s day-keying exactly so the dashboard banner
+    matches what the worker enforces.
+    """
+    day = _now_iso()[:10]
+    row = conn.execute(
+        "SELECT tailoring_calls FROM ai_usage WHERE user_id=? AND day=?", (user_id, day)
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+
+# --- /auth rate limiting (M5) ------------------------------------------------
+
+def record_auth_hit(conn: sqlite3.Connection, ip: str, limit: int, window: int,
+                    *, now: float | None = None) -> bool:
+    """Count one /auth/* hit for ``ip`` in the current fixed window; return True if allowed.
+
+    A single shared counter (works across the 4 uvicorn workers) using the same atomic
+    INSERT…ON CONFLICT…RETURNING idiom as the daily cap. Expired buckets are pruned
+    opportunistically so the table stays tiny.
+    """
+    if limit <= 0:
+        return True
+    now = time.time() if now is None else now
+    win = int(now // window)
+    bucket = f"{ip}|{win}"
+    expires = (win + 2) * window      # keep one extra window before pruning
+    cur = conn.execute(
+        "INSERT INTO auth_rate_hits (bucket, hits, expires) VALUES (?, 1, ?) "
+        "ON CONFLICT(bucket) DO UPDATE SET hits = hits + 1 RETURNING hits",
+        (bucket, expires),
+    )
+    hits = cur.fetchone()[0]
+    conn.execute("DELETE FROM auth_rate_hits WHERE expires < ?", (now,))
+    conn.commit()
+    return hits <= limit
 
 
 # --- tailoring cache ---------------------------------------------------------

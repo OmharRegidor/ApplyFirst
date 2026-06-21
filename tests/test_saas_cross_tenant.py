@@ -150,6 +150,8 @@ def test_logout_clears_session(saas_cfg, monkeypatch):
     client.get("/auth/callback", params={"code": "c", "state": real_state})
     assert client.get("/me").status_code == 200
 
+    uid = client.get("/me").json()["user_id"]
+    client.headers["X-CSRF-Token"] = session.issue_csrf(saas_cfg.session_secret, uid)
     client.post("/auth/logout")
     # Cookie cleared -> /me is unauthenticated again.
     assert client.get("/me").status_code == 401

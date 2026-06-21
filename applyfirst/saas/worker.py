@@ -39,6 +39,7 @@ _LOG = log.get_logger("saas.worker")
 
 _MAX_ATTEMPTS = 3                 # bounded retry on transient gmail/send failures
 _DEADMAN_THRESHOLD = 3           # consecutive blind cycles before alerting the owner
+_OWNER_ALERT_COOLDOWN = 6 * 3600  # debounce owner alerts: at most one per 6 hours
 _KEYWORD_PAUSE = (1.0, 2.5)      # polite gap between keyword fetches
 _DETAIL_PAUSE = (0.3, 0.8)       # polite gap after a detail fetch
 _MAX_DESCRIPTION = 8000          # clamp scraped job text: the daily cap limits CALLS, not
@@ -206,8 +207,12 @@ def run_once(conn, source, cfg, master_key, *,
     return result
 
 
-def _record_heartbeat(conn, result: CycleResult) -> None:
-    """Heartbeat + dead-man's switch — alerts the OWNER (log), never tenants."""
+def _record_heartbeat(conn, result: CycleResult, cfg: SaaSConfig | None = None) -> None:
+    """Heartbeat + dead-man's switch — alerts the OWNER (never tenants).
+
+    ``cfg`` is optional so unit tests can exercise the detection/log path alone; when it is
+    provided and the switch trips, a debounced owner alert is dispatched via ``notify``.
+    """
     db.set_worker_meta(conn, "last_cycle_at", db._now_iso())
     blind = result.keywords > 0 and result.jobs_seen == 0
     count = int(db.get_worker_meta(conn, "blind_cycles") or "0")
@@ -216,6 +221,23 @@ def _record_heartbeat(conn, result: CycleResult) -> None:
     if count >= _DEADMAN_THRESHOLD:
         log.event(_LOG, "worker_blind", level=logging.CRITICAL, consecutive=count,
                   hint="onlinejobs.ph returned 0 jobs for several cycles — check for an IP block")
+        if cfg is not None:
+            _maybe_alert_owner(conn, cfg, count)
+
+
+def _maybe_alert_owner(conn, cfg: SaaSConfig, count: int) -> None:
+    """Send the owner a 'worker blind' alert, at most once per ``_OWNER_ALERT_COOLDOWN``."""
+    last = db.get_worker_meta(conn, "last_owner_alert_at")
+    now = time.time()
+    if last is not None and (now - float(last)) < _OWNER_ALERT_COOLDOWN:
+        return
+    from applyfirst.saas import notify
+    notify.send_owner_alert(
+        cfg, "ApplyFirst worker is blind",
+        f"onlinejobs.ph returned 0 jobs for {count} consecutive poll cycles. This is likely "
+        "an IP block or a layout change. Check the worker logs (journalctl -u applyfirst-saas-worker).",
+    )
+    db.set_worker_meta(conn, "last_owner_alert_at", str(now))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -242,18 +264,20 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.once:
         result = run_once(conn, source, cfg, master_key)
-        _record_heartbeat(conn, result)
+        _record_heartbeat(conn, result, cfg)
         db.purge_tailoring_cache(conn)
         return 0
 
     while True:
         try:
             result = run_once(conn, source, cfg, master_key)
-            _record_heartbeat(conn, result)
+            _record_heartbeat(conn, result, cfg)
             db.purge_tailoring_cache(conn)
         except Exception as exc:
             log.event(_LOG, "worker_cycle_crashed", level=logging.ERROR, error=str(exc)[:200])
-        time.sleep(interval + random.uniform(0, interval * cfg.worker_jitter))
+        # Two-sided jitter (±worker_jitter fraction) so the cadence centers on `interval`.
+        delay = interval + random.uniform(-1.0, 1.0) * interval * cfg.worker_jitter
+        time.sleep(max(1.0, delay))
 
 
 if __name__ == "__main__":

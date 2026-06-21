@@ -192,6 +192,37 @@ def test_deadman_switch_trips_after_consecutive_blind_cycles(saas_cfg, caplog):
     conn.close()
 
 
+def test_deadman_alerts_owner_once_and_debounces(saas_cfg, monkeypatch):
+    """When cfg is supplied, tripping the switch dispatches ONE debounced owner alert."""
+    from applyfirst.saas import notify, worker as w
+    conn = db.init_db(saas_cfg.db_path)
+    calls = []
+    monkeypatch.setattr(notify, "send_owner_alert",
+                        lambda cfg, subject, body: calls.append(subject) or True)
+
+    blind = w.CycleResult(keywords=1, jobs_seen=0)
+    for _ in range(3):
+        w._record_heartbeat(conn, blind, saas_cfg)   # 3rd consecutive trips the switch
+    assert len(calls) == 1                            # alerted exactly once
+    w._record_heartbeat(conn, blind, saas_cfg)        # still blind, but within cooldown
+    assert len(calls) == 1                            # debounced — no repeat
+    conn.close()
+
+
+def test_deadman_without_cfg_does_not_alert(saas_cfg, monkeypatch):
+    """The cfg=None path (used by older callers/tests) logs but never sends."""
+    from applyfirst.saas import notify, worker as w
+    conn = db.init_db(saas_cfg.db_path)
+    calls = []
+    monkeypatch.setattr(notify, "send_owner_alert",
+                        lambda *a, **k: calls.append(1) or True)
+    blind = w.CycleResult(keywords=1, jobs_seen=0)
+    for _ in range(4):
+        w._record_heartbeat(conn, blind)              # no cfg → detection/log only
+    assert calls == []
+    conn.close()
+
+
 def test_fetch_detail_error_continues_with_preview(saas_cfg, master_key):
     conn = db.init_db(saas_cfg.db_path)
     _seed(conn, master_key)

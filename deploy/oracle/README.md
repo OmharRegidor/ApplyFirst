@@ -151,3 +151,81 @@ From any device on your tailnet: **`http://applyfirst:8000`** (MagicDNS) or `htt
 | Restart dashboard | `sudo systemctl restart applyfirst-dash.service` |
 | Stop dashboard | `sudo systemctl disable --now applyfirst-dash.service` |
 | Confirm caps | `systemctl show applyfirst-dash -p MemoryMax -p CPUQuota` |
+
+---
+
+## Deploying the V2 SaaS (multi-tenant, public HTTPS) — M5
+
+The V2 SaaS (`applyfirst.saas`) is a **separate** FastAPI app + **separate** SQLite file
+(`applyfirst-saas.db`) from the V1 CLI — the CLI keeps running untouched. It is **public**
+(unlike the Tailscale-only dashboard), so it needs a domain, TLS (Caddy), and the M5 polish:
+`/auth/*` rate-limiting, CSRF tokens, a daily-cap banner, a `/health` readiness probe, nightly
+backups, and an owner alert when the worker goes blind.
+
+Topology: **Caddy** (`:80`/`:443`, auto-Let's Encrypt) → **uvicorn** on `127.0.0.1:8000`
+(`applyfirst-saas-web`) · a single **worker** loop (`applyfirst-saas-worker`) · a nightly
+**backup** timer (`applyfirst-saas-backup`). All run as the same `applyfirst` user.
+
+### 1. Provision (installs Caddy + the SaaS units)
+```bash
+sudo bash /opt/applyfirst/deploy/oracle/setup.sh
+```
+
+### 2. Add the SaaS keys to `/opt/applyfirst/.env` (mode 600, shared with the CLI)
+Distinct `APPLYFIRST_*` names mean no collision with the CLI's settings:
+```ini
+# --- V2 SaaS ---
+GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=...
+SESSION_SECRET=<openssl rand -base64 32>
+APPLYFIRST_BASE_URL=https://apply.example.com     # no trailing slash
+APPLYFIRST_SAAS_DB=applyfirst-saas.db             # must NOT be applyfirst.db
+APPLYFIRST_MASTER_KEY=...                          # base64 dev; prod uses /etc/applyfirst/master.key (0600)
+# GEMINI_API_KEY=...                               # optional; absent → rules-fallback tailoring
+# Owner alert for the dead-man's switch — pick ONE channel:
+APPLYFIRST_ALERT_WEBHOOK=https://hooks.slack.com/services/...    # Slack/Discord-compatible
+#   …or SMTP:
+# APPLYFIRST_SMTP_HOST=smtp.gmail.com
+# APPLYFIRST_SMTP_USER=you@gmail.com
+# APPLYFIRST_SMTP_PASSWORD=<app password>
+# APPLYFIRST_OWNER_EMAIL=you@gmail.com
+```
+Then `sudo chmod 600 /opt/applyfirst/.env`. (Worker cadence + secure cookies are set in the
+units; override with `APPLYFIRST_WORKER_INTERVAL` / `APPLYFIRST_AUTH_RATE_LIMIT` / etc. if needed.)
+
+### 3. Domain + TLS
+Point an A-record at the VM, open **80/443** in the OCI security list, then tell Caddy the domain:
+```bash
+echo 'APPLYFIRST_DOMAIN=apply.example.com' | sudo tee -a /etc/default/caddy
+sudo systemctl reload caddy
+```
+
+### 4. Start the SaaS
+```bash
+sudo systemctl enable --now applyfirst-saas-web applyfirst-saas-worker
+sudo systemctl enable --now applyfirst-saas-backup.timer
+```
+
+### 5. Verify
+```bash
+curl -s https://apply.example.com/healthz            # -> ok (liveness)
+curl -s https://apply.example.com/health             # JSON; 200 ready / 503 worker stale
+systemctl status applyfirst-saas-web applyfirst-saas-worker
+journalctl -u applyfirst-saas-worker -f              # watch poll cycles (cycle_complete events)
+```
+Point a free **UptimeRobot** monitor at `/health` (503 → it pages you). Then submit Google
+verification (runbook: `docs/legal/google-verification.md`).
+
+### Day-2 operations (SaaS)
+| Task | Command |
+|---|---|
+| Web / worker logs | `journalctl -u applyfirst-saas-web -f` · `journalctl -u applyfirst-saas-worker -f` |
+| One backup now | `sudo systemctl start applyfirst-saas-backup.service` |
+| Backups on disk | `ls -lh /opt/applyfirst/backups/applyfirst-saas-*.db.gz` |
+| Worker blind? | `journalctl -u applyfirst-saas-worker \| grep worker_blind` (also alerts the owner) |
+| Update code | `sudo bash /opt/applyfirst/deploy/oracle/setup.sh && sudo systemctl restart applyfirst-saas-web applyfirst-saas-worker` |
+| Off-box backups | set `APPLYFIRST_BACKUP_REMOTE="rclone copy {path} remote:bucket"` in `.env` (rclone configured separately) |
+
+> On the 1 GB `E2.1.Micro`, the SaaS web (`--workers 4`), the SaaS worker, and the V1 poller
+> share memory — if it's tight, drop the web unit to `--workers 2` (edit `ExecStart`, then
+> `daemon-reload` + restart). The `A1.Flex` (6 GB) has ample headroom.

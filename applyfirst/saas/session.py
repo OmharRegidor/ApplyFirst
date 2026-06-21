@@ -62,6 +62,17 @@ def unsign(secret: bytes, token: str | None, max_age: int) -> dict | None:
     return payload
 
 
+def issue_csrf(secret: bytes, user_id: str) -> str:
+    """Mint a synchronizer CSRF token bound to the session user (stateless, signed)."""
+    return sign(secret, {"csrf": user_id})
+
+
+def verify_csrf(secret: bytes, token: str | None, user_id: str) -> bool:
+    """True if ``token`` is a fresh signature minted for ``user_id``."""
+    payload = unsign(secret, token, _SESSION_MAX_AGE)
+    return bool(payload) and payload.get("csrf") == user_id
+
+
 def _name(base: str, secure: bool) -> str:
     return f"__Host-{base}" if secure else base
 

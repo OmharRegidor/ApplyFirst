@@ -8,6 +8,7 @@
     We check onlinejobs.ph for these words and alert you on new matches. Add at least one.
   </p>
   <form method="post" action="/onboarding/keywords" style="display:flex; gap:8px; align-items:flex-start">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
     <input name="keyword" required placeholder="e.g. virtual assistant">
     <button class="gbtn" type="submit">Add</button>
   </form>
@@ -18,6 +19,7 @@
                    padding:8px 0; border-bottom:1px solid var(--line)">
           <span>{{ k.keyword }}</span>
           <form method="post" action="/onboarding/keywords/{{ k.id }}/delete">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
             <button class="logout" type="submit">Remove</button>
           </form>
         </li>

@@ -1,0 +1,11 @@
+[Unit]
+Description=ApplyFirst SaaS - nightly backup schedule
+
+[Timer]
+# 03:00 daily; Persistent catches up a run missed while the box was off.
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=applyfirst-saas-backup.service
+
+[Install]
+WantedBy=timers.target

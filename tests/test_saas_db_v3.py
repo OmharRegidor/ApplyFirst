@@ -22,7 +22,7 @@ def _job(conn, ext="1"):
 def test_v3_migration_creates_tables(tmp_path):
     conn = db.init_db(str(tmp_path / "x.db"))
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == db._SCHEMA_VERSION
         tables = {r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'")}
         assert {"jobs", "user_job_alerts", "ai_usage", "tailoring_cache",
@@ -149,9 +149,9 @@ def test_v2_to_v3_preserves_existing_rows(tmp_path):
     conn.commit()
     conn.close()
 
-    conn2 = db.init_db(path)  # upgrade v2 → v3
+    conn2 = db.init_db(path)  # upgrade v2 → current
     try:
-        assert conn2.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert conn2.execute("PRAGMA user_version").fetchone()[0] == db._SCHEMA_VERSION
         assert conn2.execute("SELECT email FROM users WHERE id='u1'").fetchone()[0] == "a@x"
         assert conn2.execute(
             "SELECT keyword FROM user_keywords WHERE id='k1'").fetchone()[0] == "va"

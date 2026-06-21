@@ -1,0 +1,36 @@
+[Unit]
+Description=ApplyFirst SaaS - web (FastAPI/uvicorn, behind Caddy)
+After=network-online.target
+Wants=network-online.target
+# Crash-loop guard (systemd v230+: these live in [Unit]).
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=applyfirst
+Group=applyfirst
+WorkingDirectory=/opt/applyfirst
+# python-dotenv auto-loads /opt/applyfirst/.env (GOOGLE_*, SESSION_SECRET, APPLYFIRST_BASE_URL,
+# APPLYFIRST_SAAS_DB, master key, optional GEMINI_API_KEY + owner-alert channel — all mode 600).
+Environment=APPLYFIRST_LOG_JSON=1
+Environment=APPLYFIRST_SAAS_SECURE_COOKIES=1
+# Bind to LOOPBACK only — Caddy is the sole public listener and terminates TLS. On the 1 GB
+# Always-Free micro you may drop to --workers 2.
+ExecStart=/opt/applyfirst/.venv/bin/uvicorn applyfirst.saas.app:app --host 127.0.0.1 --port 8000 --workers 4
+Restart=on-failure
+RestartSec=5
+
+# Resource caps so the SaaS web can never starve the box (V1 poller + worker share it).
+MemoryMax=480M
+CPUQuota=75%
+
+# --- hardening (reads/writes only its own dir; makes outbound calls) ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/applyfirst
+
+[Install]
+WantedBy=multi-user.target

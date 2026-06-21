@@ -15,6 +15,7 @@ def _client_user(saas_cfg):
     conn.close()
     c = TestClient(app, follow_redirects=False)
     c.cookies.set("applyfirst_session", session.sign(saas_cfg.session_secret, {"uid": user.id}))
+    c.headers["X-CSRF-Token"] = session.issue_csrf(saas_cfg.session_secret, user.id)
     return c, user
 
 
