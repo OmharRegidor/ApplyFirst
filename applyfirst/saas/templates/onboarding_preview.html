@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Preview · ApplyFirst{% endblock %}
+{% block content %}
+<div class="card">
+  <p class="muted">Step 4 of 4</p>
+  <h1>Here's what we'll send you</h1>
+  <p class="muted">
+    When a matching job appears, we email you a ready-to-paste application like this — to
+    <strong>your own inbox</strong>. You review, copy, and paste it yourself. We don't
+    apply for you.
+  </p>
+  <div style="background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:14px; margin:14px 0">
+    <p style="margin:0 0 8px"><strong>Subject:</strong> {{ preview.subject }}</p>
+    <hr style="border:none; border-top:1px solid var(--line); margin:8px 0">
+    <pre style="white-space:pre-wrap; font:inherit; margin:0">{{ preview.cover_letter }}</pre>
+  </div>
+  <p class="muted" style="font-size:13px">
+    Sample job used for this preview — the AI tailors your message to each real post once
+    you're live:<br>{{ preview.sample_job }}
+  </p>
+  {% if not gmail_connected %}
+    <p class="muted">
+      ⚠ Gmail isn't connected yet — <a href="/auth/connect-gmail">connect it</a> so we can
+      actually send these to your inbox.
+    </p>
+  {% endif %}
+  <form method="post" action="/onboarding/activate">
+    <button class="gbtn" type="submit">Start watching for jobs</button>
+  </form>
+</div>
+{% endblock %}

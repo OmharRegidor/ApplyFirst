@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Keywords · ApplyFirst{% endblock %}
+{% block content %}
+<div class="card">
+  <p class="muted">Step 3 of 4</p>
+  <h1>Keywords to watch</h1>
+  <p class="muted">
+    We check onlinejobs.ph for these words and alert you on new matches. Add at least one.
+  </p>
+  <form method="post" action="/onboarding/keywords" style="display:flex; gap:8px; align-items:flex-start">
+    <input name="keyword" required placeholder="e.g. virtual assistant">
+    <button class="gbtn" type="submit">Add</button>
+  </form>
+  {% if keywords %}
+    <ul style="list-style:none; padding:0; margin:18px 0">
+      {% for k in keywords %}
+        <li style="display:flex; justify-content:space-between; align-items:center;
+                   padding:8px 0; border-bottom:1px solid var(--line)">
+          <span>{{ k.keyword }}</span>
+          <form method="post" action="/onboarding/keywords/{{ k.id }}/delete">
+            <button class="logout" type="submit">Remove</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+    <a class="gbtn" href="/onboarding/preview">Continue</a>
+  {% else %}
+    <p class="muted" style="margin-top:18px">Add a keyword to continue.</p>
+  {% endif %}
+</div>
+{% endblock %}

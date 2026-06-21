@@ -20,11 +20,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from applyfirst.saas import db, google_oauth, session
+from applyfirst.saas import crypto, db, google_oauth, onboarding, preview, session
 from applyfirst.saas.config import SaaSConfig, load_saas_config
 from applyfirst.saas.tenant import tenant_scope
 
@@ -86,10 +86,19 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         return _TEMPLATES.TemplateResponse(request, "login.html", {})
 
     @app.get("/dashboard", response_class=HTMLResponse)
-    def dashboard(request: Request, user: db.User | None = Depends(current_user)):
+    def dashboard(request: Request, user: db.User | None = Depends(current_user),
+                  conn=Depends(get_conn)):
         if user is None:
             return RedirectResponse("/login", status_code=302)
-        return _TEMPLATES.TemplateResponse(request, "dashboard.html", {"user": user})
+        profile = db.get_profile(conn, user.id)
+        if profile is None or not profile.is_activated:
+            return RedirectResponse("/onboarding", status_code=302)
+        return _TEMPLATES.TemplateResponse(request, "dashboard.html", {
+            "user": user,
+            "profile": profile,
+            "gmail_connected": db.gmail_connected(conn, user.id),
+            "keywords": db.list_keywords(conn, user.id),
+        })
 
     # --- auth ----------------------------------------------------------------
 
@@ -164,6 +173,140 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
     @app.get("/healthz", response_class=PlainTextResponse)
     def healthz():
         return "ok"
+
+    # --- onboarding wizard ---------------------------------------------------
+
+    @app.get("/onboarding")
+    def onboarding_root(user: db.User = Depends(require_user), conn=Depends(get_conn)):
+        step = onboarding.next_step(conn, user.id)
+        if step == "done":
+            return RedirectResponse("/dashboard", status_code=302)
+        return RedirectResponse(f"/onboarding/{step}", status_code=302)
+
+    @app.get("/onboarding/connect_gmail", response_class=HTMLResponse)
+    def onboarding_connect_gmail(request: Request, user: db.User = Depends(require_user),
+                                 conn=Depends(get_conn)):
+        return _TEMPLATES.TemplateResponse(request, "onboarding_connect_gmail.html", {
+            "user": user, "gmail_connected": db.gmail_connected(conn, user.id),
+        })
+
+    @app.get("/onboarding/profile", response_class=HTMLResponse)
+    def onboarding_profile_form(request: Request, user: db.User = Depends(require_user),
+                                conn=Depends(get_conn)):
+        profile = db.get_profile(conn, user.id)
+        return _TEMPLATES.TemplateResponse(request, "onboarding_profile.html", {
+            "user": user, "profile": profile,
+            "default_name": (profile.full_name if profile else "") or user.display_name or "",
+        })
+
+    @app.post("/onboarding/profile")
+    def onboarding_profile_save(
+        user: db.User = Depends(require_user), conn=Depends(get_conn),
+        full_name: str = Form(""), job_type: str = Form(""),
+        standard_subject: str = Form(""), standard_message: str = Form(""),
+    ):
+        if not all(v.strip() for v in (full_name, job_type, standard_subject, standard_message)):
+            return RedirectResponse("/onboarding/profile?error=1", status_code=302)
+        db.upsert_profile(conn, user.id, full_name=full_name.strip(), job_type=job_type.strip(),
+                          standard_subject=standard_subject.strip(),
+                          standard_message=standard_message.strip())
+        return RedirectResponse("/onboarding/keywords", status_code=302)
+
+    @app.get("/onboarding/keywords", response_class=HTMLResponse)
+    def onboarding_keywords_page(request: Request, user: db.User = Depends(require_user),
+                                 conn=Depends(get_conn)):
+        profile = db.get_profile(conn, user.id)
+        if profile is None or not profile.is_complete:
+            return RedirectResponse("/onboarding/profile", status_code=302)
+        return _TEMPLATES.TemplateResponse(request, "onboarding_keywords.html", {
+            "user": user, "keywords": db.list_keywords(conn, user.id),
+        })
+
+    @app.post("/onboarding/keywords")
+    def onboarding_keywords_add(user: db.User = Depends(require_user), conn=Depends(get_conn),
+                                keyword: str = Form("")):
+        db.add_keyword(conn, user.id, keyword)
+        return RedirectResponse("/onboarding/keywords", status_code=302)
+
+    @app.post("/onboarding/keywords/{keyword_id}/delete")
+    def onboarding_keywords_delete(keyword_id: str, user: db.User = Depends(require_user),
+                                   conn=Depends(get_conn)):
+        db.delete_keyword(conn, user.id, keyword_id)
+        return RedirectResponse("/onboarding/keywords", status_code=302)
+
+    @app.get("/onboarding/preview", response_class=HTMLResponse)
+    def onboarding_preview_page(request: Request, user: db.User = Depends(require_user),
+                                conn=Depends(get_conn)):
+        profile = db.get_profile(conn, user.id)
+        if profile is None or not profile.is_complete:
+            return RedirectResponse("/onboarding/profile", status_code=302)
+        if not db.list_keywords(conn, user.id):
+            return RedirectResponse("/onboarding/keywords", status_code=302)
+        pv = preview.build_preview(
+            full_name=profile.full_name, job_type=profile.job_type,
+            standard_subject=profile.standard_subject, standard_message=profile.standard_message,
+        )
+        return _TEMPLATES.TemplateResponse(request, "onboarding_preview.html", {
+            "user": user, "preview": pv,
+            "gmail_connected": db.gmail_connected(conn, user.id),
+        })
+
+    @app.post("/onboarding/activate")
+    def onboarding_activate(user: db.User = Depends(require_user), conn=Depends(get_conn)):
+        profile = db.get_profile(conn, user.id)
+        if profile is None or not profile.is_complete or not db.list_keywords(conn, user.id):
+            return RedirectResponse("/onboarding", status_code=302)
+        db.set_activated(conn, user.id)
+        return RedirectResponse("/dashboard", status_code=302)
+
+    # --- connect / disconnect Gmail (incremental gmail.send authorization) ----
+
+    @app.get("/auth/connect-gmail")
+    def connect_gmail(cfg_: SaaSConfig = Depends(get_cfg), user: db.User = Depends(require_user)):
+        if not cfg_.google_client_id:
+            raise HTTPException(status_code=503, detail="Google is not configured")
+        state = google_oauth.make_state()
+        verifier, challenge = google_oauth.make_pkce()
+        url = google_oauth.build_connect_gmail_url(cfg_, state=state, code_challenge=challenge)
+        resp = RedirectResponse(url, status_code=302)
+        session.set_oauth_txn(resp, cfg_.session_secret, cfg_.secure_cookies,
+                              state=state, nonce="n/a", verifier=verifier)
+        return resp
+
+    @app.get("/auth/gmail-callback")
+    def gmail_callback(request: Request, cfg_: SaaSConfig = Depends(get_cfg),
+                       user: db.User = Depends(require_user), conn=Depends(get_conn)):
+        params = request.query_params
+        if params.get("error"):
+            return _fail(cfg_)
+        txn = session.read_oauth_txn(request, cfg_.session_secret, cfg_.secure_cookies)
+        returned_state = params.get("state", "")
+        if not txn or not returned_state or returned_state != txn.get("state"):
+            return _fail(cfg_)
+        code = params.get("code")
+        if not code:
+            return _fail(cfg_)
+        try:
+            refresh_token = google_oauth.exchange_code_for_gmail(
+                cfg_, code=code, code_verifier=txn["verifier"])
+            db.store_gmail_credential(conn, user.id, refresh_token=refresh_token,
+                                      master_key=crypto.load_master_key())
+        except (google_oauth.OAuthError, crypto.CryptoError):
+            return _fail(cfg_)
+        resp = RedirectResponse("/onboarding", status_code=302)
+        session.clear_oauth_txn(resp, cfg_.secure_cookies)
+        return resp
+
+    @app.post("/auth/disconnect-gmail")
+    def disconnect_gmail(user: db.User = Depends(require_user), conn=Depends(get_conn)):
+        try:
+            token = db.get_gmail_refresh_token(conn, user.id, crypto.load_master_key())
+            if token:
+                google_oauth.revoke_token(token)
+        except crypto.CryptoError:
+            pass  # still clear locally even if we cannot decrypt to revoke
+        db.clear_gmail_credential(conn, user.id)
+        return RedirectResponse("/dashboard", status_code=302)
 
     def _fail(cfg_: SaaSConfig) -> JSONResponse:
         # One generic message for every failure mode — no oracle that distinguishes

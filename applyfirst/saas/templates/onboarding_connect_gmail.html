@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Connect Gmail · ApplyFirst{% endblock %}
+{% block content %}
+<div class="card">
+  <p class="muted">Step 1 of 4</p>
+  <h1>Connect your Gmail</h1>
+  <p class="muted">
+    We send each ready-to-paste application to <strong>your own inbox</strong>, so it's
+    right there when you apply. To do that we need permission to send email on your
+    behalf. We never read your mail.
+  </p>
+  {% if gmail_connected %}
+    <p>✓ Gmail connected.</p>
+    <a class="gbtn" href="/onboarding/profile">Continue</a>
+  {% else %}
+    <a class="gbtn" href="/auth/connect-gmail">Connect Gmail</a>
+    <p class="muted" style="margin-top:16px">
+      <a href="/onboarding/profile">Skip for now</a> — you can connect later, but we can't
+      send you applications until you do.
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

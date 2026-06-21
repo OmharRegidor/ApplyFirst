@@ -9,3 +9,8 @@ fpdf2>=2.7
 fastapi>=0.110
 uvicorn>=0.29
 jinja2>=3.1
+
+# SaaS (applyfirst.saas) — envelope encryption + id_token signature verification
+cryptography>=43          # AES-256-GCM at-rest encryption (abi3 wheel; runs on py3.14)
+pyjwt>=2.8                # RS256 id_token verification against Google's JWKS
+python-multipart>=0.0.9   # onboarding form parsing (FastAPI Form)

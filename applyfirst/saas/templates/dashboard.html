@@ -2,14 +2,27 @@
 {% block title %}Dashboard · ApplyFirst{% endblock %}
 {% block content %}
 <div class="card">
-  <h1 style="margin:0 0 8px">Welcome, {{ user.display_name or user.email }}</h1>
-  <p class="muted" style="margin:0 0 20px">
-    You're signed in. Next we'll set up your profile, connect Gmail, and choose the
-    keywords we watch for you. <span class="muted">(Onboarding ships in M2.)</span>
+  <h1>You're all set, {{ user.display_name or user.email }}</h1>
+  <p class="muted">
+    We're watching onlinejobs.ph for your keywords. When a match appears, a ready-to-paste
+    application lands in your inbox.
   </p>
-  <p class="muted" style="font-size:13px; margin:0">
+  <p><strong>Watching:</strong>
+    {% for k in keywords %}{{ k.keyword }}{% if not loop.last %}, {% endif %}{% endfor %}
+  </p>
+  <p><strong>Gmail:</strong>
+    {% if gmail_connected %}
+      connected ✓
+      <form method="post" action="/auth/disconnect-gmail" style="display:inline">
+        <button class="logout" type="submit">Disconnect</button>
+      </form>
+    {% else %}
+      <a href="/auth/connect-gmail">connect</a> to start receiving applications
+    {% endif %}
+  </p>
+  <p class="muted" style="font-size:13px; margin-top:16px">
     Reminder: ApplyFirst writes your applications and sends them to <strong>your</strong>
-    inbox — you copy, paste, and send. You stay in control.
+    inbox — you copy, paste, and send. <span class="muted">(Live polling ships in M3.)</span>
   </p>
 </div>
 {% endblock %}

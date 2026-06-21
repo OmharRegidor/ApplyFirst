@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Your details · ApplyFirst{% endblock %}
+{% block content %}
+<div class="card">
+  <p class="muted">Step 2 of 4</p>
+  <h1>Your details</h1>
+  {% if request.query_params.get('error') %}
+    <p style="color:#b45309">Please fill in all four fields.</p>
+  {% endif %}
+  <form method="post" action="/onboarding/profile">
+    <label>Name
+      <input name="full_name" required
+             value="{{ (profile.full_name if profile and profile.full_name else default_name) }}">
+    </label>
+    <label>Type of job you want
+      <input name="job_type" required placeholder="e.g. Virtual Assistant, React Developer"
+             value="{{ profile.job_type if profile else '' }}">
+    </label>
+    <label>Standard subject line to paste
+      <input name="standard_subject" required placeholder="The subject you send with applications"
+             value="{{ profile.standard_subject if profile else '' }}">
+    </label>
+    <label>Standard message
+      <textarea name="standard_message" rows="9" required
+        placeholder="Your go-to introduction. We tailor it per job once you're live.">{{ profile.standard_message if profile else '' }}</textarea>
+    </label>
+    <button class="gbtn" type="submit">Save &amp; continue</button>
+  </form>
+</div>
+{% endblock %}

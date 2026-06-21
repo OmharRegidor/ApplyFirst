@@ -35,6 +35,10 @@ class SaaSConfig:
     def redirect_uri(self) -> str:
         return f"{self.base_url}/auth/callback"
 
+    @property
+    def gmail_redirect_uri(self) -> str:
+        return f"{self.base_url}/auth/gmail-callback"
+
 
 def load_saas_config() -> SaaSConfig:
     """Build a SaaSConfig from the environment, failing loudly on unsafe combos."""

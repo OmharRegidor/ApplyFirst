@@ -13,7 +13,7 @@ from applyfirst.saas.tenant import tenant_scope
 def test_migrate_sets_version_and_tables(tmp_path):
     conn = db.init_db(str(tmp_path / "x.db"))
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == db._SCHEMA_VERSION
         tables = {r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'")}
         assert {"users", "oauth_credentials"} <= tables
@@ -26,7 +26,7 @@ def test_migrate_is_idempotent(tmp_path):
     db.init_db(path).close()
     conn = db.init_db(path)  # run again — must not error or duplicate
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == db._SCHEMA_VERSION
     finally:
         conn.close()
 
