@@ -28,11 +28,17 @@
             border:1px solid var(--line); border-radius: 8px; font: inherit;
             font-weight: 400; }
     h1 { margin: 4px 0 8px; font-size: 24px; letter-spacing: -0.01em; }
+    footer { max-width: 720px; margin: 0 auto; padding: 24px 20px 40px;
+             color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); }
+    footer a { color: var(--muted); }
+    .legal { line-height: 1.65; }
+    .legal h2 { font-size: 18px; margin: 26px 0 8px; }
+    .legal h3 { font-size: 15px; margin: 18px 0 6px; }
   </style>
 </head>
 <body>
   <header>
-    <span class="brand">ApplyFirst</span>
+    <a href="/" class="brand" style="text-decoration:none;color:inherit">ApplyFirst</a>
     {% if user %}
       <span class="who">
         {{ user.display_name or user.email }}
@@ -43,5 +49,9 @@
     {% endif %}
   </header>
   <main>{% block content %}{% endblock %}</main>
+  <footer>
+    © ApplyFirst · <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a>
+    · <a href="mailto:omharregidor@gmail.com">omharregidor@gmail.com</a>
+  </footer>
 </body>
 </html>

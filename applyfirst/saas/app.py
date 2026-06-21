@@ -76,14 +76,26 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
     # --- pages ---------------------------------------------------------------
 
     @app.get("/", response_class=HTMLResponse)
-    def root(user: db.User | None = Depends(current_user)):
-        return RedirectResponse("/dashboard" if user else "/login", status_code=302)
+    def root(request: Request, user: db.User | None = Depends(current_user)):
+        if user:
+            return RedirectResponse("/dashboard", status_code=302)
+        # Public landing page (the homepage Google verification points at).
+        return _TEMPLATES.TemplateResponse(request, "home.html", {})
 
     @app.get("/login", response_class=HTMLResponse)
     def login_page(request: Request, user: db.User | None = Depends(current_user)):
         if user:
             return RedirectResponse("/dashboard", status_code=302)
         return _TEMPLATES.TemplateResponse(request, "login.html", {})
+
+    @app.get("/privacy", response_class=HTMLResponse)
+    def privacy(request: Request):
+        # Public, no auth — Google verification requires a login-free privacy URL.
+        return _TEMPLATES.TemplateResponse(request, "privacy.html", {})
+
+    @app.get("/terms", response_class=HTMLResponse)
+    def terms(request: Request):
+        return _TEMPLATES.TemplateResponse(request, "terms.html", {})
 
     @app.get("/dashboard", response_class=HTMLResponse)
     def dashboard(request: Request, user: db.User | None = Depends(current_user),

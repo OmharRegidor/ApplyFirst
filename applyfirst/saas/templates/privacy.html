@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy · ApplyFirst{% endblock %}
+{% block content %}
+<div class="card legal">
+  <h1>Privacy Policy</h1>
+  <p class="muted">Last updated: 21 June 2026</p>
+
+  <p>ApplyFirst ("we", "us") helps job seekers on onlinejobs.ph apply faster by watching for
+  matching jobs and emailing a ready-to-paste application to your own inbox. This policy
+  explains what we collect, how we use it, and the choices you have. Questions:
+  <a href="mailto:omharregidor@gmail.com">omharregidor@gmail.com</a>.</p>
+
+  <h2>Information we collect</h2>
+  <ul>
+    <li><strong>Google account information</strong> — when you sign in with Google we receive
+      your name, email address, and Google account identifier, to create and identify your
+      account.</li>
+    <li><strong>Gmail authorization</strong> — if you connect Gmail, we receive an OAuth token
+      for the <code>gmail.send</code> permission. It is stored <strong>encrypted at rest</strong>
+      and used only to send email to your own inbox (see below).</li>
+    <li><strong>Profile you provide</strong> — your name, the type of job you want, a standard
+      subject line, and a standard message.</li>
+    <li><strong>Job keywords</strong> you add for us to watch.</li>
+    <li><strong>Operational records and logs</strong> — which public job postings we matched
+      for you and whether an application email was sent, plus basic operational logs (such as the
+      keywords searched and errors) to run and debug the service. We never log your OAuth tokens
+      or the contents of your messages.</li>
+  </ul>
+
+  <h2>How we use your information, and Gmail access</h2>
+  <p>We request the <code>gmail.send</code> permission for a single purpose: to send
+  <strong>you</strong> your own tailored job application, to your own email address, so it is
+  ready when you apply. We send only to you — we do not email employers or anyone else on your
+  behalf.</p>
+  <p><strong>We never read, download, list, modify, or delete any of your existing emails.</strong>
+  We request only the send permission; we do not request any Gmail read or modify scope.</p>
+  <p>We use your other information to watch onlinejobs.ph for jobs matching your keywords and to
+  generate a tailored application from your profile and the public job posting.</p>
+
+  <h2>Third parties we share data with</h2>
+  <ul>
+    <li><strong>Google</strong> — Sign in with Google (identity) and the Gmail API (sending).</li>
+    <li><strong>Google Gemini (AI)</strong> — to generate the tailored application text, we send
+      the public job description and your profile fields to Google's Gemini API. If no AI is
+      configured, a non-AI fallback uses your standard message as-is.</li>
+    <li><strong>onlinejobs.ph</strong> — we read public job postings. We do not log in to, or
+      submit applications on, onlinejobs.ph on your behalf.</li>
+    <li><strong>Hosting infrastructure</strong> used to run the service.</li>
+  </ul>
+  <p>We do <strong>not</strong> sell your data, use it for advertising, use it to train machine
+  learning or AI models, or use it for credit or lending decisions. We do not allow humans to
+  read your private data except as needed to operate the service, with your consent, or to
+  comply with the law.</p>
+
+  <h2>Limited Use of Google user data</h2>
+  <p>ApplyFirst's use and transfer of information received from Google APIs to any other app will
+  adhere to the
+  <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank"
+     rel="noopener">Google API Services User Data Policy</a>, including the Limited Use
+  requirements.</p>
+
+  <h2>Data retention and deletion</h2>
+  <p>We keep your data while your account is active. Disconnecting Gmail revokes the token at
+  Google (best-effort) and deletes the stored credential. You can delete your account and associated data at
+  any time by emailing <a href="mailto:omharregidor@gmail.com">omharregidor@gmail.com</a>; on
+  deletion we remove your profile, keywords, OAuth tokens, and job-alert records.</p>
+
+  <h2>Security</h2>
+  <p>OAuth tokens are encrypted at rest using AES-256 envelope encryption. We never see or store
+  a Gmail password — access is via Sign in with Google and OAuth only.</p>
+
+  <h2>Changes</h2>
+  <p>We may update this policy and will revise the "Last updated" date above.</p>
+</div>
+{% endblock %}

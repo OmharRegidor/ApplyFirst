@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}ApplyFirst — be first to apply on onlinejobs.ph{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Be first to apply on onlinejobs.ph</h1>
+  <p class="muted" style="margin:0 0 20px">
+    ApplyFirst watches the jobs you care about and writes a ready-to-paste application the
+    moment a match appears — delivered straight to <strong>your own Gmail inbox</strong>.
+    You review, copy, and paste it yourself. We don't apply for you; we make sure you're first.
+  </p>
+  <a class="gbtn" href="/auth/login">Continue with Google</a>
+
+  <h2 style="font-size:18px;margin:28px 0 8px">How it works</h2>
+  <ol class="muted" style="margin:0;padding-left:20px">
+    <li>Sign in with Google and connect Gmail.</li>
+    <li>Add your job keywords and a standard message.</li>
+    <li>When a matching job is posted, we tailor an application and email it to your inbox.</li>
+    <li>You open it, review, and apply.</li>
+  </ol>
+
+  <h2 style="font-size:18px;margin:28px 0 8px">Why we ask for Gmail access</h2>
+  <p class="muted" style="margin:0">
+    ApplyFirst requests the <code>gmail.send</code> permission for one purpose: to send
+    <strong>you</strong> your own tailored application, to your own inbox, so it's ready when
+    you apply. We never read, list, or store your existing emails — only the send permission
+    is requested. See our <a href="/privacy">Privacy Policy</a> for exactly what we collect
+    and how it's used.
+  </p>
+</div>
+{% endblock %}

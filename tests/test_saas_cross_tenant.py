@@ -75,11 +75,12 @@ def test_me_returns_identity_when_authed(saas_cfg):
     assert body == {"user_id": user.id, "email": "u@x.com", "display_name": "U", "plan": "free"}
 
 
-def test_root_redirects_to_login_when_anonymous(saas_cfg):
+def test_root_serves_public_homepage_when_anonymous(saas_cfg):
+    # M4: '/' is the public landing page (was a redirect to /login in M1).
     db.init_db(saas_cfg.db_path).close()
     client = _client(saas_cfg)
     r = client.get("/")
-    assert r.status_code == 302 and r.headers["location"] == "/login"
+    assert r.status_code == 200 and "Continue with Google" in r.text
 
 
 def test_dashboard_redirects_to_login_when_anonymous(saas_cfg):
