@@ -13,7 +13,7 @@ def _user(conn):
 def test_v2_migration_creates_tables_and_bumps_version(tmp_path):
     conn = db.init_db(str(tmp_path / "x.db"))
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == db._SCHEMA_VERSION
         tables = {r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'")}
         assert {"users", "oauth_credentials", "user_profiles", "user_keywords"} <= tables
@@ -32,7 +32,7 @@ def test_v1_db_upgrades_to_v2_idempotently(tmp_path):
 
     conn2 = db.init_db(path)  # should apply v2
     try:
-        assert conn2.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert conn2.execute("PRAGMA user_version").fetchone()[0] == db._SCHEMA_VERSION
         db.init_db(path).close()  # run again — no error
     finally:
         conn2.close()
@@ -55,7 +55,7 @@ def test_v1_to_v2_preserves_existing_rows(tmp_path):
 
     conn2 = db.init_db(path)  # upgrade v1 → v2
     try:
-        assert conn2.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert conn2.execute("PRAGMA user_version").fetchone()[0] == db._SCHEMA_VERSION
         assert conn2.execute("SELECT email FROM users WHERE id='u1'").fetchone()[0] == "a@x.com"
         assert conn2.execute(
             "SELECT gmail_scope_granted FROM oauth_credentials WHERE id='c1'").fetchone()[0] == 1

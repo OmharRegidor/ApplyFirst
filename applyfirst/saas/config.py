@@ -30,6 +30,12 @@ class SaaSConfig:
     session_secret: bytes
     base_url: str          # e.g. "https://localhost:8000" (no trailing slash)
     secure_cookies: bool   # True in prod → __Host- cookies; False for http dev/tests
+    # M3 worker
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.5-flash"
+    daily_tailor_cap: int = 10          # per-user tailoring calls/day
+    worker_interval: int = 600          # seconds between poll cycles
+    worker_jitter: float = 0.25         # ± fraction of the interval
 
     @property
     def redirect_uri(self) -> str:
@@ -74,4 +80,9 @@ def load_saas_config() -> SaaSConfig:
         session_secret=session_secret,
         base_url=base_url,
         secure_cookies=secure,
+        gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+        daily_tailor_cap=int(os.getenv("APPLYFIRST_DAILY_TAILOR_CAP", "10")),
+        worker_interval=int(os.getenv("APPLYFIRST_WORKER_INTERVAL", "600")),
+        worker_jitter=float(os.getenv("APPLYFIRST_WORKER_JITTER", "0.25")),
     )

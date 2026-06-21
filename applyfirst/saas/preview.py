@@ -20,16 +20,26 @@ SAMPLE_JOB = (
 )
 
 
-def build_preview(*, full_name: str, job_type: str,
-                  standard_subject: str, standard_message: str) -> dict:
-    """Return a preview dict: {subject, cover_letter, screening_questions, sample_job}."""
-    profile = Profile(
+def to_profile(*, full_name: str, job_type: str,
+               standard_subject: str, standard_message: str) -> Profile:
+    """Map the SaaS 4-field profile → the applyfirst.profile.Profile the tailor expects.
+
+    Shared by the onboarding preview and the M3 worker so both tailor from the SAME shape.
+    """
+    return Profile(
         full_name=full_name,
         target_summary=job_type,
         professional_summary=job_type,
         base_pitch=standard_message,
         subject_library={"general": [standard_subject]} if standard_subject else {},
     )
+
+
+def build_preview(*, full_name: str, job_type: str,
+                  standard_subject: str, standard_message: str) -> dict:
+    """Return a preview dict: {subject, cover_letter, screening_questions, sample_job}."""
+    profile = to_profile(full_name=full_name, job_type=job_type,
+                         standard_subject=standard_subject, standard_message=standard_message)
     package = TailoringEngine(provider=None).build(SAMPLE_JOB, profile).package
     return {
         "subject": package.application_subject or standard_subject,

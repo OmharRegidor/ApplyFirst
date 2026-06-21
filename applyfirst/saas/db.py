@@ -14,16 +14,22 @@ import hashlib
 import sqlite3
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from applyfirst.saas import crypto
 
 # Tables that carry per-tenant data — every query against these MUST be scoped by
 # user_id (enforced via ``tenant.py``; see the CI grep guard in the M1 plan).
-TENANT_TABLES = frozenset({"oauth_credentials", "user_profiles", "user_keywords"})
+# jobs / tailoring_cache / worker_keyword_state / worker_meta are deliberately NOT here:
+# they have no user_id (cross-tenant pool / internal worker state); the user boundary is
+# enforced at the user_job_alerts join.
+TENANT_TABLES = frozenset({
+    "oauth_credentials", "user_profiles", "user_keywords",
+    "user_job_alerts", "ai_usage",
+})
 
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 
 
 def _now_iso() -> str:
@@ -122,6 +128,9 @@ def migrate(conn: sqlite3.Connection) -> None:
     if version < 2:
         _migrate_v2(conn)
         conn.execute("PRAGMA user_version=2;")
+    if version < 3:
+        _migrate_v3(conn)
+        conn.execute("PRAGMA user_version=3;")
     conn.commit()
 
 
@@ -394,3 +403,299 @@ def delete_keyword(conn: sqlite3.Connection, user_id: str, keyword_id: str) -> N
         "DELETE FROM user_keywords WHERE id=? AND user_id=?", (keyword_id, user_id),
     )
     conn.commit()
+
+
+# === M3: the worker's data layer ============================================
+
+def _migrate_v3(conn: sqlite3.Connection) -> None:
+    """M3: cross-tenant job pool, per-user alert fan-out, AI daily cap, tailoring cache."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS jobs (
+            id               TEXT PRIMARY KEY,
+            onlinejobs_id    TEXT NOT NULL UNIQUE,   -- source external_id; global dedupe key
+            title            TEXT NOT NULL,
+            url              TEXT NOT NULL,
+            employment_type  TEXT,
+            salary_text      TEXT,
+            posted_at        TEXT,
+            raw_description  TEXT,
+            scraped_at       TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS user_job_alerts (
+            id          TEXT PRIMARY KEY,
+            user_id     TEXT NOT NULL,
+            job_id      TEXT NOT NULL,
+            keyword     TEXT NOT NULL,
+            status      TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending','sent','failed','capped','skipped')),
+            last_error  TEXT,
+            attempts    INTEGER NOT NULL DEFAULT 0,
+            sent_at     TEXT,
+            created_at  TEXT NOT NULL,
+            UNIQUE (user_id, job_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (job_id)  REFERENCES jobs(id)  ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS ai_usage (
+            user_id         TEXT NOT NULL,
+            day             TEXT NOT NULL,             -- 'YYYY-MM-DD' UTC
+            tailoring_calls INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, day),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS tailoring_cache (
+            id            TEXT PRIMARY KEY,
+            job_id        TEXT NOT NULL,
+            profile_hash  TEXT NOT NULL,
+            package_json  TEXT NOT NULL,              -- the full TailoredPackage as JSON
+            provider      TEXT NOT NULL DEFAULT '',
+            created_at    TEXT NOT NULL,
+            UNIQUE (job_id, profile_hash),
+            FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS worker_keyword_state (
+            keyword       TEXT PRIMARY KEY,
+            baselined_at  TEXT,
+            last_polled   TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS worker_meta (
+            key    TEXT PRIMARY KEY,
+            value  TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS ix_alerts_status ON user_job_alerts(status);
+        CREATE INDEX IF NOT EXISTS ix_alerts_user   ON user_job_alerts(user_id);
+        CREATE INDEX IF NOT EXISTS ix_alerts_job    ON user_job_alerts(job_id);
+        CREATE INDEX IF NOT EXISTS ix_jobs_scraped  ON jobs(scraped_at);
+        """
+    )
+
+
+@dataclass(slots=True)
+class Job:
+    id: str
+    onlinejobs_id: str
+    title: str
+    url: str
+    employment_type: str | None
+    salary_text: str | None
+    posted_at: str | None
+    raw_description: str | None
+
+    @classmethod
+    def from_row(cls, row: sqlite3.Row) -> Job:
+        return cls(
+            id=row["id"], onlinejobs_id=row["onlinejobs_id"], title=row["title"],
+            url=row["url"], employment_type=row["employment_type"],
+            salary_text=row["salary_text"], posted_at=row["posted_at"],
+            raw_description=row["raw_description"],
+        )
+
+    def as_email_job(self, keyword: str) -> dict:
+        """The mapping shape applyfirst.notify.compose.build_tailored_email expects."""
+        return {
+            "title": self.title, "url": self.url,
+            "employment_type": self.employment_type, "salary_text": self.salary_text,
+            "posted_at": self.posted_at, "matched_keyword": keyword,
+        }
+
+
+@dataclass(slots=True)
+class Alert:
+    id: str
+    user_id: str
+    job_id: str
+    keyword: str
+    status: str
+    attempts: int
+
+    @classmethod
+    def from_row(cls, row: sqlite3.Row) -> Alert:
+        return cls(id=row["id"], user_id=row["user_id"], job_id=row["job_id"],
+                   keyword=row["keyword"], status=row["status"], attempts=row["attempts"])
+
+
+# --- jobs --------------------------------------------------------------------
+
+def get_job_id(conn: sqlite3.Connection, onlinejobs_id: str) -> str | None:
+    row = conn.execute("SELECT id FROM jobs WHERE onlinejobs_id=?", (onlinejobs_id,)).fetchone()
+    return row["id"] if row is not None else None
+
+
+def insert_job(conn: sqlite3.Connection, *, onlinejobs_id: str, title: str, url: str,
+               employment_type: str | None, salary_text: str | None,
+               posted_at: str | None, raw_description: str | None) -> str:
+    """Insert a new job (dedupe by onlinejobs_id). Returns the job id (new or existing)."""
+    conn.execute(
+        """
+        INSERT INTO jobs (id, onlinejobs_id, title, url, employment_type, salary_text,
+                          posted_at, raw_description, scraped_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(onlinejobs_id) DO NOTHING
+        """,
+        (_new_id(), onlinejobs_id, title, url, employment_type, salary_text,
+         posted_at, raw_description, _now_iso()),
+    )
+    conn.commit()
+    return get_job_id(conn, onlinejobs_id)
+
+
+def get_job(conn: sqlite3.Connection, job_id: str) -> Job | None:
+    row = conn.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+    return Job.from_row(row) if row is not None else None
+
+
+# --- keyword fan-out ---------------------------------------------------------
+
+def active_keywords_all(conn: sqlite3.Connection) -> list[str]:
+    """Distinct keywords that at least one ACTIVATED user is actively watching."""
+    rows = conn.execute(
+        """
+        SELECT DISTINCT k.keyword
+        FROM user_keywords k
+        JOIN user_profiles p ON p.user_id = k.user_id
+        WHERE k.is_active = 1 AND p.activated_at IS NOT NULL
+        ORDER BY k.keyword
+        """
+    ).fetchall()
+    return [r["keyword"] for r in rows]
+
+
+def users_for_keyword(conn: sqlite3.Connection, keyword: str) -> list[str]:
+    rows = conn.execute(
+        """
+        SELECT k.user_id
+        FROM user_keywords k
+        JOIN user_profiles p ON p.user_id = k.user_id
+        WHERE k.is_active = 1 AND k.keyword = ? AND p.activated_at IS NOT NULL
+        """,
+        (keyword,),
+    ).fetchall()
+    return [r["user_id"] for r in rows]
+
+
+def insert_alert(conn: sqlite3.Connection, user_id: str, job_id: str, keyword: str) -> None:
+    conn.execute(
+        "INSERT INTO user_job_alerts (id, user_id, job_id, keyword, status, created_at) "
+        "VALUES (?, ?, ?, ?, 'pending', ?) ON CONFLICT(user_id, job_id) DO NOTHING",
+        (_new_id(), user_id, job_id, keyword, _now_iso()),
+    )
+    conn.commit()
+
+
+def pending_alerts(conn: sqlite3.Connection) -> list[Alert]:
+    rows = conn.execute(
+        "SELECT * FROM user_job_alerts WHERE status='pending' ORDER BY created_at"
+    ).fetchall()
+    return [Alert.from_row(r) for r in rows]
+
+
+def mark_alert(conn: sqlite3.Connection, alert_id: str, status: str, *,
+               last_error: str | None = None, sent_at: str | None = None) -> None:
+    conn.execute(
+        "UPDATE user_job_alerts SET status=?, last_error=?, sent_at=? WHERE id=?",
+        (status, last_error, sent_at, alert_id),
+    )
+    conn.commit()
+
+
+def bump_attempts(conn: sqlite3.Connection, alert_id: str) -> None:
+    conn.execute("UPDATE user_job_alerts SET attempts = attempts + 1 WHERE id=?", (alert_id,))
+    conn.commit()
+
+
+# --- daily cap ---------------------------------------------------------------
+
+def try_increment_ai_usage(conn: sqlite3.Connection, user_id: str, cap: int) -> bool:
+    """Atomically reserve one tailoring slot for today. False if at/over cap."""
+    if cap <= 0:
+        return False
+    day = _now_iso()[:10]
+    cur = conn.execute(
+        """
+        INSERT INTO ai_usage (user_id, day, tailoring_calls)
+        VALUES (?, ?, 1)
+        ON CONFLICT(user_id, day) DO UPDATE SET tailoring_calls = tailoring_calls + 1
+            WHERE ai_usage.tailoring_calls < ?
+        RETURNING tailoring_calls
+        """,
+        (user_id, day, cap),
+    )
+    row = cur.fetchone()
+    conn.commit()
+    return row is not None
+
+
+# --- tailoring cache ---------------------------------------------------------
+
+def cache_get(conn: sqlite3.Connection, job_id: str, profile_hash: str) -> dict | None:
+    row = conn.execute(
+        "SELECT package_json, provider FROM tailoring_cache WHERE job_id=? AND profile_hash=?",
+        (job_id, profile_hash),
+    ).fetchone()
+    return {"package_json": row["package_json"], "provider": row["provider"]} if row else None
+
+
+def cache_put(conn: sqlite3.Connection, job_id: str, profile_hash: str,
+              package_json: str, provider: str) -> None:
+    conn.execute(
+        "INSERT INTO tailoring_cache (id, job_id, profile_hash, package_json, provider, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(job_id, profile_hash) DO NOTHING",
+        (_new_id(), job_id, profile_hash, package_json, provider, _now_iso()),
+    )
+    conn.commit()
+
+
+def purge_tailoring_cache(conn: sqlite3.Connection, *, keep_days: int = 30) -> None:
+    """Drop cache rows older than retention or whose profile_hash is no longer referenced."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=keep_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    conn.execute("DELETE FROM tailoring_cache WHERE created_at < ?", (cutoff,))
+    conn.execute(
+        "DELETE FROM tailoring_cache WHERE profile_hash NOT IN "
+        "(SELECT profile_hash FROM user_profiles WHERE profile_hash IS NOT NULL)"
+    )
+    conn.commit()
+
+
+# --- keyword baseline state + worker heartbeat -------------------------------
+
+def is_keyword_baselined(conn: sqlite3.Connection, keyword: str) -> bool:
+    row = conn.execute(
+        "SELECT baselined_at FROM worker_keyword_state WHERE keyword=?", (keyword,)
+    ).fetchone()
+    return row is not None and row["baselined_at"] is not None
+
+
+def mark_keyword_polled(conn: sqlite3.Connection, keyword: str, *, baselined: bool) -> None:
+    now = _now_iso()
+    conn.execute(
+        """
+        INSERT INTO worker_keyword_state (keyword, baselined_at, last_polled)
+        VALUES (?, ?, ?)
+        ON CONFLICT(keyword) DO UPDATE SET
+            last_polled = excluded.last_polled,
+            baselined_at = COALESCE(worker_keyword_state.baselined_at, excluded.baselined_at)
+        """,
+        (keyword, now if baselined else None, now),
+    )
+    conn.commit()
+
+
+def set_worker_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
+    conn.execute(
+        "INSERT INTO worker_meta (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value),
+    )
+    conn.commit()
+
+
+def get_worker_meta(conn: sqlite3.Connection, key: str) -> str | None:
+    row = conn.execute("SELECT value FROM worker_meta WHERE key=?", (key,)).fetchone()
+    return row["value"] if row is not None else None
