@@ -97,6 +97,11 @@ questions, the compliance token to open with, a tailored cover letter, and resum
 with the PDF attached; without one, they fall back to the pre-AI alert (raw description +
 detected questions). No key set (or API fails) → it lists the questions for you to answer.
 
+Every cover letter also pitches the **full range of skills in your `profile.yaml`** — not
+just the role you applied for. Beyond web and app development, that includes **AI automation
+with n8n** (LLM workflows wired into Gmail, Slack & Shopify, human-in-the-loop), so employers
+see your breadth in the first few seconds.
+
 ```bash
 # 1) free Gemini key → https://aistudio.google.com/apikey  → put GEMINI_API_KEY in .env
 # 2) your resume → copy profile.example.yaml to profile.yaml and fill it in (git-ignored)
