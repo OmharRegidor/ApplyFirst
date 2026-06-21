@@ -1,0 +1,65 @@
+# ============================================================================
+# ApplyFirst V2 SaaS — environment template
+# ----------------------------------------------------------------------------
+# Copy the lines you need into the deployed secrets file (mode 600), e.g.:
+#     sudo -u applyfirst tee -a /opt/applyfirst/.env < deploy/oracle/saas-env.sample
+#     sudo chmod 600 /opt/applyfirst/.env
+# Fill every <PLACEHOLDER>. The V1 CLI reads its own (different) keys from the
+# same file — the APPLYFIRST_* names below never collide with it.
+#
+# Legend:  [REQUIRED] won't run without · [PICK ONE] choose a channel ·
+#          [OPTIONAL] graceful default if omitted
+# ============================================================================
+
+# --- Google sign-in + gmail.send (Google Cloud Console → OAuth Web client) ---
+GOOGLE_CLIENT_ID=<your-client-id>.apps.googleusercontent.com          # [REQUIRED]
+GOOGLE_CLIENT_SECRET=<your-client-secret>                             # [REQUIRED]
+# Authorized redirect URIs to register for this client (exactly):
+#   https://<domain>/auth/callback
+#   https://<domain>/auth/gmail-callback
+
+# --- App identity / cookies ---
+APPLYFIRST_BASE_URL=https://<domain>             # [REQUIRED] no trailing slash; must be https in prod
+SESSION_SECRET=<openssl rand -base64 32>         # [REQUIRED] signs session + CSRF cookies
+APPLYFIRST_SAAS_DB=applyfirst-saas.db            # [REQUIRED] must NOT be applyfirst.db (the CLI's DB)
+# APPLYFIRST_SAAS_SECURE_COOKIES=1               # [OPTIONAL] default 1 (set in the web unit already)
+
+# --- Master encryption key (envelope-encrypts each user's gmail.send token) ---
+# PROD: write 32 random bytes to a 0600 file and point at it. Back this up safely —
+# losing it makes every stored token undecryptable (users must reconnect Gmail).
+#     openssl rand -base64 32 | sudo tee /etc/applyfirst/master.key >/dev/null
+#     sudo chmod 600 /etc/applyfirst/master.key && sudo chown applyfirst /etc/applyfirst/master.key
+MASTER_KEY_PATH=/etc/applyfirst/master.key       # [REQUIRED] (prod)
+# APPLYFIRST_MASTER_KEY=<base64-32-bytes>        #   …or inline base64 for quick dev (one or the other)
+
+# --- Owner alert for the dead-man's switch (worker blind for 3 cycles) --------
+# [PICK ONE]. If neither is set, the alert degrades to a log line only.
+APPLYFIRST_ALERT_WEBHOOK=<https://hooks.slack.com/services/...>       # Slack OR Discord webhook URL
+#   …or SMTP instead:
+# APPLYFIRST_SMTP_HOST=smtp.gmail.com
+# APPLYFIRST_SMTP_PORT=465
+# APPLYFIRST_SMTP_USER=you@gmail.com
+# APPLYFIRST_SMTP_PASSWORD=<gmail-app-password>
+# APPLYFIRST_OWNER_EMAIL=you@gmail.com
+
+# --- AI tailoring (optional; absent → deterministic rules-fallback) ----------
+# GEMINI_API_KEY=<your-gemini-key>               # [OPTIONAL]
+# GEMINI_MODEL=gemini-2.5-flash                  # [OPTIONAL]
+# APPLYFIRST_DAILY_TAILOR_CAP=10                 # [OPTIONAL] per-user/day cost guard
+
+# --- Worker cadence (already set in applyfirst-saas-worker.service) ----------
+# APPLYFIRST_WORKER_INTERVAL=330                 # [OPTIONAL] seconds; with jitter → ~4-7 min
+# APPLYFIRST_WORKER_JITTER=0.27                  # [OPTIONAL] ± fraction of the interval
+
+# --- /auth rate limiting (sensible defaults; tune only if needed) ------------
+# APPLYFIRST_AUTH_RATE_LIMIT=20                  # [OPTIONAL] max /auth/* hits per IP per window (0 disables)
+# APPLYFIRST_AUTH_RATE_WINDOW=60                 # [OPTIONAL] window seconds
+# APPLYFIRST_TRUST_PROXY=1                       # [OPTIONAL] read client IP from X-Forwarded-For (Caddy ingress)
+
+# --- Nightly backup ----------------------------------------------------------
+# APPLYFIRST_BACKUP_DIR=backups                  # [OPTIONAL] local gzip backups dir
+# APPLYFIRST_BACKUP_KEEP=7                       # [OPTIONAL] how many to retain
+# APPLYFIRST_BACKUP_REMOTE=rclone copy {path} remote:bucket   # [OPTIONAL] off-box push; {path} → the .db.gz
+
+# --- Reminder: also set the domain for Caddy (NOT here — in /etc/default/caddy) ---
+#     echo 'APPLYFIRST_DOMAIN=<domain>' | sudo tee -a /etc/default/caddy && sudo systemctl reload caddy

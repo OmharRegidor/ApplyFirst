@@ -172,6 +172,7 @@ sudo bash /opt/applyfirst/deploy/oracle/setup.sh
 ```
 
 ### 2. Add the SaaS keys to `/opt/applyfirst/.env` (mode 600, shared with the CLI)
+Copy-paste template with every variable + inline notes: **`deploy/oracle/saas-env.sample`**.
 Distinct `APPLYFIRST_*` names mean no collision with the CLI's settings:
 ```ini
 # --- V2 SaaS ---
