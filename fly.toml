@@ -1,0 +1,44 @@
+# ApplyFirst V2 SaaS — Fly.io (beta).
+#
+# ONE machine runs the web server AND the poll worker, sharing the SQLite DB on the /data
+# volume. NEVER run `fly scale count` on this app: a 2nd machine gets its OWN empty volume and
+# splits the DB. Verify with `fly status` (expect exactly 1 machine).
+
+app = "CHANGE-ME-applyfirst-beta"     # must be globally unique on Fly; edit before deploy
+primary_region = "sin"                # Singapore = nearest Fly region to the Philippines
+
+[env]
+  APPLYFIRST_SAAS_DB = "/data/applyfirst-saas.db"   # lives on the persistent volume
+  APPLYFIRST_BACKUP_DIR = "/data/backups"
+  APPLYFIRST_TRUSTED_IP_HEADER = "fly-client-ip"    # rate-limit key: Fly Proxy sets this per real client
+  # EDIT THIS in the SAME pass as `app` above -> https://<your-app>.fly.dev (no trailing slash).
+  # It builds the Google OAuth redirect_uri; a wrong/localhost value = 100% sign-in failure, and
+  # the app REFUSES to boot in prod if it's localhost/unset.
+  APPLYFIRST_BASE_URL = "https://CHANGE-ME-applyfirst-beta.fly.dev"
+  # Master key: set with `fly secrets set APPLYFIRST_MASTER_KEY=<standard-base64-32-bytes>`.
+  # Do NOT set MASTER_KEY_PATH on Fly — it takes precedence, points at a nonexistent file, and
+  # crash-loops the machine. MASTER_KEY_PATH is for the Oracle VM/systemd deploy only.
+
+[[mounts]]
+  source = "af_data"                  # created with `fly volumes create af_data`
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false          # CRITICAL: never suspend — the worker must keep polling
+  auto_start_machines = false
+  min_machines_running = 1            # inert while auto_stop is off; kept as a safety floor
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/healthz"                 # liveness only (always "ok" if web is up).
+                                      # NOTE: /health (no z) can return 503 by design when the
+                                      # worker is stale — don't point the Fly check at it.
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"                    # cryptography + two processes; 256mb is too tight

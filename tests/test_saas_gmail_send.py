@@ -78,10 +78,35 @@ def test_token_5xx_is_generic(saas_cfg, monkeypatch):
 
 
 def test_send_403_insufficient_scope_is_auth_error(saas_cfg, monkeypatch):
+    # Real Gmail insufficient-scope 403 carries reason=insufficientPermissions → disconnect user.
+    body = {"error": {"code": 403, "message": "Insufficient Permission",
+                      "errors": [{"reason": "insufficientPermissions"}],
+                      "status": "PERMISSION_DENIED"}}
     _patch(monkeypatch, FakeResp(200, json_body={"access_token": "x"}),
-           FakeResp(403, text='{"error":{"message":"insufficient scopes"}}'))
+           FakeResp(403, json_body=body, text=str(body)))
     with pytest.raises(GmailAuthError):
         gmail_send.send_email(saas_cfg, "rt", to="u@x", subject="s", text="t")
+
+
+def test_send_403_rate_limit_is_retryable_not_auth(saas_cfg, monkeypatch):
+    # A rate-limit 403 must NOT throw away the (valid) refresh token.
+    body = {"error": {"code": 403, "errors": [{"reason": "userRateLimitExceeded"}]}}
+    _patch(monkeypatch, FakeResp(200, json_body={"access_token": "x"}),
+           FakeResp(403, json_body=body, text=str(body)))
+    with pytest.raises(GmailSendError) as ei:
+        gmail_send.send_email(saas_cfg, "rt", to="u@x", subject="s", text="t")
+    assert not isinstance(ei.value, GmailAuthError)
+
+
+def test_send_403_api_disabled_is_retryable_not_auth(saas_cfg, monkeypatch):
+    # accessNotConfigured (Gmail API off) must not trap users in an un-fixable reconnect loop.
+    body = {"error": {"code": 403, "errors": [{"reason": "accessNotConfigured"}],
+                      "status": "PERMISSION_DENIED"}}
+    _patch(monkeypatch, FakeResp(200, json_body={"access_token": "x"}),
+           FakeResp(403, json_body=body, text=str(body)))
+    with pytest.raises(GmailSendError) as ei:
+        gmail_send.send_email(saas_cfg, "rt", to="u@x", subject="s", text="t")
+    assert not isinstance(ei.value, GmailAuthError)
 
 
 def test_send_429_is_generic_retryable(saas_cfg, monkeypatch):

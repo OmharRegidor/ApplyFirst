@@ -47,7 +47,12 @@ class SaaSConfig:
     # M5 /auth/* rate limiting (DB-backed fixed window, shared across uvicorn workers)
     auth_rate_limit: int = 20           # max /auth/* requests per IP per window (0 disables)
     auth_rate_window: int = 60          # window length, seconds
-    trust_proxy: bool = True            # read client IP from X-Forwarded-For (Caddy is the only ingress)
+    trust_proxy: bool = True            # trust a proxy-set client-IP header (see trusted_ip_header)
+    # Which proxy header carries the real client IP for the rate limiter. Fly.io: "fly-client-ip"
+    # (Fly Proxy sets it from the real TCP peer — not client-forgeable). Unset (None) → take the
+    # LAST X-Forwarded-For hop, correct for a reverse proxy that appends the real peer (Caddy on
+    # the Oracle VM). Never key on the FIRST XFF hop — it is client-forgeable.
+    trusted_ip_header: str | None = None
     # M5 nightly backup
     backup_dir: str = "backups"
     backup_keep: int = 7
@@ -83,11 +88,18 @@ def load_saas_config() -> SaaSConfig:
         session_secret = b"dev-insecure-session-secret-do-not-use-in-prod"
     else:
         raise RuntimeError(
-            "SESSION_SECRET is required when secure cookies are on (production). "
-            "Generate one with `openssl rand -base64 32`."
+            "SESSION_SECRET is required when secure cookies are on (production). Generate one with: "
+            'python -c "import secrets,base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"'
         )
 
-    base_url = os.getenv("APPLYFIRST_BASE_URL", "https://localhost:8000").rstrip("/")
+    base_url_raw = os.getenv("APPLYFIRST_BASE_URL")
+    if secure and (not base_url_raw or "localhost" in base_url_raw or "127.0.0.1" in base_url_raw):
+        raise RuntimeError(
+            "APPLYFIRST_BASE_URL must be your public https URL (e.g. https://<name>.fly.dev) in "
+            "production (secure cookies on). It builds the Google OAuth redirect_uri; a localhost/"
+            "default value causes redirect_uri_mismatch and 100% sign-in failure."
+        )
+    base_url = (base_url_raw or "https://localhost:8000").rstrip("/")
 
     return SaaSConfig(
         db_path=db_path,
@@ -110,6 +122,7 @@ def load_saas_config() -> SaaSConfig:
         auth_rate_limit=int(os.getenv("APPLYFIRST_AUTH_RATE_LIMIT") or "20"),
         auth_rate_window=int(os.getenv("APPLYFIRST_AUTH_RATE_WINDOW") or "60"),
         trust_proxy=_as_bool(os.getenv("APPLYFIRST_TRUST_PROXY"), default=True),
+        trusted_ip_header=os.getenv("APPLYFIRST_TRUSTED_IP_HEADER") or None,
         backup_dir=os.getenv("APPLYFIRST_BACKUP_DIR") or "backups",
         backup_keep=int(os.getenv("APPLYFIRST_BACKUP_KEEP") or "7"),
         backup_remote_cmd=os.getenv("APPLYFIRST_BACKUP_REMOTE") or None,

@@ -39,17 +39,26 @@ _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 _HEALTH_STALE_FACTOR = 2.5
 
 
-def _client_ip(request: Request, trust_proxy: bool) -> str:
-    """Caller IP for rate limiting — the LAST X-Forwarded-For hop (the one Caddy appended).
+def _client_ip(request: Request, trust_proxy: bool, trusted_header: str | None = None) -> str:
+    """Caller IP for the rate limiter.
 
-    Caddy *appends* the real peer to any client-supplied XFF, so the trustworthy value is the
-    last entry; taking the first would let a client forge a fresh bucket per request and dodge
-    the limiter. The Caddyfile also pins XFF to the real peer (header_up) as defense-in-depth.
+    With ``trust_proxy`` on, read the client IP from a proxy-set header:
+    - ``trusted_header`` set (e.g. ``fly-client-ip`` on Fly.io) → use it. Fly Proxy sets
+      Fly-Client-IP from the real TCP peer and it is NOT client-forgeable. Do not use
+      X-Forwarded-For on Fly: its last hop is a constant app IP that would collapse every client
+      into one bucket, and its first hop is forgeable.
+    - ``trusted_header`` unset → take the LAST X-Forwarded-For hop, correct for a reverse proxy
+      that *appends* the real peer (Caddy on the Oracle VM); the first hop is forgeable.
     """
     if trust_proxy:
-        xff = request.headers.get("x-forwarded-for")
-        if xff:
-            return xff.split(",")[-1].strip()
+        if trusted_header:
+            val = request.headers.get(trusted_header)
+            if val:
+                return val.split(",")[-1].strip()
+        else:
+            xff = request.headers.get("x-forwarded-for")
+            if xff:
+                return xff.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"
 
 
@@ -78,7 +87,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         # Bound brute-force / abuse on the auth surface. One shared DB-backed counter so the
         # limit holds across all uvicorn workers (no Redis). Other paths are untouched.
         if request.url.path.startswith("/auth/") and cfg.auth_rate_limit > 0:
-            ip = _client_ip(request, cfg.trust_proxy)
+            ip = _client_ip(request, cfg.trust_proxy, cfg.trusted_ip_header)
             conn = db.connect(cfg.db_path)
             try:
                 allowed = db.record_auth_hit(conn, ip, cfg.auth_rate_limit, cfg.auth_rate_window)

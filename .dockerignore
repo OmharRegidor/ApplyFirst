@@ -1,0 +1,37 @@
+# Keep the build context tiny and secret-free. Only `applyfirst/`, `requirements.txt`,
+# and `entrypoint.sh` need to reach the image.
+
+# Secrets / local state — must NEVER enter the image
+.env
+.env.*
+!.env.example
+profile.yaml
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+backups/
+data/
+output/
+
+# Python cruft / local venv
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# VCS + tooling + docs not needed at runtime
+.git/
+.gitignore
+.noxa/
+tests/
+docs/
+deploy/oracle/
+*.log
+REMOTE.md
+Handoff.md
+.claude/

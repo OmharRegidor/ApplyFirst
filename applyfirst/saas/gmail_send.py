@@ -99,5 +99,19 @@ def send_email(cfg: SaaSConfig, refresh_token: str, *,
     if resp.status_code == 200:
         return resp.json().get("id", "")
     if resp.status_code == 403:
-        raise GmailAuthError(f"gmail send forbidden (insufficient scope): {resp.text[:200]}")
+        # Only a genuine scope/grant problem should DISCONNECT the user. Gmail also returns 403
+        # for rate limits and for a disabled Gmail API (accessNotConfigured); mapping those to
+        # GmailAuthError would throw away a valid refresh token (rate limit) or trap the user in a
+        # reconnect loop a reconnect can't fix (API off). Classify by the error `reason`.
+        reasons = set()
+        try:
+            err = (resp.json() or {}).get("error", {})
+            for d in (err.get("errors") or []) + (err.get("details") or []):
+                if isinstance(d, dict) and d.get("reason"):
+                    reasons.add(d["reason"])
+        except ValueError:
+            pass
+        if reasons & {"ACCESS_TOKEN_SCOPE_INSUFFICIENT", "insufficientPermissions"}:
+            raise GmailAuthError(f"gmail send forbidden (insufficient scope): {resp.text[:200]}")
+        raise GmailSendError(f"gmail send 403 (retryable): {resp.text[:200]}")
     raise GmailSendError(f"gmail send failed: {resp.status_code} {resp.text[:200]}")

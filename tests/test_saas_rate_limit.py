@@ -68,6 +68,22 @@ def test_limiter_keys_on_last_xff_hop_not_spoofable(saas_cfg):
                  headers={"X-Forwarded-For": "1.2.3.4, 6.6.6.6"}).status_code == 302
 
 
+def test_limiter_keys_on_fly_client_ip_when_configured(saas_cfg):
+    """On Fly (APPLYFIRST_TRUSTED_IP_HEADER=fly-client-ip) the limiter keys on the un-forgeable
+    Fly-Client-IP, NOT on X-Forwarded-For (whose last hop is a constant app IP on Fly and would
+    collapse every client into one shared bucket)."""
+    cfg = dataclasses.replace(saas_cfg, auth_rate_limit=3, auth_rate_window=60,
+                              trusted_ip_header="fly-client-ip")
+    c = TestClient(create_app(cfg), follow_redirects=False)
+    # All requests carry the SAME (Fly-appended) XFF app IP; only Fly-Client-IP distinguishes them.
+    xff = {"X-Forwarded-For": "1.2.3.4, 172.16.0.1"}
+    for _ in range(3):
+        assert c.get("/auth/login", headers={**xff, "Fly-Client-IP": "100.0.0.7"}).status_code == 302
+    assert c.get("/auth/login", headers={**xff, "Fly-Client-IP": "100.0.0.7"}).status_code == 429
+    # A different real client (distinct Fly-Client-IP) gets its own bucket despite identical XFF.
+    assert c.get("/auth/login", headers={**xff, "Fly-Client-IP": "100.0.0.8"}).status_code == 302
+
+
 def test_limiter_fails_closed_when_store_unavailable(saas_cfg):
     """If the rate-limit table is gone, /auth/* returns 503 (fail closed), never fail-open 200."""
     cfg = dataclasses.replace(saas_cfg, auth_rate_limit=3)

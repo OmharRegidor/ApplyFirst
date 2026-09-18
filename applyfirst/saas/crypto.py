@@ -43,7 +43,8 @@ def _coerce_key(raw: bytes) -> bytes:
     try:
         decoded = base64.b64decode(raw, validate=True)
     except (ValueError, base64.binascii.Error) as exc:
-        raise CryptoError("master key is neither 32 raw bytes nor valid base64") from exc
+        raise CryptoError("master key is neither 32 raw bytes nor valid STANDARD base64 "
+                          "(url-safe base64 with -/_ or hex will not decode)") from exc
     return decoded
 
 
@@ -60,8 +61,9 @@ def load_master_key() -> bytes:
         b64 = os.getenv("APPLYFIRST_MASTER_KEY")
         if not b64:
             raise CryptoError(
-                "no master key configured — set MASTER_KEY_PATH (prod) or "
-                "APPLYFIRST_MASTER_KEY (base64, dev). Generate with `openssl rand -base64 32`."
+                "no master key configured — set APPLYFIRST_MASTER_KEY (standard base64, 32 bytes) "
+                "or MASTER_KEY_PATH (a 0600 file; systemd/VM deploys only — NOT Fly). Generate with: "
+                'python -c "import secrets,base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"'
             )
         key = _coerce_key(b64.encode("ascii"))
     if len(key) != _KEY_LEN:
