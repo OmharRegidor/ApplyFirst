@@ -1,30 +1,216 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui %}
+{% from "_icons.html" import icon %}
 {% block title %}ApplyFirst — be first to apply on onlinejobs.ph{% endblock %}
+{% block meta %}
+  <meta name="description" content="ApplyFirst watches onlinejobs.ph for new jobs that match you and emails a ready-to-paste application to your own Gmail within minutes. You check it and apply yourself.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="ApplyFirst">
+  <meta property="og:title" content="New job posted. Your application is already written.">
+  <meta property="og:description" content="For onlinejobs.ph job seekers. Get a ready-to-paste application in your Gmail minutes after a matching job is posted.">
+{% endblock %}
+{% block head_extra %}
+  <link rel="preload" href="/static/fonts/google-sans-button-500.woff2" as="font" type="font/woff2" crossorigin>
+{% endblock %}
 {% block content %}
-<div class="card">
-  <h1>Be first to apply on onlinejobs.ph</h1>
-  <p class="muted" style="margin:0 0 20px">
-    ApplyFirst watches the jobs you care about and writes a ready-to-paste application the
-    moment a match appears — delivered straight to <strong>your own Gmail inbox</strong>.
-    You review, copy, and paste it yourself. We don't apply for you; we make sure you're first.
-  </p>
-  <a class="gbtn" href="/auth/login">Continue with Google</a>
+{%- set N = [check_every_min | default(10), 50] | min %}
+{%- set A = apps_per_day | default(10) %}
+{#- The example email lands one check interval after the 9:02 post, on the ruler and in the inbox alike. #}
+{%- set landed_at = "9:%02d AM" | format(2 + N) %}
+<section class="hero" aria-labelledby="hero-title">
+  <div class="container hero__grid">
+    <div class="hero__copy">
+      <div class="hero__tags">{{ ui.tag("Beta") }}{{ ui.tag(ui.TRIAL_DAYS ~ "-day free trial") }}</div>
+      <h1 id="hero-title">Be first to apply on onlinejobs.ph</h1>
+      <p class="hero__lead">ApplyFirst watches onlinejobs.ph for the jobs you want, day and night. When a new one is posted, a ready-to-paste application lands in your own Gmail within minutes. You check it, then apply.</p>
+      {{ ui.inapp_notice(request.headers.get('user-agent', '')) }}
+      {{ ui.cta_block() }}
+      <ul class="trust" aria-label="Your Gmail stays yours">
+        <li>{{ icon('eye-off') }}We never read your emails</li>
+        <li>{{ icon('send') }}Send-only Gmail access</li>
+        <li>{{ icon('log-out') }}Stop any time</li>
+      </ul>
+      {%- if ui.INVITE_ONLY %}
+      <p class="honesty"><strong>We don't apply for you. We help you get there early.</strong></p>
+      {%- endif %}
+    </div>
 
-  <h2 style="font-size:18px;margin:28px 0 8px">How it works</h2>
-  <ol class="muted" style="margin:0;padding-left:20px">
-    <li>Sign in with Google and connect Gmail.</li>
-    <li>Add your job keywords and a standard message.</li>
-    <li>When a matching job is posted, we tailor an application and email it to your inbox.</li>
-    <li>You open it, review, and apply.</li>
-  </ol>
+    <figure class="arrival" aria-labelledby="arrival-cap">
+      <div class="arrival__stage">
+        <ol class="ruler" aria-label="Example timing">
+          <li><time>9:02 AM</time>Job posted on onlinejobs.ph</li>
+          <li class="is-now"><time>{{ landed_at }}</time>Lands in your Gmail</li>
+          <li><time>9:{{ "%02d" | format(5 + N) }} AM</time>You check it and apply</li>
+        </ol>
+        <div class="inbox">
+          <div class="inbox__bar"><strong>{{ icon('inbox', 18) }}Inbox</strong>{{ ui.tag("Example", "quiet") }}</div>
+          <div class="mail-row mail-row--new">
+            <span class="mail-row__dot" aria-hidden="true"></span>
+            <span class="mail-row__from">me</span>
+            <span class="mail-row__time">{{ landed_at }}</span>
+            <span class="mail-row__subject">🆕 Virtual Assistant [Full Time] — onlinejobs.ph</span>
+            <span class="mail-row__snippet">The word they asked for, a subject line, and your message</span>
+            <span class="callout">{{ icon('send', 14) }}From your Gmail, to your Gmail</span>
+          </div>
+          <div class="mail-row mail-row--read">
+            <span class="mail-row__dot" aria-hidden="true"></span>
+            <span class="mail-row__from">me</span>
+            <span class="mail-row__time">Yesterday</span>
+            <span class="mail-row__subject">🆕 Customer Support Specialist [Part Time] — onlinejobs.ph</span>
+          </div>
+        </div>
+        <article class="letter" aria-label="The example email, opened">
+          <div class="letter__part"><span class="letter__label">Start your reply with</span><p class="paste paste--word">SUNFLOWER <small>The post asks for this word</small></p></div>
+          <div class="letter__part"><span class="letter__label">Subject to paste</span><p class="paste">Reliable VA for your online store, ready this week</p></div>
+          <div class="letter__part"><span class="letter__label">Message, ready to paste</span><p class="fade">SUNFLOWER. Hi! I read that you need someone to answer customer emails and keep your Shopify orders moving. I've done exactly this for two online stores over the last 3 years, and I reply to customers within the hour.</p></div>
+        </article>
+      </div>
+      <figcaption class="caption" id="arrival-cap">Example timing. We check about every {{ N }} minutes, so your times will vary. Real emails use the real job post and your own details.</figcaption>
+    </figure>
+  </div>
+</section>
 
-  <h2 style="font-size:18px;margin:28px 0 8px">Why we ask for Gmail access</h2>
-  <p class="muted" style="margin:0">
-    ApplyFirst requests the <code>gmail.send</code> permission for one purpose: to send
-    <strong>you</strong> your own tailored application, to your own inbox, so it's ready when
-    you apply. We never read, list, or store your existing emails — only the send permission
-    is requested. See our <a href="/privacy">Privacy Policy</a> for exactly what we collect
-    and how it's used.
-  </p>
-</div>
+<section class="section section--white how" aria-labelledby="how-title">
+  <div class="container">
+    <div class="intro">
+      <h2 id="how-title">How it works</h2>
+      <p>Set it up once. After that, new jobs come to you.</p>
+    </div>
+    {% call ui.route(horizontal=true) %}
+      <li>
+        <h3>Tell us what you want.</h3>
+        <p>Pick a few job keywords, like “virtual assistant” or “graphic designer”, and paste your usual application message.</p>
+        {{ ui.time_chip("Once, about 3 minutes") }}
+      </li>
+      <li>
+        <h3>We watch onlinejobs.ph for you.</h3>
+        <p>We check for new posts about every {{ N }} minutes, day and night. You only get jobs posted after you start.</p>
+        {{ ui.time_chip("All day, every day") }}
+      </li>
+      <li>
+        <h3>Your application lands in your Gmail.</h3>
+        <p>Open it, check it, paste it into onlinejobs.ph, and apply.</p>
+        {{ ui.time_chip("Minutes after the post") }}
+      </li>
+    {% endcall %}
+    <p class="how__close">{{ icon('user') }}<span>You send every application yourself. ApplyFirst never applies for you and never contacts employers.</span></p>
+  </div>
+</section>
+
+{# Google verification reads this section: visible with no click, the gmail.send sentence and the /privacy link each on one source line. #}
+<section class="section gmail on-dark" aria-labelledby="gmail-title">
+  <div class="container gmail__grid">
+    <div class="gmail__copy">
+      <h2 id="gmail-title">Why we ask for Gmail access</h2>
+      <p>ApplyFirst asks Google for one permission. Google calls it <code>gmail.send</code>. We use it for one thing only: to email <strong>you</strong> your own ready-to-paste application, at your own Gmail address, so it's ready when you apply. We never read, list, or store your existing emails. Only the send permission is requested.</p>
+    </div>
+    <div class="gmail__visual">
+      {{ ui.from_to("you@gmail.com", "Y", "The only address we send to is yours.", dark=true, row=true) }}
+      {{ ui.ledger("full") }}
+    </div>
+    <div class="gmail__foot">
+      <p>{{ icon('lock') }}<span>The permission is stored encrypted, and we never see your Gmail password. Full details are in our <a href="/privacy">Privacy Policy</a>.</span></p>
+      <p>{{ icon('shield-check') }}<span>We follow the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy<span class="visually-hidden"> (opens in a new tab)</span></a>, including the Limited Use requirements.</span></p>
+    </div>
+  </div>
+</section>
+
+<section class="section anatomy" aria-labelledby="anatomy-title">
+  <div class="container anatomy__grid">
+    <div class="intro">
+      <h2 id="anatomy-title">Everything you need to apply, in one email</h2>
+      <p>Each email is written for one job post. This is what's inside, in the order you'll see it.</p>
+      <p class="note">{{ icon('info', 18) }}<span>The AI uses only what you told us. Always read it before you send.</span></p>
+    </div>
+    <article class="mail" aria-label="Example email, labelled part by part">
+      <div class="mail__head">
+        <span class="avatar" aria-hidden="true">M</span>
+        <span class="mail__who"><b>me</b> to me</span>
+        {{ ui.tag("Example", "quiet") }}
+        <p class="mail__subject">🆕 Virtual Assistant [Full Time] — onlinejobs.ph</p>
+      </div>
+      <dl class="mail__parts">
+        <div><dt>The job, the pay, and a button to open the post</dt><dd class="mail__job"><b>Virtual Assistant</b><span class="mail__meta">Full Time · $600/month · matched “virtual assistant”</span><span class="mail__fakebtn" aria-hidden="true">Apply on onlinejobs.ph</span></dd></div>
+        <div><dt>The special word the employer asked for</dt><dd><span class="paste paste--word">SUNFLOWER <small>Start your reply with this</small></span></dd></div>
+        <div><dt>A subject line to paste</dt><dd><p class="paste">Reliable VA for your online store, ready this week</p></dd></div>
+        <div><dt>{% if ui.AI_LETTER_COPY %}A message written from your own words for this job{% else %}A message based on your own words{% endif %}</dt><dd><p class="fade">SUNFLOWER. Hi! I read that you need someone to answer customer emails and keep your Shopify orders moving. I've done exactly this for two online stores over the last 3 years. I use Gorgias for support tickets and Canva for quick product photos, and I reply to customers within the hour.</p></dd></div>
+        <div><dt>Draft answers to the post's questions</dt><dd class="qa"><p><b>Q.</b> How many hours can you work each week?</p><p><b>A.</b> 40 hours. I can match US business hours.</p></dd></div>
+        <div><dt>A short summary of what the employer wants</dt><dd>Fast, friendly replies to customers. Tidy order tracking. Basic Canva skills. Starts this week.</dd></div>
+      </dl>
+    </article>
+  </div>
+</section>
+
+<section class="section section--white" aria-labelledby="early-title">
+  <div class="container">
+    <div class="intro"><h2 id="early-title">On onlinejobs.ph, early applications get seen</h2></div>
+    <div class="early__grid">
+      <div class="panel">
+        <h3>Some posts stop taking applications fast.</h3>
+        <p>A free employer account on onlinejobs.ph can receive only 15 applications per job.</p>
+        <ol class="slots" aria-hidden="true">
+          {%- for i in range(1, 16) %}<li{% if i <= 3 %} class="early"{% endif %}>{{ i }}</li>{% endfor -%}
+          <li class="full">{{ icon('lock', 14) }}</li>
+        </ol>
+        <ul class="legend" aria-hidden="true">
+          <li><span class="key"></span>Early applications fill these first</li>
+          <li><span class="key key--full"></span>No room after 15</li>
+        </ul>
+        <p class="caption source">Source: <a href="https://www.onlinejobs.ph/pricing" target="_blank" rel="noopener">onlinejobs.ph pricing page<span class="visually-hidden"> (opens in a new tab)</span></a>, checked September 2026.</p>
+      </div>
+      <ul class="facts">
+        <li><h3>Popular posts fill up.</h3><p>A good VA post can get hundreds of applications in a day.</p></li>
+        <li><h3>Copy-paste letters get skipped.</h3><p>onlinejobs.ph says employers often throw out template applications and people who miss the instructions.{% if ui.AI_LETTER_COPY %} ApplyFirst writes for each post and points out its instructions.{% endif %}</p></li>
+        <li><h3>Nobody can refresh all day.</h3><p>You sleep, work, and eat. We check about every {{ N }} minutes, day and night, so a new post doesn't wait for you to look.</p></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="behind-title">
+  <div class="container behind__grid">
+    <div class="behind__note">
+      <h2 id="behind-title">Built in the Philippines</h2>
+      <p>ApplyFirst is new and in a small beta. It was made because good jobs on onlinejobs.ph fill up while you sleep. If something breaks, or you would change something, send an email. A real person reads every one.</p>
+      <a class="behind__mail" href="mailto:{{ ui.CONTACT_EMAIL }}">{{ icon('mail') }}{{ ui.CONTACT_EMAIL }}</a>
+    </div>
+    <div class="sheet honest">
+      <h3>The beta, honestly</h3>
+      <ul>
+        <li>{{ icon('user') }}<span><strong>Small on purpose.</strong> Google lets new apps have up to 100 testers while it reviews them.</span></li>
+        <li>{{ icon('shield-check') }}<span><strong>Your data stays yours.</strong> Read exactly what we keep in our <a href="/privacy">Privacy Policy</a>.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="section section--white" aria-labelledby="faq-title">
+  <div class="container faq__grid">
+    <div class="intro">
+      <h2 id="faq-title">Questions you might have</h2>
+      <p class="caption-lg">Something else on your mind? Email <span class="select-all">{{ ui.CONTACT_EMAIL }}</span>. A real person reads it.</p>
+    </div>
+    <div class="faq__list">
+      {% call ui.disclose("Does ApplyFirst apply to jobs for me?", open=true) %}<p>No. We email the application to you. You read it, copy it, and apply on onlinejobs.ph yourself. We never contact employers, and we never ask for your onlinejobs.ph password or log in to your account.</p>{% endcall %}
+      {% call ui.disclose("Can ApplyFirst read my emails?") %}<p>No. We ask Google for one permission, which Google shows as “Send email on your behalf”. That permission can send email, but it can't open, read, search, or delete your emails. We use it only to send your applications to your own address.</p>{% endcall %}
+      {% call ui.disclose("Why did I get an email from myself?") %}<p>That's us. We send each application through your own Gmail, from you to you, so it lands in your inbox like any other email. You'll also see a copy in your Sent folder. Look for 🆕 at the start of the subject.</p>{% endcall %}
+      {% call ui.disclose("How fast will I hear about new jobs?") %}<p>We check onlinejobs.ph about every {{ N }} minutes, day and night. When a new post matches one of your keywords, your application usually arrives within minutes. We only send jobs posted after you start, so you never get old posts.</p>{% endcall %}
+      {% call ui.disclose("Is there a daily limit?") %}<p>Yes. You can get up to {{ A }} application{{ '' if A == 1 else 's' }} a day. The count resets at 8:00 AM Philippine time. If you reach the limit, new matches for the rest of that day are skipped, not saved for later. Tip: use 2 to 5 specific keywords so the {{ A }} go to jobs you really want.</p>{% endcall %}
+      {% call ui.disclose("How do I stop, or delete my data?") %}<p>Tap <strong>Disconnect Gmail</strong> on your dashboard. We stop sending, delete our stored permission, and remove our access at Google. You can also remove ApplyFirst in your Google Account, under Security, then Third-party connections.</p><p>To delete your whole account and data, email {{ ui.CONTACT_EMAIL }} and we'll remove your details, keywords, and saved permissions.</p>{% endcall %}
+      {% call ui.disclose("Is ApplyFirst free to try?") %}<p>{{ ui.TRIAL_NOTE }}{% if ui.SHOW_PRICE %} After the trial, the premium plan is {{ ui.PRICE_TEXT }}.{% endif %}</p>{% endcall %}
+      {% call ui.disclose("Does it work on my phone?") %}<p>Yes. Applications arrive in your Gmail app like any email. You can copy them and apply from your phone.</p>{% endcall %}
+    </div>
+  </div>
+</section>
+
+<section class="section closing" aria-labelledby="closing-title">
+  <div class="container closing__grid">
+    <div>
+      <h2 id="closing-title">Stop refreshing onlinejobs.ph.</h2>
+      <p class="closing__lede">Tell us the jobs you want. We check for new posts every few minutes and email you a ready-to-paste application. You stay in control. Nothing reaches an employer unless you send it.</p>
+      <p class="trial-note">{{ ui.TRIAL_NOTE }}</p>
+    </div>
+    {{ ui.cta_block() }}
+  </div>
+</section>
 {% endblock %}

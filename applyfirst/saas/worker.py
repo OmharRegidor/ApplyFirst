@@ -34,6 +34,7 @@ from applyfirst.notify.compose import build_tailored_email
 from applyfirst.saas import crypto, db, gmail_send, preview
 from applyfirst.saas.config import SaaSConfig, load_saas_config
 from applyfirst.tailor.contract import TailoredPackage
+from applyfirst.tailor.prompt import PROMPT_FINGERPRINT
 
 _LOG = log.get_logger("saas.worker")
 
@@ -65,6 +66,24 @@ def default_engine_factory(cfg: SaaSConfig):
     return TailoringEngine(provider=provider)
 
 
+def _invalidate_stale_cache(conn) -> int:
+    """Drop every cached package once per prompt version. Returns the rows removed.
+
+    The cache key is (job_id, profile_hash) and knows nothing about the prompt, so without
+    this a retried alert could re-send a letter an older prompt wrote. The worker_meta stamp
+    makes it run once per PROMPT_FINGERPRINT, not every cycle. Costs one SELECT per cycle.
+    """
+    if db.get_worker_meta(conn, "prompt_fingerprint") == PROMPT_FINGERPRINT:
+        return 0
+    # Inline on purpose: db.py (the data layer) is out of scope for this change; move this
+    # next to db.purge_tailoring_cache the next time db.py opens. Left uncommitted so the
+    # set_worker_meta commit below lands the delete and the stamp in one transaction.
+    removed = conn.execute("DELETE FROM tailoring_cache").rowcount
+    db.set_worker_meta(conn, "prompt_fingerprint", PROMPT_FINGERPRINT)
+    log.event(_LOG, "tailoring_cache_invalidated", removed=removed, prompt=PROMPT_FINGERPRINT)
+    return removed
+
+
 def _pause(bounds: tuple[float, float], polite: bool) -> None:
     if polite:
         time.sleep(random.uniform(*bounds))
@@ -92,13 +111,23 @@ def _get_or_create_job(conn, raw, source, *, fetch_detail: bool, polite: bool) -
 
 
 def _tailor(conn, alert, profile, job, cfg, engine_factory):
-    """Return (package, provider, ai_available) using the cache; or None if capped."""
+    """Return (package, provider, ai_available) using the cache; or None if capped.
+
+    Only a first attempt reserves a daily-cap slot. A retry (``alert.attempts > 0``) was
+    charged when it was first tailored, so a cache miss on a retry (the prompt-change wipe, or
+    an edited profile) re-tailors for free: one job costs one slot, and a user already at the
+    cap still gets it. Bounded by ``_MAX_ATTEMPTS``: at most ``_MAX_ATTEMPTS - 1`` free
+    re-tailors per alert. A cap of 0 or less switches tailoring off for every attempt.
+    """
     cached = db.cache_get(conn, alert.job_id, profile.profile_hash)
     if cached is not None:
         package = TailoredPackage.model_validate_json(cached["package_json"])
         return package, cached["provider"], cached["provider"] != "rules-fallback"
 
-    if not db.try_increment_ai_usage(conn, alert.user_id, cfg.daily_tailor_cap):
+    if cfg.daily_tailor_cap <= 0:
+        return None  # AI switched off (APPLYFIRST_DAILY_TAILOR_CAP=0), retries included
+    if alert.attempts == 0 and not db.try_increment_ai_usage(conn, alert.user_id,
+                                                             cfg.daily_tailor_cap):
         return None  # daily cap reached
 
     engine = engine_factory()
@@ -107,6 +136,7 @@ def _tailor(conn, alert, profile, job, cfg, engine_factory):
         preview.to_profile(full_name=profile.full_name, job_type=profile.job_type,
                            standard_subject=profile.standard_subject,
                            standard_message=profile.standard_message),
+        resume_attached=False,   # the SaaS never sends a resume file (AST-guarded in tests)
     )
     db.cache_put(conn, alert.job_id, profile.profile_hash,
                  result.package.model_dump_json(), result.provider)
@@ -151,7 +181,7 @@ def process_alert(conn, alert, cfg, master_key, *, engine_factory, sender) -> st
         if alert.attempts + 1 >= _MAX_ATTEMPTS:
             db.mark_alert(conn, alert.id, "failed", last_error=str(exc)[:200])
             return "failed"
-        return "pending"  # left pending → retried next cycle (cache hit, no extra cap)
+        return "pending"  # left pending → retried next cycle, never charged again (_tailor)
 
     db.mark_alert(conn, alert.id, "sent", sent_at=db._now_iso())
     return "sent"
@@ -161,6 +191,7 @@ def run_once(conn, source, cfg, master_key, *,
              engine_factory=None, sender=None, fetch_detail: bool = True,
              polite: bool = True) -> CycleResult:
     """Run exactly one poll→fanout→process cycle. Deterministic; what tests call."""
+    _invalidate_stale_cache(conn)   # first: never reuse a letter an older prompt wrote
     engine_factory = engine_factory or (lambda: default_engine_factory(cfg))
     sender = sender or gmail_send.send_email
     result = CycleResult()

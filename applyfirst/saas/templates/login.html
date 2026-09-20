@@ -1,17 +1,35 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui %}
+{% from "_icons.html" import icon %}
 {% block title %}Sign in · ApplyFirst{% endblock %}
+{% block head_extra %}
+  <link rel="preload" href="/static/fonts/google-sans-button-500.woff2" as="font" type="font/woff2" crossorigin>
+{% endblock %}
+{% block body_class %}is-auth{% endblock %}
+{% block header_action %}{% endblock %}
 {% block content %}
-<div class="card">
-  <h1 style="margin:0 0 8px">Be first to apply on onlinejobs.ph</h1>
-  <p class="muted" style="margin:0 0 24px">
-    ApplyFirst watches the jobs you care about and writes a ready-to-paste application the
-    moment a match appears — delivered <strong>to your own Gmail inbox</strong>. You review,
-    copy, and paste it yourself. We don't apply for you; we make sure you're first.
-  </p>
-  <a class="gbtn" href="/auth/login">Continue with Google</a>
-  <p class="muted" style="margin:20px 0 0; font-size:13px">
-    We only ask for your name and email to sign you in. Connecting Gmail (so we can send
-    you your applications) is a separate, optional step you'll do after sign-in.
-  </p>
+<div class="auth">
+  <div class="auth__sheet">
+    <div class="auth__head">
+      {{ ui.mark() }}
+      <h1>Sign in to ApplyFirst</h1>
+      <p class="lead">New here? The same button sets up your account.</p>
+    </div>
+    {{ ui.inapp_notice(request.headers.get('user-agent', '')) }}
+    <div class="auth__action">
+      {{ ui.google_button(block=true) }}
+      <p class="note">{{ icon('lock', 16) }}<span>You'll sign in on Google's own page. We never see your password.</span></p>
+    </div>
+    {%- if ui.INVITE_ONLY %}
+    {% call ui.alert('info', 'info') %}
+      <p>ApplyFirst is in a private beta. If Google says “Access blocked”, you're not on the list yet.</p>
+      <p><a class="text-link" href="{{ ui.INVITE_MAILTO }}">{{ icon('mail', 18) }}Ask for an invite</a></p>
+      <p class="caption">No mail app? Email <span class="select-all">{{ ui.CONTACT_EMAIL }}</span></p>
+    {% endcall %}
+    {%- endif %}
+    <hr>
+    <p class="caption">Signing in shares only your name and email address with us. Connecting Gmail is a separate step, and you choose whether to do it.</p>
+  </div>
+  <p class="auth__foot"><a class="text-link" href="/">What is ApplyFirst?</a></p>
 </div>
 {% endblock %}

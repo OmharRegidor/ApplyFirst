@@ -52,7 +52,7 @@ def build_job_email(job: Mapping, hints: list[str]) -> tuple[str, str, str]:
     hints_html = ""
     if hints:
         items = "".join(f"<li>{esc(h)}</li>" for h in hints)
-        hints_html = ('<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;'
+        hints_html = ('<div style="background:#FFF6E6;border:1px solid #F0C274;border-radius:8px;'
                       'padding:10px 14px;margin:12px 0"><strong>📋 Application instructions detected'
                       f'</strong><ul style="margin:6px 0 0">{items}</ul></div>')
     body = esc(desc) if desc else "(no description captured)"
@@ -61,9 +61,9 @@ def build_job_email(job: Mapping, hints: list[str]) -> tuple[str, str, str]:
         f'<h2 style="margin:0 0 6px">{esc(title)}</h2>'
         f'<p style="color:#555;margin:0 0 10px">{esc(etype)} · {esc(salary)} · posted '
         f'{esc(str(posted))} UTC · matched &ldquo;{esc(keyword)}&rdquo;</p>'
-        f'<p style="margin:0 0 12px"><a href="{esc(url)}" style="background:#2563eb;color:#fff;'
+        f'<p style="margin:0 0 12px"><a href="{esc(url)}" style="background:#0B6BC7;color:#fff;'
         'padding:9px 16px;border-radius:6px;text-decoration:none;display:inline-block">'
-        'Apply on onlinejobs.ph →</a></p>'
+        'Apply on onlinejobs.ph</a></p>'
         f'{hints_html}'
         '<h3 style="margin:16px 0 6px">Job description</h3>'
         '<pre style="white-space:pre-wrap;font-family:inherit;background:#f6f7f9;padding:12px;'
@@ -113,14 +113,15 @@ def build_tailored_email(job: Mapping, package, ai_available: bool,
                                     "edit before sending.</p>")
     token = ""
     if package.compliance_token:
-        token = ('<p style="background:#fee2e2;border:1px solid #fecaca;border-radius:6px;'
-                 f'padding:8px 12px"><strong>⚠ Start your reply with:</strong> '
+        token = ('<p style="background:#DCEFFB;border:1px solid #86CBF2;color:#0B2545;'
+                 'border-radius:6px;padding:8px 12px"><strong>⚠ Start your reply with:</strong> '
                  f'{esc(package.compliance_token)}</p>')
     subj_html = ""
     if package.application_subject:
         subj_html = ('<h3 style="margin:16px 0 6px">📌 Subject to paste</h3>'
-                     '<pre style="white-space:pre-wrap;font-family:inherit;background:#eef2ff;'
-                     'border:1px solid #c7d2fe;padding:12px;border-radius:8px;margin:0">'
+                     '<pre style="white-space:pre-wrap;font-family:inherit;background:#EEF7FD;'
+                     'border:1px solid #BFE3F8;color:#0B2545;padding:12px;border-radius:8px;'
+                     'margin:0">'
                      f'{esc(package.application_subject)}</pre>')
     qa_html = ""
     if package.screening_questions:
@@ -147,8 +148,8 @@ def build_tailored_email(job: Mapping, package, ai_available: bool,
         f'<h2 style="margin:0 0 4px">{esc(title)}</h2>'
         f'<p style="color:#555;margin:0 0 8px">{esc(etype)} · {esc(salary)} · posted '
         f'{esc(str(posted))} UTC · matched &ldquo;{esc(keyword)}&rdquo;</p>'
-        f'<p><a href="{esc(url)}" style="background:#2563eb;color:#fff;padding:9px 16px;'
-        'border-radius:6px;text-decoration:none;display:inline-block">Apply on onlinejobs.ph →</a></p>'
+        f'<p><a href="{esc(url)}" style="background:#0B6BC7;color:#fff;padding:9px 16px;'
+        'border-radius:6px;text-decoration:none;display:inline-block">Apply on onlinejobs.ph</a></p>'
         f'{warn}{token}{subj_html}'
         '<h3 style="margin:16px 0 6px">Message — ready-to-paste cover letter</h3>'
         '<pre style="white-space:pre-wrap;font-family:inherit;background:#f6f7f9;padding:12px;'

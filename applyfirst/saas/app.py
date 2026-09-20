@@ -14,6 +14,7 @@ Routes:
     GET  /dashboard              → gated page
     GET  /api/oauth-credentials/{id} → tenant-scoped fetch (404 if not owned)
     GET  /healthz                → "ok"
+    GET  /static/<path>          → self-hosted CSS/JS/fonts/icons (static_assets.py)
 """
 
 from __future__ import annotations
@@ -27,12 +28,92 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 from fastapi.templating import Jinja2Templates
 
 from applyfirst import log
-from applyfirst.saas import crypto, db, google_oauth, onboarding, preview, session
+from applyfirst.saas import (crypto, db, google_oauth, onboarding, preview, session,
+                             static_assets)
 from applyfirst.saas.config import SaaSConfig, load_saas_config
 from applyfirst.saas.tenant import tenant_scope
 
 _LOG = log.get_logger("saas.app")
-_TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def check_every_min(worker_interval: int) -> int:
+    """The poll interval (seconds) as the whole minutes pages quote, half up, at least 1."""
+    return max(1, (int(worker_interval) + 30) // 60)
+
+
+def _page_context(request: Request) -> dict:
+    """Context processor for every render, read from the app serving the request (never a
+    module global, so each create_app(cfg) quotes its own config). Starlette applies it AFTER
+    the route's dict, so these keys must never be route context keys."""
+    cfg = request.app.state.cfg
+    return {"check_every_min": check_every_min(cfg.worker_interval),
+            "apps_per_day": cfg.daily_tailor_cap}
+
+
+_TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"),
+                             context_processors=[_page_context])
+_TEMPLATES.env.globals["static_url"] = static_assets.static_url
+
+# Server-side length caps (the form's maxlength is only a UX hint), the same numbers as the
+# templates' maxlength. Measured after strip and with CRLF counted as one character, because
+# browsers count a textarea newline as 1 for maxlength but submit it as CRLF.
+_PROFILE_MAX_LEN = {"full_name": 80, "job_type": 80, "standard_subject": 150,
+                    "standard_message": 5000}
+_KEYWORD_MAX_LEN = 60
+_KEYWORD_MAX_COUNT = 20     # per user; each unique keyword costs the worker a search per cycle
+
+
+def _too_long(value: str, limit: int) -> bool:
+    return len(value.replace("\r\n", "\n")) > limit
+
+
+# The only ?error= values Step 2 honours, each mapped to a fixed server-side description:
+# "1" is today's blank-field error, "long_<field>" names a field over its cap. Any other value
+# is ignored, and no query value is ever rendered.
+_PROFILE_FORM_ERRORS = {"1": {"kind": "blank"}} | {
+    f"long_{name}": {"kind": "too_long", "field": name, "limit": limit}
+    for name, limit in _PROFILE_MAX_LEN.items()}
+
+
+def _profile_error_token(fields: dict[str, str]) -> str | None:
+    """The ?error= token for a profile save, or None when it is valid. A blank field keeps
+    today's "1"; otherwise the first field over its cap, in form order, is named."""
+    if not all(fields.values()):
+        return "1"
+    return next((f"long_{name}" for name, value in fields.items()
+                 if _too_long(value, _PROFILE_MAX_LEN[name])), None)
+
+
+def _profile_form_error(request: Request) -> dict | None:
+    """Step 2's form_error from the whitelist above (a fresh copy), or None."""
+    known = _PROFILE_FORM_ERRORS.get(request.query_params.get("error"))
+    return dict(known) if known else None
+
+
+def _over_cap_fields(profile: db.Profile | None) -> list[str]:
+    """Every saved field over its cap, in form order (rows saved before the caps existed), so
+    Step 2 can flag them all at once. Built from the stored profile only, never the query."""
+    if profile is None:
+        return []
+    return [name for name, limit in _PROFILE_MAX_LEN.items()
+            if _too_long((getattr(profile, name) or "").strip(), limit)]
+
+
+def _prefill_name(display_name: str | None) -> str:
+    """Google's display name as the Step 2 name prefill, cut to the full_name cap so an
+    untouched prefill always saves (browsers do not enforce maxlength on prefilled text)."""
+    return (display_name or "")[:_PROFILE_MAX_LEN["full_name"]].rstrip()
+
+
+def _is_activated(profile: db.Profile | None) -> bool:
+    return profile is not None and profile.is_activated
+
+
+def _gmail_error_flag(request: Request) -> str | None:
+    """The only honoured value of ?gmail_error= is the exact string "scope" (set by our own
+    gmail-callback redirect). Anything else is ignored, and the raw value is never rendered."""
+    return "scope" if request.query_params.get("gmail_error") == "scope" else None
+
 
 # /health reports the worker stale (503) once last_cycle_at is older than this × the poll
 # interval — generous enough that ordinary jitter never trips it.
@@ -66,6 +147,10 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
     cfg = config or load_saas_config()
     app = FastAPI(title="ApplyFirst", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.cfg = cfg
+    # Self-hosted CSS/JS/fonts/icons. Read through the module so a test can point
+    # static_assets.STATIC_DIR at a temp folder. Raises here if the folder is missing.
+    app.mount("/static", static_assets.CachedStaticFiles(directory=static_assets.STATIC_DIR),
+              name="static")
 
     # Ensure the schema exists before serving.
     db.init_db(cfg.db_path).close()
@@ -173,7 +258,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         if user is None:
             return RedirectResponse("/login", status_code=302)
         profile = db.get_profile(conn, user.id)
-        if profile is None or not profile.is_activated:
+        if not _is_activated(profile):
             return RedirectResponse("/onboarding", status_code=302)
         return _TEMPLATES.TemplateResponse(request, "dashboard.html", {
             "user": user,
@@ -183,6 +268,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             "usage_today": db.get_ai_usage_today(conn, user.id),
             "daily_cap": cfg.daily_tailor_cap,
             "csrf_token": csrf_for(user),
+            "gmail_error": _gmail_error_flag(request),
         })
 
     # --- auth ----------------------------------------------------------------
@@ -303,13 +389,21 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             return RedirectResponse("/dashboard", status_code=302)
         return RedirectResponse(f"/onboarding/{step}", status_code=302)
 
+    def _connect_gmail_ctx(user: db.User, conn, gmail_error: str | None) -> dict:
+        """Step 1 context, shared by the connect page and the gmail-callback 400 retry page."""
+        return {
+            "user": user, "gmail_connected": db.gmail_connected(conn, user.id),
+            "csrf_token": csrf_for(user),
+            "activated": _is_activated(db.get_profile(conn, user.id)),
+            "gmail_error": gmail_error,
+        }
+
     @app.get("/onboarding/connect_gmail", response_class=HTMLResponse)
     def onboarding_connect_gmail(request: Request, user: db.User = Depends(require_user),
                                  conn=Depends(get_conn)):
-        return _TEMPLATES.TemplateResponse(request, "onboarding_connect_gmail.html", {
-            "user": user, "gmail_connected": db.gmail_connected(conn, user.id),
-            "csrf_token": csrf_for(user),
-        })
+        return _TEMPLATES.TemplateResponse(request, "onboarding_connect_gmail.html",
+                                           _connect_gmail_ctx(user, conn,
+                                                              _gmail_error_flag(request)))
 
     @app.get("/onboarding/profile", response_class=HTMLResponse)
     def onboarding_profile_form(request: Request, user: db.User = Depends(require_user),
@@ -317,8 +411,11 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         profile = db.get_profile(conn, user.id)
         return _TEMPLATES.TemplateResponse(request, "onboarding_profile.html", {
             "user": user, "profile": profile,
-            "default_name": (profile.full_name if profile else "") or user.display_name or "",
-            "csrf_token": csrf_for(user),
+            "default_name": (profile.full_name if profile else "") or _prefill_name(
+                user.display_name),
+            "csrf_token": csrf_for(user), "activated": _is_activated(profile),
+            "form_error": _profile_form_error(request),
+            "over_cap_fields": _over_cap_fields(profile),
         })
 
     @app.post("/onboarding/profile", dependencies=[Depends(require_csrf)])
@@ -327,12 +424,17 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         full_name: str = Form(""), job_type: str = Form(""),
         standard_subject: str = Form(""), standard_message: str = Form(""),
     ):
-        if not all(v.strip() for v in (full_name, job_type, standard_subject, standard_message)):
-            return RedirectResponse("/onboarding/profile?error=1", status_code=302)
-        db.upsert_profile(conn, user.id, full_name=full_name.strip(), job_type=job_type.strip(),
-                          standard_subject=standard_subject.strip(),
-                          standard_message=standard_message.strip())
-        return RedirectResponse("/onboarding/keywords", status_code=302)
+        fields = {"full_name": full_name.strip(), "job_type": job_type.strip(),
+                  "standard_subject": standard_subject.strip(),
+                  "standard_message": standard_message.strip()}
+        error = _profile_error_token(fields)
+        if error is not None:       # a fixed token, never the submitted text; nothing saved
+            return RedirectResponse(f"/onboarding/profile?error={error}", status_code=302)
+        saved = db.upsert_profile(conn, user.id, **fields)
+        # An activated user only came to edit their details: send them home, where the
+        # "Your details" card is the confirmation. First-timers continue to Step 3.
+        where = "/dashboard" if _is_activated(saved) else "/onboarding/keywords"
+        return RedirectResponse(where, status_code=302)
 
     @app.get("/onboarding/keywords", response_class=HTMLResponse)
     def onboarding_keywords_page(request: Request, user: db.User = Depends(require_user),
@@ -342,13 +444,17 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             return RedirectResponse("/onboarding/profile", status_code=302)
         return _TEMPLATES.TemplateResponse(request, "onboarding_keywords.html", {
             "user": user, "keywords": db.list_keywords(conn, user.id),
-            "csrf_token": csrf_for(user),
+            "csrf_token": csrf_for(user), "activated": _is_activated(profile),
         })
 
     @app.post("/onboarding/keywords", dependencies=[Depends(require_csrf)])
     def onboarding_keywords_add(user: db.User = Depends(require_user), conn=Depends(get_conn),
                                 keyword: str = Form("")):
-        db.add_keyword(conn, user.id, keyword)
+        # Over either cap is silently ignored, like a blank or duplicate (the list is the
+        # feedback). The count cap bounds each worker cycle, which searches once per keyword.
+        if (not _too_long(keyword.strip(), _KEYWORD_MAX_LEN)
+                and len(db.list_keywords(conn, user.id)) < _KEYWORD_MAX_COUNT):
+            db.add_keyword(conn, user.id, keyword)
         return RedirectResponse("/onboarding/keywords", status_code=302)
 
     @app.post("/onboarding/keywords/{keyword_id}/delete", dependencies=[Depends(require_csrf)])
@@ -372,7 +478,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         return _TEMPLATES.TemplateResponse(request, "onboarding_preview.html", {
             "user": user, "preview": pv,
             "gmail_connected": db.gmail_connected(conn, user.id),
-            "csrf_token": csrf_for(user),
+            "csrf_token": csrf_for(user), "activated": _is_activated(profile),
         })
 
     @app.post("/onboarding/activate", dependencies=[Depends(require_csrf)])
@@ -402,22 +508,54 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
                        user: db.User = Depends(require_user), conn=Depends(get_conn)):
         params = request.query_params
         if params.get("error"):
-            return _fail(cfg_)
+            return _gmail_retry(request, cfg_, user, conn, "google_error")
         txn = session.read_oauth_txn(request, cfg_.session_secret, cfg_.secure_cookies)
         returned_state = params.get("state", "")
         if not txn or not returned_state or returned_state != txn.get("state"):
-            return _fail(cfg_)
+            return _gmail_retry(request, cfg_, user, conn, "state")
         code = params.get("code")
         if not code:
-            return _fail(cfg_)
+            return _gmail_retry(request, cfg_, user, conn, "no_code")
         try:
             refresh_token = google_oauth.exchange_code_for_gmail(
                 cfg_, code=code, code_verifier=txn["verifier"])
+        except google_oauth.GmailScopeError as exc:     # BEFORE the generic OAuthError clause
+            return _gmail_scope_missing(cfg_, user, conn, exc)
+        except google_oauth.OAuthError:
+            return _gmail_retry(request, cfg_, user, conn, "exchange")
+        try:
             db.store_gmail_credential(conn, user.id, refresh_token=refresh_token,
                                       master_key=crypto.load_master_key())
-        except (google_oauth.OAuthError, crypto.CryptoError):
-            return _fail(cfg_)
+        except crypto.CryptoError:
+            return _gmail_retry(request, cfg_, user, conn, "crypto")
         resp = RedirectResponse("/onboarding", status_code=302)
+        session.clear_oauth_txn(resp, cfg_.secure_cookies)
+        return resp
+
+    def _gmail_retry(request: Request, cfg_: SaaSConfig, user: db.User, conn,
+                     reason: str) -> HTMLResponse:
+        # Every gmail-callback failure shows the SAME friendly Step 1 retry page (still 400,
+        # txn cleared, nothing stored). The reason is logged server-side only, so the page
+        # is no oracle that tells bad-state from missing-code from exchange failure.
+        log.event(_LOG, "gmail_connect_failed", level=logging.WARNING, user_id=user.id,
+                  reason=reason)
+        resp = _TEMPLATES.TemplateResponse(request, "onboarding_connect_gmail.html",
+                                           _connect_gmail_ctx(user, conn, "failed"),
+                                           status_code=400)
+        session.clear_oauth_txn(resp, cfg_.secure_cookies)
+        return resp
+
+    def _gmail_scope_missing(cfg_: SaaSConfig, user: db.User, conn,
+                             exc: google_oauth.GmailScopeError) -> RedirectResponse:
+        # Consent finished but "Send email on your behalf" was left unticked. Reachable only
+        # after valid state + PKCE + code exchange, so it reveals nothing the generic page
+        # hides. Nothing is stored and an earlier working grant is kept. The page shows the
+        # "tick the box" note from the exact flag; scope names are public, safe to log.
+        log.event(_LOG, "gmail_scope_missing", level=logging.WARNING, user_id=user.id,
+                  detail=str(exc)[:300])
+        where = ("/dashboard" if _is_activated(db.get_profile(conn, user.id))
+                 else "/onboarding/connect_gmail")
+        resp = RedirectResponse(f"{where}?gmail_error=scope", status_code=302)
         session.clear_oauth_txn(resp, cfg_.secure_cookies)
         return resp
 

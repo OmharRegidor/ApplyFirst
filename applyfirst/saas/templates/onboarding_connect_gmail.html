@@ -1,23 +1,68 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui %}
+{% from "_icons.html" import icon %}
 {% block title %}Connect Gmail · ApplyFirst{% endblock %}
+{% block body_class %}is-onboarding{% endblock %}
 {% block content %}
-<div class="card">
-  <p class="muted">Step 1 of 4</p>
-  <h1>Connect your Gmail</h1>
-  <p class="muted">
-    We send each ready-to-paste application to <strong>your own inbox</strong>, so it's
-    right there when you apply. To do that we need permission to send email on your
-    behalf. We never read your mail.
-  </p>
-  {% if gmail_connected %}
-    <p>✓ Gmail connected.</p>
-    <a class="gbtn" href="/onboarding/profile">Continue</a>
-  {% else %}
-    <a class="gbtn" href="/auth/connect-gmail">Connect Gmail</a>
-    <p class="muted" style="margin-top:16px">
-      <a href="/onboarding/profile">Skip for now</a> — you can connect later, but we can't
-      send you applications until you do.
-    </p>
-  {% endif %}
-</div>
+{%- set retry = gmail_error | default(none) %}
+{%- set initial = (user.display_name or user.email)[:1] | upper %}
+{%- set editing = activated | default(false) %}
+{% call ui.onboarding_shell(1, editing) %}
+      {%- if retry %}
+      {{ ui.gmail_retry_note(retry, gmail_connected) }}
+      {%- endif %}
+      {%- if gmail_connected %}
+      <div>
+        <h1>Gmail is connected</h1>
+      </div>
+      {% call ui.alert('success', 'circle-check') %}<p>Applications will go to <strong class="addr-inline">{{ ui.email_text(user.email) }}</strong>.</p>{% endcall %}
+      {{ ui.from_to(user.email, initial, "Same address on both ends. Only you get these emails.") }}
+      <div class="actions">
+        {{ ui.link_button("/dashboard" if editing else "/onboarding/profile", "Continue", size="lg") }}
+        {%- if retry %}
+        {{ ui.link_button("/auth/connect-gmail", "Connect Gmail", variant="secondary", icon_name="mail") }}
+        {%- endif %}
+      </div>
+      {%- else %}
+      <div>
+        {%- if not editing %}
+        <p class="welcome">Welcome, {{ user.display_name or user.email }}. Setup takes about 3 minutes.</p>
+        {%- endif %}
+        <h1>Connect your Gmail</h1>
+        <p class="lead">This is how your applications reach you. We send them from your Gmail to your Gmail, so they land in your inbox like any email.</p>
+      </div>
+      {{ ui.from_to(user.email, initial, "Same address on both ends. Only you get these emails.") }}
+      {{ ui.ledger("short") }}
+      <div>
+        <h2 class="h-sub">What you'll see next</h2>
+        <ol class="numbered">
+          <li>Google asks you to choose an account. Choose <strong class="addr-inline">{{ ui.email_text(user.email) }}</strong>, the same one you signed in with.</li>
+          {# BETA: remove after Google verification #}
+          <li>{{ ui.tag("Beta") }}You may see <strong>“Google hasn't verified this app”</strong>. That's normal while Google reviews new apps. Tap <strong>Advanced</strong>, then <strong>Go to ApplyFirst (unsafe)</strong>. Google adds the word unsafe to every new app it is still reviewing.</li>
+          {# /BETA #}
+          <li>Google asks to let ApplyFirst <strong>“Send email on your behalf”</strong>. That's Google's name for the send permission. If you see a box next to it, make sure it's ticked, then tap <strong>Continue</strong>.</li>
+          <li>{% if editing %}You come straight back to ApplyFirst.{% else %}You come straight back here to finish setup.{% endif %}</li>
+        </ol>
+      </div>
+      <div class="control">
+        {{ icon('lock') }}
+        <div>
+          <p>You're in control. Disconnect any time from your dashboard, or remove ApplyFirst in your <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">Google Account<span class="visually-hidden"> (opens in a new tab)</span></a>.</p>
+          <p>What Google gives us is stored encrypted. We never see your Gmail password.</p>
+        </div>
+      </div>
+      <div class="actions">
+        {{ ui.link_button("/auth/connect-gmail", "Connect Gmail", icon_name="mail", size="lg") }}
+        <p class="caption">You'll approve this on Google's own page. It takes about 30 seconds.</p>
+      </div>
+      <div class="skip">
+        {%- if editing %}
+        <a href="/dashboard">Not now</a>
+        {%- else %}
+        <a href="/onboarding/profile">Skip for now</a>
+        <p>You can connect at the last step. We can't send you anything until you do.</p>
+        {%- endif %}
+      </div>
+      {%- endif %}
+{% endcall %}
 {% endblock %}

@@ -40,7 +40,8 @@ def build_preview(*, full_name: str, job_type: str,
     """Return a preview dict: {subject, cover_letter, screening_questions, sample_job}."""
     profile = to_profile(full_name=full_name, job_type=job_type,
                          standard_subject=standard_subject, standard_message=standard_message)
-    package = TailoringEngine(provider=None).build(SAMPLE_JOB, profile).package
+    package = TailoringEngine(provider=None).build(SAMPLE_JOB, profile,
+                                                   resume_attached=False).package
     return {
         "subject": package.application_subject or standard_subject,
         "cover_letter": package.cover_letter or standard_message,

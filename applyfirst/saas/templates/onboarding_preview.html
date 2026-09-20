@@ -1,32 +1,76 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui %}
+{% from "_icons.html" import icon %}
 {% block title %}Preview · ApplyFirst{% endblock %}
+{% block body_class %}is-onboarding{% endblock %}
 {% block content %}
-<div class="card">
-  <p class="muted">Step 4 of 4</p>
-  <h1>Here's what we'll send you</h1>
-  <p class="muted">
-    When a matching job appears, we email you a ready-to-paste application like this — to
-    <strong>your own inbox</strong>. You review, copy, and paste it yourself. We don't
-    apply for you.
-  </p>
-  <div style="background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:14px; margin:14px 0">
-    <p style="margin:0 0 8px"><strong>Subject:</strong> {{ preview.subject }}</p>
-    <hr style="border:none; border-top:1px solid var(--line); margin:8px 0">
-    <pre style="white-space:pre-wrap; font:inherit; margin:0">{{ preview.cover_letter }}</pre>
-  </div>
-  <p class="muted" style="font-size:13px">
-    Sample job used for this preview — the AI tailors your message to each real post once
-    you're live:<br>{{ preview.sample_job }}
-  </p>
-  {% if not gmail_connected %}
-    <p class="muted">
-      ⚠ Gmail isn't connected yet — <a href="/auth/connect-gmail">connect it</a> so we can
-      actually send these to your inbox.
-    </p>
-  {% endif %}
-  <form method="post" action="/onboarding/activate">
-    <input type="hidden" name="csrf" value="{{ csrf_token }}">
-    <button class="gbtn" type="submit">Start watching for jobs</button>
-  </form>
-</div>
+{%- set initial = (user.display_name or user.email)[:1] | upper %}
+{%- set editing = activated | default(false) %}
+{% call ui.onboarding_shell(4, editing, wide=true) %}
+      <div>
+        <h1>Here's what we'll send you</h1>
+        <p class="lead">When a new job matches, an email like this lands in your Gmail. You check it, copy it, and apply on onlinejobs.ph yourself. We don't apply for you.</p>
+      </div>
+      <div class="preview">
+        <section class="sample" aria-labelledby="sample-title">
+          <h2 class="sample__label" id="sample-title">Sample job post</h2>
+          {%- for p in preview.sample_job.split('\n\n') %}
+          <p>{{ p }}</p>
+          {%- endfor %}
+        </section>
+        <div class="preview__link" aria-hidden="true"><span class="fromto__node">{{ icon('mail', 14) }}</span></div>
+        <article class="mailcard" aria-labelledby="inbox-title">
+          <h2 class="sample__label mailcard__label" id="inbox-title">In your inbox</h2>
+          <div class="mailcard__head">
+            <span class="avatar" aria-hidden="true">{{ initial }}</span>
+            <p class="mailcard__who">From <b>me</b></p>
+            <p class="mailcard__addr">{{ ui.email_text(user.email) }} to {{ ui.email_text(user.email) }}</p>
+          </div>
+          <div class="mailcard__body">
+            {{ ui.email_parts(preview.subject, preview.cover_letter) }}
+            <div class="copy-row">
+              <button class="btn btn--secondary btn--sm" type="button" data-copy="#preview-letter" hidden>{{ icon('copy', 16) }}<span>Copy message</span></button>
+            </div>
+          </div>
+        </article>
+      </div>
+      <p class="caption">This sample shows your own message with a practice job. For real jobs, {% if ui.AI_LETTER_COPY %}the AI rewrites it to fit each post and points out the post's instructions.{% else %}it's adjusted to each post.{% endif %}</p>
+      <div class="link-row">
+        <a class="text-link" href="/onboarding/profile">Change my message</a>
+        <a class="text-link" href="/onboarding/keywords">Change keywords</a>
+      </div>
+      {%- if gmail_connected %}
+      {% call ui.alert('success', 'circle-check') %}<p>Gmail connected. Emails go to <strong class="addr-inline">{{ ui.email_text(user.email) }}</strong>.</p>{% endcall %}
+      {%- if editing %}
+      {#- Already watching: nothing to start, so the one primary goes back to the dashboard. #}
+      <div class="actions">
+        {{ ui.link_button("/dashboard", "Done", size="lg") }}
+        <p class="caption">You can change your keywords or message any time.</p>
+      </div>
+      {%- else %}
+      <form class="activate actions" method="post" action="/onboarding/activate">
+        {{ ui.csrf_field(csrf_token) }}
+        {{ ui.button("Start watching for jobs", size="lg", busy="Starting") }}
+        <p class="caption">You can change your keywords or message any time.</p>
+      </form>
+      {%- endif %}
+      {%- else %}
+      {% call ui.alert('attention', 'info') %}<p>Gmail isn't connected yet, so we can't send these to you.</p>{% endcall %}
+      <div class="actions">
+        {{ ui.link_button("/auth/connect-gmail", "Connect Gmail", icon_name="mail", size="lg") }}
+      </div>
+      {%- if editing %}
+      <div class="actions">
+        {{ ui.link_button("/dashboard", "Done", variant="secondary") }}
+        <p class="caption">We can't send you applications until Gmail is connected.</p>
+      </div>
+      {%- else %}
+      <form class="activate actions" method="post" action="/onboarding/activate">
+        {{ ui.csrf_field(csrf_token) }}
+        {{ ui.button("Start watching without Gmail", variant="secondary", busy="Starting") }}
+        <p class="caption">We can't send you applications until Gmail is connected.</p>
+      </form>
+      {%- endif %}
+      {%- endif %}
+{% endcall %}
 {% endblock %}

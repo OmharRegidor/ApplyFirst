@@ -40,6 +40,13 @@ class OAuthError(Exception):
     """Raised when the OAuth exchange or claim validation fails."""
 
 
+class GmailScopeError(OAuthError):
+    """Google's consent finished, but the user did not grant gmail.send (unticked the box).
+
+    A subclass of OAuthError so any caller that only knows OAuthError still fails closed.
+    """
+
+
 def _b64url_nopad(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
@@ -120,14 +127,29 @@ def exchange_code(cfg: SaaSConfig, *, code: str, code_verifier: str,
     return resp.json()
 
 
+def granted_scopes(tokens: dict) -> frozenset[str]:
+    """The scopes Google actually granted, from the token response's space-separated
+    ``scope`` field (RFC 6749 section 5.1). Missing or malformed -> empty (fail closed)."""
+    raw = tokens.get("scope")
+    return frozenset(raw.split()) if isinstance(raw, str) else frozenset()
+
+
 def exchange_code_for_gmail(cfg: SaaSConfig, *, code: str, code_verifier: str) -> str:
     """Connect-Gmail callback: exchange the code and return the refresh token.
 
-    Raises if Google omitted the refresh token (re-grant without prompt=consent), so we
-    never persist a half-credential we can't refresh later.
+    Raises GmailScopeError if the user left "Send email on your behalf" unticked (Google's
+    granular consent still returns a token, just without gmail.send), checked first because
+    "tick the box" is the right advice even when the refresh token is missing too. Raises
+    OAuthError if Google omitted the refresh token (re-grant without prompt=consent), so we
+    never persist a credential that cannot send or cannot be refreshed.
     """
     tokens = exchange_code(cfg, code=code, code_verifier=code_verifier,
                            redirect_uri=cfg.gmail_redirect_uri)
+    granted = granted_scopes(tokens)
+    if GMAIL_SCOPE not in granted:          # exact, case-sensitive token match
+        # Scope names are public identifiers, safe to log; they show what Google returned.
+        raise GmailScopeError("gmail.send not granted; granted: "
+                              + (" ".join(sorted(granted)) or "none"))
     refresh = tokens.get("refresh_token")
     if not refresh:
         raise OAuthError("Google did not return a refresh token; please re-grant access")

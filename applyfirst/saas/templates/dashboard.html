@@ -1,34 +1,132 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui %}
+{% from "_icons.html" import icon %}
 {% block title %}Dashboard · ApplyFirst{% endblock %}
 {% block content %}
-<div class="card">
-  <h1>You're all set, {{ user.display_name or user.email }}</h1>
-  <p class="muted">
-    We're watching onlinejobs.ph for your keywords. When a match appears, a ready-to-paste
-    application lands in your inbox.
-  </p>
-  <p><strong>Watching:</strong>
-    {% for k in keywords %}{{ k.keyword }}{% if not loop.last %}, {% endif %}{% endfor %}
-  </p>
-  <p><strong>Gmail:</strong>
-    {% if gmail_connected %}
-      connected ✓
-      <form method="post" action="/auth/disconnect-gmail" style="display:inline">
-        <input type="hidden" name="csrf" value="{{ csrf_token }}">
-        <button class="logout" type="submit">Disconnect</button>
-      </form>
-    {% else %}
-      <a href="/auth/connect-gmail">connect</a> to start receiving applications
-    {% endif %}
-  </p>
-  <p><strong>Today:</strong> {{ usage_today }} / {{ daily_cap }} applications sent
-    {% if usage_today >= daily_cap %}
-      <span style="color:#b45309">— daily limit reached; more tomorrow</span>
-    {% endif %}
-  </p>
-  <p class="muted" style="font-size:13px; margin-top:16px">
-    Reminder: ApplyFirst writes your applications and sends them to <strong>your</strong>
-    inbox — you copy, paste, and send. <span class="muted">(Live polling ships in M3.)</span>
-  </p>
+{%- set N = [check_every_min | default(10), 50] | min %}
+{%- set retry = gmail_error | default(none) %}
+{#- What is being watched, for the first view on a phone: the first three keywords, then a count. Escaped like any user text. #}
+{%- set kw_more = (keywords | length) - 3 %}
+{%- set watched %}{% for k in keywords[:3] %}<strong>{{ k.keyword }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}{% if kw_more > 0 %} +{{ kw_more }} more{% endif %}{% endset %}
+<div class="dash">
+  <div class="container--app dash__stack">
+    {%- if retry %}
+    {{ ui.gmail_retry_note(retry, gmail_connected) }}
+    {%- endif %}
+
+    {#- Exactly one status panel, by priority: Gmail, then keywords, then today's limit, else live. #}
+    {%- if not gmail_connected %}
+    {% call ui.status_panel("gmail", "dash-title") %}
+      <h1 id="dash-title">Gmail isn't connected</h1>
+      <p>New matches can't reach you until you connect it. It takes about 30 seconds.</p>
+      {# BETA: remove after Google verification #}
+      <p class="muted">During the beta, Google asks you to reconnect every 7 days.</p>
+      {# /BETA #}
+      {{ ui.link_button("/auth/connect-gmail", "Connect Gmail", icon_name="mail") }}
+      {% call ui.disclose("What will Google ask me?") %}
+        <ol class="numbered">
+          <li>Choose <strong class="addr-inline">{{ ui.email_text(user.email) }}</strong>.</li>
+          {# BETA: remove after Google verification #}
+          <li>If Google says it hasn't verified this app, tap <strong>Advanced</strong>, then <strong>Go to ApplyFirst (unsafe)</strong>. Google adds the word unsafe to every new app it is still reviewing.</li>
+          {# /BETA #}
+          <li>Tick <strong>“Send email on your behalf”</strong>, then tap <strong>Continue</strong>.</li>
+        </ol>
+      {% endcall %}
+    {% endcall %}
+    {%- elif not keywords %}
+    {% call ui.status_panel("empty", "dash-title") %}
+      <h1 id="dash-title">You're not watching any jobs</h1>
+      <p>Add a keyword so we know what to look for.</p>
+      {{ ui.link_button("/onboarding/keywords", "Add keywords", icon_name="plus") }}
+    {% endcall %}
+    {%- elif usage_today >= daily_cap %}
+    {% call ui.status_panel("paused", "dash-title") %}
+      <h1 id="dash-title">Paused until 8:00 AM</h1>
+      <p>You reached today's limit of {{ daily_cap }}. New matches before 8:00 AM Philippine time are skipped, not saved.</p>
+      <p class="status__kw">{{ icon('tag', 16) }}<span>Your keywords: {{ watched }}</span></p>
+      {{ ui.link_button("/onboarding/keywords", "Edit keywords", variant="secondary") }}
+    {% endcall %}
+    {%- else %}
+    {% call ui.status_panel("live", "dash-title") %}
+      <h1 id="dash-title">Watching onlinejobs.ph for you</h1>
+      <p>We check about every {{ N }} minutes, day and night. New matches go to <strong class="addr-inline">{{ ui.email_text(user.email) }}</strong>.</p>
+      <p class="status__kw">{{ icon('tag', 16) }}<span>Watching for: {{ watched }}</span></p>
+      {#- Ready slot: shows only if the backend ever passes the minutes since the last check. Never faked. #}
+      {%- if last_check_minutes is defined and last_check_minutes is not none %}
+      <p class="lastcheck">{{ icon('clock', 16) }}Last check {{ last_check_minutes }} minutes ago</p>
+      {%- endif %}
+      <p class="status__first">Your first email comes when a <strong>new</strong> job matching your keywords is posted. That can be minutes or a few days, depending on your keywords.</p>
+    {% endcall %}
+    {%- endif %}
+
+    <div class="dash__grid">
+      {% call ui.sheet("Today", "today-title", cls="span-5") %}
+      {# The usage line stays one text node with single spaces. #}
+      <p class="usage">{{ usage_today }} / {{ daily_cap }}</p>
+      <p class="usage-label">applications today</p>
+      {{ ui.meter(usage_today, daily_cap) }}
+      {%- if usage_today >= daily_cap %}
+      {# The lowercase limit phrase lives only in this capped branch. #}
+      <p class="usage-note usage-note--cap">{{ icon('clock', 16) }}<span>Paused for today, daily limit reached. New matches today are skipped. We start again at 8:00 AM.</span></p>
+      {%- elif daily_cap - usage_today <= 2 %}
+      <p class="usage-note usage-note--near">{{ icon('clock', 16) }}<span>{{ daily_cap - usage_today }} left today. Resets at 8:00 AM Philippine time.</span></p>
+      {%- else %}
+      <p class="usage-note">{{ icon('clock', 16) }}<span>Resets at 8:00 AM Philippine time.</span></p>
+      {%- endif %}
+      {% endcall %}
+
+      {% call ui.sheet("Keywords you're watching", "kw-title", cls="span-7") %}
+      {%- if keywords %}
+      <ul class="chip-list" aria-label="Your keywords">
+        {%- for k in keywords %}
+        {{ ui.chip(k.keyword) }}
+        {%- endfor %}
+      </ul>
+      <div class="card-actions">{{ ui.link_button("/onboarding/keywords", "Edit keywords", variant="secondary") }}</div>
+      {%- else %}
+      <p class="kv">None yet.</p>
+      <div class="card-actions">{{ ui.link_button("/onboarding/keywords", "Add keywords", variant="secondary", icon_name="plus") }}</div>
+      {%- endif %}
+      {% endcall %}
+
+      {%- set gmail_title %}Gmail {% if gmail_connected %}{{ ui.badge("Connected", "ok") }}{% else %}{{ ui.badge("Not connected", "attention") }}{% endif %}{% endset %}
+      {% call ui.sheet(gmail_title, "gm-title", cls="span-7") %}
+      {%- if gmail_connected %}
+      <p class="kv">Applications go to<b class="addr-inline">{{ ui.email_text(user.email) }}</b></p>
+      {%- if retry %}
+      <div class="card-actions">{{ ui.link_button("/auth/connect-gmail", "Connect Gmail", variant="secondary", icon_name="mail") }}</div>
+      {%- endif %}
+      {% call ui.disclose("Disconnect Gmail", cls="disconnect") %}
+        <p>We'll stop sending you applications and remove our access at Google. You can reconnect any time.</p>
+        <form method="post" action="/auth/disconnect-gmail">
+          {{ ui.csrf_field(csrf_token) }}
+          {{ ui.button("Disconnect Gmail", variant="danger", busy="Disconnecting") }}
+        </form>
+      {% endcall %}
+      {%- else %}
+      <p class="kv">New matches can't reach you until you connect it.</p>
+      <div class="card-actions">{{ ui.link_button("/auth/connect-gmail", "Connect Gmail", variant="secondary", icon_name="mail") }}</div>
+      {%- endif %}
+      {% endcall %}
+
+      {% call ui.sheet("Your details", "det-title", cls="span-5") %}
+      {%- if profile and profile.job_type %}
+      <p class="kv">Looking for<b>{{ profile.job_type }}</b></p>
+      {%- else %}
+      <p class="kv">Not set yet.</p>
+      {%- endif %}
+      <div class="card-actions">{{ ui.link_button("/onboarding/profile", "Edit details", variant="secondary") }}</div>
+      {% endcall %}
+
+      {% call ui.sheet("When an email arrives", "arr-title", cls="span-12 arrives") %}
+      {% call ui.route(horizontal=true) %}
+        <li>Look for an email from <strong>me</strong> with 🆕 at the start of the subject.</li>
+        <li>Copy the subject and message.</li>
+        <li>Paste them into your application on onlinejobs.ph, check, and send.</li>
+      {% endcall %}
+      <p class="arrives__note">We only send jobs posted after you start, so every email is a fresh post. That's how you stay early.</p>
+      {% endcall %}
+    </div>
+  </div>
 </div>
 {% endblock %}

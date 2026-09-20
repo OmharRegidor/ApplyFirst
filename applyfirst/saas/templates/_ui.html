@@ -1,0 +1,321 @@
+{#- ApplyFirst components (Calm Clarity). Autoescape stays on, and user data is always printed escaped.
+    Every page imports this file itself and reads the switches and macros through that import.
+    Macros never see the page context, so pass everything in (csrf token, user email, check interval). -#}
+{% from "_icons.html" import icon %}
+
+{#- ===== Owner switches ===================================================================================== -#}
+{# true while the Google app is in Testing (invite only). false after publishing to Production. #}
+{% set INVITE_ONLY = true %}
+{# Write a raw & here, never the escaped form. Autoescape turns it into &amp; exactly once in the href. #}
+{% set INVITE_MAILTO = "mailto:omharregidor@gmail.com?subject=ApplyFirst%20beta%20invite&body=Hi%2C%20please%20add%20me%20to%20the%20ApplyFirst%20beta.%0A%0AMy%20Gmail%20address%3A%20%0AJobs%20I%20look%20for%3A%20" %}
+{% set CONTACT_EMAIL = "omharregidor@gmail.com" %}
+{# true only while the candidate-driven prompt fix (tailor/prompt.py) and its tests ship in the same release. #}
+{% set AI_LETTER_COPY = true %}
+{# Trial display only. Nothing enforces a trial, so no dates or countdowns anywhere. #}
+{% set TRIAL_DAYS = 14 %}
+{# The owner may reword this. It must never promise automatic billing or name a payment method. #}
+{% set TRIAL_NOTE = "Try it free for " ~ TRIAL_DAYS ~ " days. No card needed. When the trial ends, nothing is charged automatically, and you choose whether to keep going." %}
+{# Keep false until payments exist. true adds one sentence to the FAQ answer, nothing else. #}
+{% set SHOW_PRICE = false %}
+{% set PRICE_TEXT = "₱199 a month" %}
+{% set STEPS = [("Gmail", "Connect Gmail"), ("Details", "Your details"), ("Keywords", "Keywords"), ("Preview", "Preview")] %}
+{% set QUICK_KEYWORDS = ["virtual assistant", "customer service", "data entry", "social media manager", "graphic designer", "video editor", "web developer", "content writer"] %}
+
+{#- ===== Basics ============================================================================================ -#}
+{% macro csrf_field(token) -%}
+<input type="hidden" name="csrf" value="{{ token }}">
+{%- endmacro %}
+
+{# The brand mark: navy square, white chevron, sky dot. inverse=true is the footer version on navy. #}
+{% macro mark(inverse=false) -%}
+<svg class="mark" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8.5" fill="{{ '#FFFFFF' if inverse else '#0B2545' }}"/><path d="M9.5 23.5 16 11l6.5 12.5" fill="none" stroke="{{ '#0B2545' if inverse else '#FFFFFF' }}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="16" cy="9.6" r="3.9" fill="#38AEEA" stroke="{{ '#FFFFFF' if inverse else '#0B2545' }}" stroke-width="1.6"/></svg>
+{%- endmacro %}
+
+{# An email address that may only break after the @ or a dot of the name, never mid-word. #}
+{% macro email_text(addr) -%}
+{%- set parts = (addr or '').partition('@') -%}
+{%- for bit in parts[0].split('.') -%}{{ bit }}{% if not loop.last %}.<wbr>{% endif %}{%- endfor -%}
+{%- if parts[1] %}@<wbr>{{ parts[2] }}{% endif -%}
+{%- endmacro %}
+
+{#- ===== Buttons and links ================================================================================= -#}
+{# One primary per view. No arrows in labels. The label sits in a span so app.js can show a busy label. #}
+{% macro button(label, variant="primary", icon_name=none, size=none, block=false, type="submit", busy=none) -%}
+<button class="btn btn--{{ variant }}{% if size %} btn--{{ size }}{% endif %}{% if block %} btn--block{% endif %}" type="{{ type }}"{% if busy %} data-busy="{{ busy }}"{% endif %}>{% if icon_name %}{{ icon(icon_name) }}{% endif %}<span>{{ label }}</span></button>
+{%- endmacro %}
+
+{% macro link_button(href, label, variant="primary", icon_name=none, size=none, block=false) -%}
+<a class="btn btn--{{ variant }}{% if size %} btn--{{ size }}{% endif %}{% if block %} btn--block{% endif %}" href="{{ href }}">{% if icon_name %}{{ icon(icon_name) }}{% endif %}<span>{{ label }}</span></a>
+{%- endmacro %}
+
+{# Google's light-theme sign-in button. It stays a link (a form would trip the CSP form-action rule). #}
+{% macro google_button(block=false) -%}
+<a class="gsi-btn{% if block %} gsi-btn--block{% endif %}" href="/auth/login"><img src="{{ static_url('brand/google-g.png') }}" width="20" height="20" alt=""><span>Continue with Google</span></a>
+{%- endmacro %}
+
+{# The sign-up block. Invite mode: the invite is the primary, Google sits under "Already invited?". #}
+{% macro cta_block() -%}
+<div class="cta">
+{%- if INVITE_ONLY %}
+  {{ link_button(INVITE_MAILTO, "Ask for a beta invite", icon_name="mail", size="lg") }}
+  <p class="cta__note">We add beta users one by one. No mail app? Email <span class="select-all">{{ CONTACT_EMAIL }}</span></p>
+  <div class="cta__signin"><span class="cta__lbl">Already invited?</span>{{ google_button() }}</div>
+{%- else %}
+  {{ google_button(block=true) }}
+  <p class="cta__micro"><strong>We don't apply for you. We help you get there early.</strong></p>
+  <p class="cta__micro">Takes about 3 minutes. We never read your emails.</p>
+{%- endif %}
+</div>
+{%- endmacro %}
+
+{#- ===== Forms (GOV.UK pattern: label, hint, input, errors at the top) ====================================== -#}
+{# Shared by field and textarea_field: the label with its optional hint. #}
+{% macro _field_label(name, label, hint) -%}
+<label class="field__label" for="f-{{ name }}">{{ label }}</label>
+  {%- if hint %}
+  <p class="field__hint" id="f-{{ name }}-hint">{{ hint }}</p>
+  {%- endif %}
+{%- endmacro %}
+
+{# Shared by field and textarea_field: every attribute after id, name and type or rows. #}
+{% macro _field_attrs(name, value, hint, error, invalid, autocomplete, autocapitalize, placeholder, enterkeyhint, maxlength, required) -%}
+{%- set described = ([("f-" ~ name ~ "-hint")] if hint else []) + (["form-error"] if error or invalid else []) -%}
+{% if described %} aria-describedby="{{ described | join(' ') }}"{% endif %}{% if invalid or (error and not value) %} aria-invalid="true"{% endif %}{% if autocomplete %} autocomplete="{{ autocomplete }}"{% endif %}{% if autocapitalize %} autocapitalize="{{ autocapitalize }}"{% endif %}{% if placeholder %} placeholder="{{ placeholder }}"{% endif %}{% if enterkeyhint %} enterkeyhint="{{ enterkeyhint }}"{% endif %}{% if maxlength %} maxlength="{{ maxlength }}"{% endif %}{% if required %} required{% endif %}
+{%- endmacro %}
+
+{# error=true ties the field to the form-level alert (id form-error) and marks it invalid while empty.
+   invalid=true says the alert names this field: tied to the alert and marked invalid even with a value.
+   Called with {% call %}, the caller's markup (the Add button) sits on the same row as the input. #}
+{% macro field(name, label, value="", hint=none, autocomplete=none, placeholder=none, enterkeyhint=none, maxlength=none, required=true, error=false, autocapitalize=none, invalid=false) -%}
+{%- set input -%}
+<input class="input" id="f-{{ name }}" name="{{ name }}" type="text" value="{{ value if value is not none else '' }}"{{ _field_attrs(name, value, hint, error, invalid, autocomplete, autocapitalize, placeholder, enterkeyhint, maxlength, required) }}>
+{%- endset -%}
+<div class="field">
+  {{ _field_label(name, label, hint) }}
+  {% if caller is defined %}<div class="add-row">{{ input }}{{ caller() }}</div>{% else %}{{ input }}{% endif %}
+</div>
+{%- endmacro %}
+
+{# The value sits directly between the tags: any whitespace there would be submitted as part of the message.
+   Called with {% call %}, the caller's markup (a note) sits right under the box. #}
+{% macro textarea_field(name, label, value="", hint=none, autocomplete=none, placeholder=none, enterkeyhint=none, maxlength=none, required=true, error=false, rows=8, invalid=false) -%}
+<div class="field">
+  {{ _field_label(name, label, hint) }}
+  <textarea class="input" id="f-{{ name }}" name="{{ name }}" rows="{{ rows }}"{{ _field_attrs(name, value, hint, error, invalid, autocomplete, none, placeholder, enterkeyhint, maxlength, required) }}>{{ value if value is not none else '' }}</textarea>
+  {%- if caller is defined %}
+  {{ caller() }}
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{#- ===== Messages ========================================================================================= -#}
+{# Tones: info (sky), success (green), attention (amber, "needs you, calmly"), danger (red, destructive only).
+   focus=true makes it focusable so app.js can move focus to it. #}
+{% macro alert(tone, icon_name, role=none, id=none, focus=false, compact=false, cls=none) -%}
+<div class="alert alert--{{ tone }}{% if compact %} alert--compact{% endif %}{% if cls %} {{ cls }}{% endif %}"{% if id %} id="{{ id }}"{% endif %}{% if role %} role="{{ role }}"{% endif %}{% if focus %} tabindex="-1"{% endif %}>
+  {{ icon(icon_name) }}
+  <div>{{ caller() }}</div>
+</div>
+{%- endmacro %}
+
+{# The one retry state for a failed Gmail connect. kind is "scope" (the send box was left unticked) or
+   "failed" (Cancel, or anything else). Calm amber, never red, and the page keeps Connect Gmail as its primary. #}
+{% macro gmail_retry_note(kind, connected=false) -%}
+{%- call alert('attention', 'info', role='alert', id='gmail-retry', focus=true) %}
+{%- if kind == "scope" %}
+    <p><strong>Google didn't give us permission to send.</strong> Tap Connect Gmail again and tick the box next to “Send email on your behalf”.</p>
+{%- else %}
+    <p><strong>That didn't finish, and nothing was changed.</strong> If you tapped Cancel, that's okay. Tap Connect Gmail to try again.</p>
+{%- endif %}
+{%- if connected %}
+    <p>Your earlier Gmail connection still works.</p>
+{%- endif %}
+{%- endcall %}
+{%- endmacro %}
+
+{# Google blocks sign-in inside the Facebook, Messenger and Instagram apps. Presentation only, never a gate. #}
+{% macro inapp_notice(ua) -%}
+{%- set agent = ua or '' -%}
+{%- set app = 'Instagram' if 'Instagram' in agent else ('Messenger' if ('Messenger' in agent or 'MESSENGER' in agent) else ('Facebook' if ('FBAN' in agent or 'FBAV' in agent or 'FB_IAB' in agent) else '')) -%}
+{%- if app %}
+{% call alert('info', 'info', role='note', cls='inapp') %}
+    <p><strong>Open this page in Chrome or Safari to sign in.</strong> You're viewing it inside {{ app }}, and Google sign-in doesn't work here.</p>
+    <p>Tap the menu (⋯ or ⋮) and choose <strong>Open in browser</strong>.</p>
+    <button class="btn btn--secondary btn--sm" type="button" data-copy-url hidden>{{ icon('copy', 16) }}<span>Copy link</span></button>
+{% endcall %}
+{%- endif %}
+{%- endmacro %}
+
+{#- ===== Small labels ====================================================================================== -#}
+{% macro badge(label, tone) -%}
+<span class="badge badge--{{ tone }}">{{ label }}</span>
+{%- endmacro %}
+
+{% macro tag(label, tone="sky") -%}
+<span class="tag tag--{{ tone }}">{{ label }}</span>
+{%- endmacro %}
+
+{% macro time_chip(text) -%}
+<span class="time-chip">{{ icon('clock', 16) }}{{ text }}</span>
+{%- endmacro %}
+
+{# Display-only keyword pill (dashboard). #}
+{% macro chip(text) -%}
+<li class="chip">{{ icon('tag', 16) }}<span>{{ text }}</span></li>
+{%- endmacro %}
+
+{# A saved keyword with its own remove form. The button's name includes the keyword for screen readers. #}
+{% macro keyword_chip(k, token) -%}
+<li class="kw"><span class="kw__text">{{ k.keyword }}</span><form method="post" action="/onboarding/keywords/{{ k.id }}/delete">{{ csrf_field(token) }}<button class="kw__remove" type="submit">{{ icon('x', 18) }}<span class="visually-hidden">Remove {{ k.keyword }}</span></button></form></li>
+{%- endmacro %}
+
+{# One-tap suggestion: posts the word to the same route as the main add form. #}
+{% macro quick_add(word, token) -%}
+<li><form method="post" action="/onboarding/keywords">{{ csrf_field(token) }}<input type="hidden" name="keyword" value="{{ word }}"><button class="quick" type="submit">{{ icon('plus', 16) }}<span class="visually-hidden">Add </span><span>{{ word }}</span></button></form></li>
+{%- endmacro %}
+
+{#- ===== Layout pieces ===================================================================================== -#}
+{# Setup progress. No checkmarks: Step 1 may have been skipped. #}
+{% macro stepper(current) -%}
+<nav class="stepper" aria-label="Setup progress">
+  <p class="stepper__count"><b>{{ STEPS[current - 1][1] }}</b> <span>Step {{ current }} of {{ STEPS | length }}</span></p>
+  <ol class="stepper__list">
+  {%- for short, full in STEPS %}
+    <li class="stepper__item{% if loop.index < current %} is-passed{% endif %}"{% if loop.index == current %} aria-current="step"{% endif %}><span class="stepper__node" aria-hidden="true">{{ loop.index }}</span><span class="stepper__short">{{ short }}</span><span class="stepper__full">{{ full }}</span></li>
+  {%- endfor %}
+  </ol>
+</nav>
+{%- endmacro %}
+
+{# The onboarding frame: stepper (a left rail at 960 px and wider), then the content column.
+   People who already finished setup are editing, not onboarding: they get a plain label instead of
+   the stepper, plus "Back to dashboard". #}
+{% macro onboarding_shell(step, activated=false, wide=false) -%}
+<div class="ob-page">
+  <div class="container--app ob-layout{% if wide %} ob-layout--wide{% endif %}">
+    <div class="rail">
+      {%- if activated %}
+      <p class="rail__edit">Editing your setup</p>
+      {%- else %}
+      {{ stepper(step) }}
+      {%- endif %}
+      <p class="rail__help">Questions? A real person reads every email.<br><a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a></p>
+    </div>
+    <div class="ob-main">
+      {%- if activated %}
+      <a class="back-link" href="/dashboard">Back to dashboard</a>
+      {%- endif %}
+      {{ caller() }}
+    </div>
+  </div>
+</div>
+{%- endmacro %}
+
+{# A white sheet. title may be a {% set %} block when it carries a badge. #}
+{% macro sheet(title=none, id=none, cls=none) -%}
+<section class="sheet{% if cls %} {{ cls }}{% endif %}"{% if title and id %} aria-labelledby="{{ id }}"{% endif %}>
+  {%- if title %}
+  <h2 class="card-title"{% if id %} id="{{ id }}"{% endif %}>{{ title }}</h2>
+  {%- endif %}
+  {{ caller() }}
+</section>
+{%- endmacro %}
+
+{# The dashboard's single status panel. kind: gmail (amber), empty (white), paused (sky), live (navy).
+   data-panel is a test hook: exactly one per dashboard render. #}
+{% macro status_panel(kind, title_id) -%}
+{%- set well = {"gmail": "mail", "empty": "tag", "paused": "clock"} -%}
+<section class="status status--{{ kind }}{% if kind == 'live' %} on-dark{% endif %}" data-panel="{{ kind }}" aria-labelledby="{{ title_id }}">
+  {%- if kind == "live" %}
+  <span class="live"><i aria-hidden="true"></i>Live</span>
+  {%- else %}
+  <span class="status__icon" aria-hidden="true">{{ icon(well[kind]) }}</span>
+  {%- endif %}
+  {{ caller() }}
+</section>
+{%- endmacro %}
+
+{# Today's usage. One segment per application for caps 1 to 20, a class-based bar above 20, nothing at 0.
+   Decorative: the numbers above it carry the fact. #}
+{% macro meter(used, cap) -%}
+{%- if cap > 0 and cap <= 20 -%}
+<ol class="meter{{ ' meter--full' if used >= cap else (' meter--near' if cap - used <= 2 else '') }}" aria-hidden="true">
+{%- for i in range(cap) %}<li{% if i < used %} class="on"{% endif %}></li>{% endfor -%}
+</ol>
+{%- elif cap > 20 -%}
+{%- set pct = [used * 100 // cap, 100] | min -%}
+<div class="bar" aria-hidden="true"><i class="bar__fill bar__fill--{{ (pct // 10) * 10 }}"></i></div>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro empty_state(title, body, href=none, label=none, icon_name="tag") -%}
+<div class="empty">
+  <span class="empty__icon" aria-hidden="true">{{ icon(icon_name) }}</span>
+  <p class="empty__title">{{ title }}</p>
+  <p class="empty__body">{{ body }}</p>
+  {%- if href and label %}
+  {{ link_button(href, label, variant="secondary") }}
+  {%- endif %}
+</div>
+{%- endmacro %}
+
+{# The permission statement. "full" on the homepage (four rows), "short" on Step 1 (three rows).
+   Both versions live here so the wording stays in sync. #}
+{% macro ledger(variant="full") -%}
+{%- if variant == "full" %}
+<div class="ledger" role="group" aria-label="What the Gmail permission means">
+  <div class="ledger__head"><span>One permission</span><code>gmail.send</code></div>
+  <dl>
+    <div class="ledger__row"><span class="ledger__icon" aria-hidden="true">{{ icon('send') }}</span><dt>What we do</dt><dd>Send your applications to your own inbox. That's it.</dd></div>
+    <div class="ledger__row"><span class="ledger__icon" aria-hidden="true">{{ icon('eye-off') }}</span><dt>What this permission can't do</dt><dd>Open, read, search, or delete your emails. See your password.</dd></div>
+    <div class="ledger__row"><span class="ledger__icon" aria-hidden="true">{{ icon('shield-check') }}</span><dt>What we promise never to do</dt><dd>Email employers, your contacts, or anyone else from your account.</dd></div>
+    <div class="ledger__row"><span class="ledger__icon" aria-hidden="true">{{ icon('log-out') }}</span><dt>You're in control</dt><dd>Disconnect any time from your dashboard, or remove ApplyFirst in your <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">Google Account<span class="visually-hidden"> (opens in a new tab)</span></a>.</dd></div>
+  </dl>
+</div>
+{%- else %}
+<div class="ledger ledger--short" role="group" aria-label="What connecting Gmail means">
+  <dl>
+    <div class="ledger__row"><span class="ledger__icon" aria-hidden="true">{{ icon('send', 18) }}</span><dt>We do</dt><dd>Send your applications to your own inbox.</dd></div>
+    <div class="ledger__row"><span class="ledger__icon" aria-hidden="true">{{ icon('eye-off', 18) }}</span><dt>This permission can't</dt><dd>Read, search, or delete your emails, or see your password.</dd></div>
+    <div class="ledger__row"><span class="ledger__icon" aria-hidden="true">{{ icon('shield-check', 18) }}</span><dt>We will never</dt><dd>Email employers or anyone else from your account.</dd></div>
+  </dl>
+</div>
+{%- endif %}
+{%- endmacro %}
+
+{# From your Gmail to your Gmail. The address always gets its own full-width row. row=true (homepage only,
+   short example address) lays From, route, To side by side at 640 px. dark=true sits on the navy band. #}
+{% macro from_to(addr, initial, note, dark=false, row=false) -%}
+<div class="fromto{% if dark %} fromto--dark{% endif %}{% if row %} fromto--row{% endif %}" role="group" aria-label="Where your applications go">
+  <div class="fromto__end"><span class="avatar" aria-hidden="true">{{ initial }}</span><span class="fromto__label">From</span><span class="addr">{{ email_text(addr) }}</span></div>
+  <div class="fromto__path"><i aria-hidden="true"></i><span class="fromto__node" aria-hidden="true">{{ icon('mail', 14) }}</span><span class="fromto__via">Sent through your own Gmail</span></div>
+  <div class="fromto__end"><span class="avatar" aria-hidden="true">{{ initial }}</span><span class="fromto__label">To</span><span class="addr">{{ email_text(addr) }}</span></div>
+  <p class="fromto__note">{{ note }}</p>
+</div>
+{%- endmacro %}
+
+{# The opened email body (Preview step). User data, printed escaped. The message keeps its own line breaks. #}
+{% macro email_parts(subject, message, word=none) -%}
+<div>
+  {%- if word %}
+  <div class="letter__part"><span class="letter__label">Start your reply with</span><p class="paste paste--word">{{ word }}</p></div>
+  {%- endif %}
+  <div class="letter__part"><span class="letter__label">Subject to paste</span><p class="paste">{{ subject }}</p></div>
+  <div class="letter__part"><span class="letter__label">Message, ready to paste</span><div class="paste paste--block"><pre class="letter__text" id="preview-letter">{{ message }}</pre></div></div>
+</div>
+{%- endmacro %}
+
+{# The route: numbered nodes on a thin line. Only for real sequences. #}
+{% macro route(horizontal=false) -%}
+<ol class="route{% if horizontal %} route--h{% endif %}">{{ caller() }}</ol>
+{%- endmacro %}
+
+{# "On this page" links for the legal pages. items are (h2 id, h2 text) pairs, so the link text is the heading. #}
+{% macro toc_links(items) -%}
+<ul class="toc__list">{% for id, text in items %}<li><a href="#{{ id }}">{{ text }}</a></li>{% endfor %}</ul>
+{%- endmacro %}
+
+{# Native disclosure, 44 px summary, rotating chevron. Never used for the homepage Gmail explanation. #}
+{% macro disclose(summary, open=false, cls=none) -%}
+<details class="disclose{% if cls %} {{ cls }}{% endif %}"{% if open %} open{% endif %}><summary><span>{{ summary }}</span>{{ icon('chevron-down') }}</summary><div>{{ caller() }}</div></details>
+{%- endmacro %}

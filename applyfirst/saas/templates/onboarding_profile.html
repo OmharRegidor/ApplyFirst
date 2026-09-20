@@ -1,31 +1,51 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui %}
 {% block title %}Your details · ApplyFirst{% endblock %}
+{% block body_class %}is-onboarding{% endblock %}
 {% block content %}
-<div class="card">
-  <p class="muted">Step 2 of 4</p>
-  <h1>Your details</h1>
-  {% if request.query_params.get('error') %}
-    <p style="color:#b45309">Please fill in all four fields.</p>
-  {% endif %}
-  <form method="post" action="/onboarding/profile">
-    <input type="hidden" name="csrf" value="{{ csrf_token }}">
-    <label>Name
-      <input name="full_name" required
-             value="{{ (profile.full_name if profile and profile.full_name else default_name) }}">
-    </label>
-    <label>Type of job you want
-      <input name="job_type" required placeholder="e.g. Virtual Assistant, React Developer"
-             value="{{ profile.job_type if profile else '' }}">
-    </label>
-    <label>Standard subject line to paste
-      <input name="standard_subject" required placeholder="The subject you send with applications"
-             value="{{ profile.standard_subject if profile else '' }}">
-    </label>
-    <label>Standard message
-      <textarea name="standard_message" rows="9" required
-        placeholder="Your go-to introduction. We tailor it per job once you're live.">{{ profile.standard_message if profile else '' }}</textarea>
-    </label>
-    <button class="gbtn" type="submit">Save &amp; continue</button>
-  </form>
-</div>
+{#- form_error is None, {"kind": "blank"} or {"kind": "too_long", "field": ..., "limit": ...}. The server builds
+    it from a whitelist, so no query value ever reaches this page. over_cap_fields names every SAVED field that is
+    already over its cap (rows saved before the caps existed), from the stored profile only. default() keeps the
+    page rendering on a route that passes neither. -#}
+{%- set fe = form_error | default(none) %}
+{#- Fixed copy for a field that is over its cap (the same caps as maxlength below), in form order. -#}
+{%- set too_long_copy = {
+      "full_name": "Your name is too long. Keep it under 80 characters.",
+      "job_type": "Your job type is too long. Keep it under 80 characters.",
+      "standard_subject": "Your subject line is too long. Keep it under 150 characters.",
+      "standard_message": "Your message is too long. Keep it under 5,000 characters.",
+    } %}
+{%- set blank = fe is not none and fe.kind == "blank" %}
+{#- A save that bounced on a too-long field: only then does the alert say nothing was saved. -#}
+{%- set failed_long = fe is not none and fe.kind == "too_long" and fe.field in too_long_copy %}
+{#- Every field to flag, deduped and in form order: the one the save named plus every saved one over its cap. -#}
+{%- set flagged = too_long_copy | select('in', ([fe.field] if failed_long else []) + (over_cap_fields | default([]))) | list %}
+{% call ui.onboarding_shell(2, activated | default(false)) %}
+      <div>
+        <h1>Your details</h1>
+        <p class="lead">We use these to write each application. You do this once and can change it any time.</p>
+      </div>
+      {# maxlength mirrors the server caps in app.py (80, 80, 150, 5000). #}
+      <form class="form" method="post" action="/onboarding/profile">
+        {{ ui.csrf_field(csrf_token) }}
+        {#- Blank: every field is tied to the alert. Too long: each flagged field is, and its line links to the field.
+            role, id and focus sit on the lines. The "weren't saved" sentence after them is read as their description. -#}
+        {%- if blank or flagged %}
+        {% call ui.alert('attention', 'triangle-alert') %}<div class="alert__lines" id="form-error" role="alert" tabindex="-1"{% if failed_long %} aria-describedby="form-error-saved"{% endif %}>
+          {%- if blank %}<p><strong>Please fill in all four fields.</strong> Your answers weren't saved, so please add them again.</p>{% endif %}
+          {%- for name in flagged %}<p><a href="#f-{{ name }}"><strong>{{ too_long_copy[name] }}</strong></a></p>{% endfor -%}
+        </div>
+        {%- if failed_long %}<p id="form-error-saved">Your changes weren't saved.</p>{% endif %}{% endcall %}
+        {%- endif %}
+        {{ ui.field("full_name", "Your name", value=(profile.full_name if profile and profile.full_name else default_name), hint="As you want employers to see it.", autocomplete="name", autocapitalize="words", maxlength=80, error=blank, invalid=("full_name" in flagged)) }}
+        {{ ui.field("job_type", "Job you're looking for", value=(profile.job_type if profile else ''), hint="One main role works best. For example: Virtual Assistant, Graphic Designer, React Developer, Content Writer.", placeholder="e.g. Virtual Assistant", maxlength=80, error=blank, invalid=("job_type" in flagged)) }}
+        {{ ui.field("standard_subject", "Your usual subject line", value=(profile.standard_subject if profile else ''), hint="The subject you normally use when you apply. We may adjust it to fit each job.", placeholder="e.g. Reliable VA with 3 years in e-commerce support", maxlength=150, error=blank, invalid=("standard_subject" in flagged)) }}
+        {#- The hidden note is shown by app.js when a paste would pass maxlength (the browser cuts it without a word). -#}
+        {% call ui.textarea_field("standard_message", "Your usual application message", value=(profile.standard_message if profile else ''), hint="Paste the message you normally send. The AI uses only what you write here, so include your real experience, the tools you use, and a portfolio link if you have one. We adjust it for each job. Up to 5,000 characters.", maxlength=5000, error=blank, rows=8, invalid=("standard_message" in flagged)) %}<div id="f-standard_message-cut" hidden>{% call ui.alert('attention', 'triangle-alert', compact=true) %}<p>Your message was cut at 5,000 characters. Shorten it, then paste again.</p>{% endcall %}</div>{% endcall %}
+        {% call ui.disclose("See an example message") %}<div class="paste paste--block"><pre class="letter__text">Hi! I'm a virtual assistant with 3 years of experience supporting small e-commerce and real estate teams. I handle email and chat support, update product listings, manage calendars, and keep simple reports in Google Sheets. Tools I use every day: Gmail, Google Workspace, Canva, Trello, and Shopify. I follow instructions closely and I'm available during US business hours. Portfolio: yourname.com/portfolio. Thank you for reading, and I hope to hear from you.</pre></div>{% endcall %}
+        {#- Activated users are only editing, so the label must not promise more setup steps. #}
+        {{ ui.button("Save changes" if activated | default(false) else "Save and continue", size="lg") }}
+        <p class="caption">We use this only to write your applications. We never share it with employers. See our <a href="/privacy">Privacy Policy</a>.</p>
+      </form>
+{% endcall %}
 {% endblock %}
