@@ -1,5 +1,5 @@
 # Goal — What we're building
-**ApplyFirst** — be first to apply on **onlinejobs.ph**. Two surfaces:
+**Agad** — be first to apply on **onlinejobs.ph**. Two surfaces:
 - **V1 — personal CLI** (live on Oracle): polls every ~5 min, AI-tailors an application via Gemini,
   emails it to me. Plus a private read-only dashboard over Tailscale. **Unchanged — still running.**
 - **V2 — multi-tenant SaaS** (`applyfirst/saas/`): other onlinejobs.ph applicants sign in with Google,
@@ -13,6 +13,30 @@
 (`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
 ❌ **Still not deployed anywhere.** No Fly app, no Google OAuth client, no test users. V2 has never run
 outside localhost.
+
+## Renamed to Agad (2026-09-20)
+The product people see is now **Agad** — Tagalog for "right away", said **ah-GAD**. Tagline **"Apply Agad"**,
+which is an instruction to the user and never a claim that we apply for anyone. **The logo did not change**:
+the navy square with the white chevron and the sky dot already reads as an **A**.
+- **Renamed (only the word a person reads):** the SaaS pages (page titles, wordmark, headings, FAQ, footer),
+  the privacy and terms pages, the alert emails (`applyfirst/notify/compose.py` signature lines), the V1 CLI
+  banner and `--help` description, the V1 read-only dashboard (`applyfirst/web/templates/`), the AI prompt
+  persona ("You are Agad", `applyfirst/tailor/prompt.py`), the worker's dead-man's-switch alert title, plus
+  `README.md`, `docs/SYSTEM-DESIGN.md` and `docs/legal/google-verification.md`.
+- **Deliberately NOT renamed (machine names, all still `applyfirst`):** the `applyfirst/` package and every
+  import path, every `APPLYFIRST_*` environment variable, `prog="applyfirst"` in the CLI, the
+  `applyfirst_session` cookie, `/opt/applyfirst`, the `applyfirst.db` / `applyfirst-saas.db` filenames, the
+  `deploy/oracle/*.service` and `*.timer` unit names, `Dockerfile`/`fly.toml`/`entrypoint.sh`, and
+  `applyfirst/saas/static/vendor/**` (pinned by sha256). Also left alone on purpose: `docs/plans/*` and
+  `docs/superpowers/specs/*` — historical records of finished milestones, so renaming them would make them
+  disagree with the commits they describe.
+- **One expected side effect:** the persona line is part of `PROMPT_FINGERPRINT`, so the fingerprint changed
+  and `worker._invalidate_stale_cache` wipes the `(job_id, profile_hash)` tailoring cache **once** on its next
+  cycle. Designed behaviour and it costs nothing — nothing is cached in production, because V2 has never run
+  outside localhost.
+- **Claim the new name before anything is created:** the Google OAuth client, the Fly app and any domain
+  **still do not exist**. Create all three as **Agad**. The consent-screen app name must match the homepage
+  wordmark exactly — see `docs/legal/google-verification.md`.
 
 ## What shipped in the redesign (2026-09-19/20)
 Run folder `.noxa/redesign-saas-ui/` (git-ignored) holds plan.md, verify-report.md, mandate-report.md,

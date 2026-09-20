@@ -264,7 +264,7 @@ def _maybe_alert_owner(conn, cfg: SaaSConfig, count: int) -> None:
         return
     from applyfirst.saas import notify
     notify.send_owner_alert(
-        cfg, "ApplyFirst worker is blind",
+        cfg, "Agad worker is blind",
         f"onlinejobs.ph returned 0 jobs for {count} consecutive poll cycles. This is likely "
         "an IP block or a layout change. Check the worker logs (journalctl -u applyfirst-saas-worker).",
     )

@@ -14,7 +14,7 @@ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-Modified by ApplyFirst (2026-09-19): in dist/confetti.browser.js the default `colors` array was
+Modified by Agad (2026-09-19): in dist/confetti.browser.js the default `colors` array was
 replaced with the brand blues #38AEEA, #86CBF2, #0B6BC7 (owner colour rule). Nothing else changed.
 Upstream sha256 49f4bcbc56e7ceb5c3d25d13db1d0da965b6cd1c8a54a707bb055be0685b0a95,
 patched sha256 26f0bb1c55f14db7d1782d243af60a3d090e103ddf5526ffd4a689088cc0e98e.

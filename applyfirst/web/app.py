@@ -1,4 +1,4 @@
-"""Read-only web dashboard for ApplyFirst.
+"""Read-only web dashboard for Agad.
 
 A tiny FastAPI + Jinja2 app that shows the caught jobs and their persisted
 AI-tailored packages. It is deliberately READ-ONLY: it opens the catcher's
@@ -28,7 +28,7 @@ from applyfirst.config import load_settings
 _TEMPLATES = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 _STALE_SECONDS = 15 * 60  # a poll cycle older than this is "may be stalled"
 
-app = FastAPI(title="ApplyFirst Dashboard", docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="Agad Dashboard", docs_url=None, redoc_url=None, openapi_url=None)
 
 
 @app.middleware("http")

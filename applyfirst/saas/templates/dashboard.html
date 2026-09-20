@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% import "_ui.html" as ui %}
 {% from "_icons.html" import icon %}
-{% block title %}Dashboard · ApplyFirst{% endblock %}
+{% block title %}Dashboard · Agad{% endblock %}
 {% block html_attrs %} data-step="0"{% endblock %}
 {% block motion_head %}{{ ui.motion_head() }}{% endblock %}
 {% block content %}
@@ -29,7 +29,7 @@
         <ol class="numbered">
           <li>Choose <strong class="addr-inline">{{ ui.email_text(user.email) }}</strong>.</li>
           {# BETA: remove after Google verification #}
-          <li>If Google says it hasn't verified this app, tap <strong>Advanced</strong>, then <strong>Go to ApplyFirst (unsafe)</strong>. Google adds the word unsafe to every new app it is still reviewing.</li>
+          <li>If Google says it hasn't verified this app, tap <strong>Advanced</strong>, then <strong>Go to Agad (unsafe)</strong>. Google adds the word unsafe to every new app it is still reviewing.</li>
           {# /BETA #}
           <li>Tick <strong>“Send email on your behalf”</strong>, then tap <strong>Continue</strong>.</li>
         </ol>

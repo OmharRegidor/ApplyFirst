@@ -1,4 +1,4 @@
-{#- ApplyFirst components (Calm Clarity). Autoescape stays on, and user data is always printed escaped.
+{#- Agad components (Calm Clarity). Autoescape stays on, and user data is always printed escaped.
     Every page imports this file itself and reads the switches and macros through that import.
     Macros never see the page context, so pass everything in (csrf token, user email, check interval). -#}
 {% from "_icons.html" import icon %}
@@ -7,7 +7,7 @@
 {# true while the Google app is in Testing (invite only). false after publishing to Production. #}
 {% set INVITE_ONLY = true %}
 {# Write a raw & here, never the escaped form. Autoescape turns it into &amp; exactly once in the href. #}
-{% set INVITE_MAILTO = "mailto:omharregidor@gmail.com?subject=ApplyFirst%20beta%20invite&body=Hi%2C%20please%20add%20me%20to%20the%20ApplyFirst%20beta.%0A%0AMy%20Gmail%20address%3A%20%0AJobs%20I%20look%20for%3A%20" %}
+{% set INVITE_MAILTO = "mailto:omharregidor@gmail.com?subject=Agad%20beta%20invite&body=Hi%2C%20please%20add%20me%20to%20the%20Agad%20beta.%0A%0AMy%20Gmail%20address%3A%20%0AJobs%20I%20look%20for%3A%20" %}
 {% set CONTACT_EMAIL = "omharregidor@gmail.com" %}
 {# true only while the candidate-driven prompt fix (tailor/prompt.py) and its tests ship in the same release. #}
 {% set AI_LETTER_COPY = true %}
@@ -283,7 +283,7 @@
     <div class="ledger__row"><span class="ledger__icon" aria-hidden="true">{{ icon('send') }}</span><dt>What we do</dt><dd>Send your applications to your own inbox. That's it.</dd></div>
     <div class="ledger__row"><span class="ledger__icon" aria-hidden="true">{{ icon('eye-off') }}</span><dt>What this permission can't do</dt><dd>Open, read, search, or delete your emails. See your password.</dd></div>
     <div class="ledger__row"><span class="ledger__icon" aria-hidden="true">{{ icon('shield-check') }}</span><dt>What we promise never to do</dt><dd>Email employers, your contacts, or anyone else from your account.</dd></div>
-    <div class="ledger__row"><span class="ledger__icon" aria-hidden="true">{{ icon('log-out') }}</span><dt>You're in control</dt><dd>Disconnect any time from your dashboard, or remove ApplyFirst in your <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">Google Account<span class="visually-hidden"> (opens in a new tab)</span></a>.</dd></div>
+    <div class="ledger__row"><span class="ledger__icon" aria-hidden="true">{{ icon('log-out') }}</span><dt>You're in control</dt><dd>Disconnect any time from your dashboard, or remove Agad in your <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">Google Account<span class="visually-hidden"> (opens in a new tab)</span></a>.</dd></div>
   </dl>
 </div>
 {%- else %}

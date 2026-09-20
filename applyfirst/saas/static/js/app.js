@@ -1,4 +1,4 @@
-// ApplyFirst progressive enhancement. Every flow works without this file.
+// Agad progressive enhancement. Every flow works without this file.
 // CSP-safe: loaded with <script src defer>, no inline handlers, never builds HTML from strings,
 // no dynamic code, and reads or writes text with textContent only.
 (() => {

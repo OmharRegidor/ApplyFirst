@@ -1,4 +1,4 @@
-"""ApplyFirst SaaS (V2) — multi-tenant auth foundation.
+"""Agad SaaS (V2) — multi-tenant auth foundation.
 
 A separate FastAPI app + separate SQLite database (``applyfirst-saas.db``) from the
 single-user CLI. The CLI and its ``applyfirst.db`` are deliberately left untouched.

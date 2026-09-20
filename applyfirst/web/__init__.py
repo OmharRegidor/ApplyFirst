@@ -1,1 +1,1 @@
-"""ApplyFirst read-only web dashboard (FastAPI + Jinja2 + htmx)."""
+"""Agad read-only web dashboard (FastAPI + Jinja2 + htmx)."""

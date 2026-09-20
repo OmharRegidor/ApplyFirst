@@ -1,9 +1,12 @@
-# ApplyFirst V2 — Multi-Tenant SaaS — System Design
+# Agad V2 — Multi-Tenant SaaS — System Design
 
 - **Date:** 2026-06-21
 - **Status:** 🟡 DRAFT — pending owner validation of each diagram below (per Bryl's System Design Mode)
 - **Owner:** Omhar (solo founder)
 - **Pivot:** evolve the single-user CLI into a public, multi-tenant SaaS for onlinejobs.ph applicants
+- **Name:** the product people see is **Agad** (Tagalog for "right away", tagline *Apply Agad*). The
+  `applyfirst` package, module paths, `APPLYFIRST_*` variables, systemd units and DB filenames below are
+  machine names and deliberately keep the original spelling.
 - **Successor of:** `docs/superpowers/specs/2026-06-08-applyfirst-v1-design.md` §17 (V2)
 
 ---
@@ -243,7 +246,7 @@ Hard rules baked in:
 sequenceDiagram
     autonumber
     participant U as User browser
-    participant W as ApplyFirst web (FastAPI)
+    participant W as Agad web (FastAPI)
     participant G as Google OAuth
     participant DB as Postgres
     participant K as master.key (0600)

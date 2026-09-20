@@ -1,4 +1,4 @@
-"""ApplyFirst CLI.
+"""Agad CLI.
 
     # one cycle (previews emails in console unless email is configured)
     python -m applyfirst.cli poll -k "virtual assistant" -k "customer service"
@@ -141,7 +141,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     notifier = _build_notifier(s, args.preview)
     engine, profile = _build_engine_profile(s)
-    print("ApplyFirst — continuous mode")
+    print("Agad — continuous mode")
     print(f"  keywords : {', '.join(keywords)}")
     print(f"  interval : every ~{interval}s")
     print(f"  alerts   : {notifier.describe()}")
@@ -299,7 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception:
         pass
 
-    parser = argparse.ArgumentParser(prog="applyfirst", description="ApplyFirst job-catcher")
+    parser = argparse.ArgumentParser(prog="applyfirst", description="Agad job-catcher")
     parser.add_argument("--db", default=None, help="SQLite path (default: .env or applyfirst.db)")
     sub = parser.add_subparsers(dest="cmd", required=True)
 

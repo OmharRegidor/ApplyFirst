@@ -1,6 +1,6 @@
 Privacy Policy
 Last updated: 21 June 2026
-ApplyFirst ("we", "us") helps job seekers on onlinejobs.ph apply faster by watching for matching jobs and emailing a ready-to-paste application to your own inbox. This policy explains what we collect, how we use it, and the choices you have. Questions: omharregidor@gmail.com.
+Agad ("we", "us") helps job seekers on onlinejobs.ph apply faster by watching for matching jobs and emailing a ready-to-paste application to your own inbox. This policy explains what we collect, how we use it, and the choices you have. Questions: omharregidor@gmail.com.
 Information we collect
 Google account information — when you sign in with Google we receive your name, email address, and Google account identifier, to create and identify your account.
 Gmail authorization — if you connect Gmail, we receive an OAuth token for the gmail.send permission. It is stored encrypted at rest and used only to send email to your own inbox (see below).
@@ -18,7 +18,7 @@ onlinejobs.ph — we read public job postings. We do not log in to, or submit ap
 Hosting infrastructure used to run the service.
 We do not sell your data, use it for advertising, use it to train machine learning or AI models, or use it for credit or lending decisions. We do not allow humans to read your private data except as needed to operate the service, with your consent, or to comply with the law.
 Limited Use of Google user data
-ApplyFirst's use and transfer of information received from Google APIs to any other app will adhere to the Google API Services User Data Policy, including the Limited Use requirements.
+Agad's use and transfer of information received from Google APIs to any other app will adhere to the Google API Services User Data Policy, including the Limited Use requirements.
 Data retention and deletion
 We keep your data while your account is active. Disconnecting Gmail revokes the token at Google (best-effort) and deletes the stored credential. You can delete your account and associated data at any time by emailing omharregidor@gmail.com; on deletion we remove your profile, keywords, OAuth tokens, and job-alert records.
 Security

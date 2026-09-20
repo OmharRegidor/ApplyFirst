@@ -1,4 +1,4 @@
-// ApplyFirst motion, after load. Deferred, the 5 app pages only. Spec: onboarding-motion.md section 6.
+// Agad motion, after load. Deferred, the 5 app pages only. Spec: onboarding-motion.md section 6.
 // Taps only arm one-shot flags for vt.js: never preventDefault, never wait for an animation. CSP-safe.
 (() => {
   "use strict";

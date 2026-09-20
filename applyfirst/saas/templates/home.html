@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% import "_ui.html" as ui %}
 {% from "_icons.html" import icon %}
-{% block title %}ApplyFirst — be first to apply on onlinejobs.ph{% endblock %}
+{% block title %}Agad — be first to apply on onlinejobs.ph{% endblock %}
 {% block meta %}
-  <meta name="description" content="ApplyFirst watches onlinejobs.ph for new jobs that match you and emails a ready-to-paste application to your own Gmail within minutes. You check it and apply yourself.">
+  <meta name="description" content="Agad watches onlinejobs.ph for new jobs that match you and emails a ready-to-paste application to your own Gmail within minutes. You check it and apply yourself.">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="ApplyFirst">
+  <meta property="og:site_name" content="Agad">
   <meta property="og:title" content="New job posted. Your application is already written.">
   <meta property="og:description" content="For onlinejobs.ph job seekers. Get a ready-to-paste application in your Gmail minutes after a matching job is posted.">
 {% endblock %}
@@ -21,8 +21,8 @@
   <div class="container hero__grid">
     <div class="hero__copy">
       <div class="hero__tags">{{ ui.tag("Beta") }}{{ ui.tag(ui.TRIAL_DAYS ~ "-day free trial") }}</div>
-      <h1 id="hero-title">Be first to apply on onlinejobs.ph</h1>
-      <p class="hero__lead">ApplyFirst watches onlinejobs.ph for the jobs you want, day and night. When a new one is posted, a ready-to-paste application lands in your own Gmail within minutes. You check it, then apply.</p>
+      <h1 id="hero-title">Apply Agad on onlinejobs.ph</h1>
+      <p class="hero__lead">Agad is Filipino for right away. It watches onlinejobs.ph for the jobs you want, day and night. When a new one is posted, a ready-to-paste application lands in your own Gmail within minutes. You check it, then apply.</p>
       {{ ui.inapp_notice(request.headers.get('user-agent', '')) }}
       {{ ui.cta_block() }}
       <ul class="trust" aria-label="Your Gmail stays yours">
@@ -93,7 +93,7 @@
         {{ ui.time_chip("Minutes after the post") }}
       </li>
     {% endcall %}
-    <p class="how__close">{{ icon('user') }}<span>You send every application yourself. ApplyFirst never applies for you and never contacts employers.</span></p>
+    <p class="how__close">{{ icon('user') }}<span>You send every application yourself. Agad never applies for you and never contacts employers.</span></p>
   </div>
 </section>
 
@@ -102,7 +102,7 @@
   <div class="container gmail__grid">
     <div class="gmail__copy">
       <h2 id="gmail-title">Why we ask for Gmail access</h2>
-      <p>ApplyFirst asks Google for one permission. Google calls it <code>gmail.send</code>. We use it for one thing only: to email <strong>you</strong> your own ready-to-paste application, at your own Gmail address, so it's ready when you apply. We never read, list, or store your existing emails. Only the send permission is requested.</p>
+      <p>Agad asks Google for one permission. Google calls it <code>gmail.send</code>. We use it for one thing only: to email <strong>you</strong> your own ready-to-paste application, at your own Gmail address, so it's ready when you apply. We never read, list, or store your existing emails. Only the send permission is requested.</p>
     </div>
     <div class="gmail__visual">
       {{ ui.from_to("you@gmail.com", "Y", "The only address we send to is yours.", dark=true, row=true) }}
@@ -160,7 +160,7 @@
       </div>
       <ul class="facts">
         <li><h3>Popular posts fill up.</h3><p>A good VA post can get hundreds of applications in a day.</p></li>
-        <li><h3>Copy-paste letters get skipped.</h3><p>onlinejobs.ph says employers often throw out template applications and people who miss the instructions.{% if ui.AI_LETTER_COPY %} ApplyFirst writes for each post and points out its instructions.{% endif %}</p></li>
+        <li><h3>Copy-paste letters get skipped.</h3><p>onlinejobs.ph says employers often throw out template applications and people who miss the instructions.{% if ui.AI_LETTER_COPY %} Agad writes for each post and points out its instructions.{% endif %}</p></li>
         <li><h3>Nobody can refresh all day.</h3><p>You sleep, work, and eat. We check about every {{ N }} minutes, day and night, so a new post doesn't wait for you to look.</p></li>
       </ul>
     </div>
@@ -171,7 +171,7 @@
   <div class="container behind__grid">
     <div class="behind__note">
       <h2 id="behind-title">Built in the Philippines</h2>
-      <p>ApplyFirst is new and in a small beta. It was made because good jobs on onlinejobs.ph fill up while you sleep. If something breaks, or you would change something, send an email. A real person reads every one.</p>
+      <p>Agad is new and in a small beta. It was made because good jobs on onlinejobs.ph fill up while you sleep. If something breaks, or you would change something, send an email. A real person reads every one.</p>
       <a class="behind__mail" href="mailto:{{ ui.CONTACT_EMAIL }}">{{ icon('mail') }}{{ ui.CONTACT_EMAIL }}</a>
     </div>
     <div class="sheet honest">
@@ -191,13 +191,13 @@
       <p class="caption-lg">Something else on your mind? Email <span class="select-all">{{ ui.CONTACT_EMAIL }}</span>. A real person reads it.</p>
     </div>
     <div class="faq__list">
-      {% call ui.disclose("Does ApplyFirst apply to jobs for me?", open=true) %}<p>No. We email the application to you. You read it, copy it, and apply on onlinejobs.ph yourself. We never contact employers, and we never ask for your onlinejobs.ph password or log in to your account.</p>{% endcall %}
-      {% call ui.disclose("Can ApplyFirst read my emails?") %}<p>No. We ask Google for one permission, which Google shows as “Send email on your behalf”. That permission can send email, but it can't open, read, search, or delete your emails. We use it only to send your applications to your own address.</p>{% endcall %}
+      {% call ui.disclose("Does Agad apply to jobs for me?", open=true) %}<p>No. We email the application to you. You read it, copy it, and apply on onlinejobs.ph yourself. We never contact employers, and we never ask for your onlinejobs.ph password or log in to your account.</p>{% endcall %}
+      {% call ui.disclose("Can Agad read my emails?") %}<p>No. We ask Google for one permission, which Google shows as “Send email on your behalf”. That permission can send email, but it can't open, read, search, or delete your emails. We use it only to send your applications to your own address.</p>{% endcall %}
       {% call ui.disclose("Why did I get an email from myself?") %}<p>That's us. We send each application through your own Gmail, from you to you, so it lands in your inbox like any other email. You'll also see a copy in your Sent folder. Look for 🆕 at the start of the subject.</p>{% endcall %}
       {% call ui.disclose("How fast will I hear about new jobs?") %}<p>We check onlinejobs.ph about every {{ N }} minutes, day and night. When a new post matches one of your keywords, your application usually arrives within minutes. We only send jobs posted after you start, so you never get old posts.</p>{% endcall %}
       {% call ui.disclose("Is there a daily limit?") %}<p>Yes. You can get up to {{ A }} application{{ '' if A == 1 else 's' }} a day. The count resets at 8:00 AM Philippine time. If you reach the limit, new matches for the rest of that day are skipped, not saved for later. Tip: use 2 to 5 specific keywords so the {{ A }} go to jobs you really want.</p>{% endcall %}
-      {% call ui.disclose("How do I stop, or delete my data?") %}<p>Tap <strong>Disconnect Gmail</strong> on your dashboard. We stop sending, delete our stored permission, and remove our access at Google. You can also remove ApplyFirst in your Google Account, under Security, then Third-party connections.</p><p>To delete your whole account and data, email {{ ui.CONTACT_EMAIL }} and we'll remove your details, keywords, and saved permissions.</p>{% endcall %}
-      {% call ui.disclose("Is ApplyFirst free to try?") %}<p>{{ ui.TRIAL_NOTE }}{% if ui.SHOW_PRICE %} After the trial, the premium plan is {{ ui.PRICE_TEXT }}.{% endif %}</p>{% endcall %}
+      {% call ui.disclose("How do I stop, or delete my data?") %}<p>Tap <strong>Disconnect Gmail</strong> on your dashboard. We stop sending, delete our stored permission, and remove our access at Google. You can also remove Agad in your Google Account, under Security, then Third-party connections.</p><p>To delete your whole account and data, email {{ ui.CONTACT_EMAIL }} and we'll remove your details, keywords, and saved permissions.</p>{% endcall %}
+      {% call ui.disclose("Is Agad free to try?") %}<p>{{ ui.TRIAL_NOTE }}{% if ui.SHOW_PRICE %} After the trial, the premium plan is {{ ui.PRICE_TEXT }}.{% endif %}</p>{% endcall %}
       {% call ui.disclose("Does it work on my phone?") %}<p>Yes. Applications arrive in your Gmail app like any email. You can copy them and apply from your phone.</p>{% endcall %}
     </div>
   </div>

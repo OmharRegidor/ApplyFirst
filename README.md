@@ -1,4 +1,6 @@
-# ApplyFirst
+# Agad
+
+**Apply Agad.** *Agad* is Tagalog for "right away" (ah-GAD).
 
 Personal, always-on job-catcher for **onlinejobs.ph**. It watches your saved keyword
 searches and, the moment a genuinely-new job appears, builds a complete application
@@ -18,7 +20,7 @@ detect new jobs → build the application package → **email it (resume PDF att
 ## Why it wins
 
 Employers bury **screening questions** in posts ("start your reply with the word…",
-"answer these 3 things…") to filter out mass-appliers. ApplyFirst detects them and
+"answer these 3 things…") to filter out mass-appliers. Agad detects them and
 drafts truthful answers in your voice — so you visibly read the post. That, plus
 speed, is the edge.
 

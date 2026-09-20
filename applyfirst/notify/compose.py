@@ -45,7 +45,7 @@ def build_job_email(job: Mapping, hints: list[str]) -> tuple[str, str, str]:
         lines += ["", "📋 Application instructions detected — make sure you answer these:"]
         lines += [f"   • {h}" for h in hints]
     lines += ["", "─" * 30, "JOB DESCRIPTION", "─" * 30,
-              desc or "(no description captured)", "", "— Caught by ApplyFirst"]
+              desc or "(no description captured)", "", "— Caught by Agad"]
     text = "\n".join(lines)
 
     esc = _html.escape
@@ -68,7 +68,7 @@ def build_job_email(job: Mapping, hints: list[str]) -> tuple[str, str, str]:
         '<h3 style="margin:16px 0 6px">Job description</h3>'
         '<pre style="white-space:pre-wrap;font-family:inherit;background:#f6f7f9;padding:12px;'
         f'border-radius:8px;margin:0">{body}</pre>'
-        '<p style="color:#9ca3af;font-size:12px;margin-top:14px">Caught by ApplyFirst</p>'
+        '<p style="color:#9ca3af;font-size:12px;margin-top:14px">Caught by Agad</p>'
         "</div>"
     )
     return subject, text, html
@@ -105,7 +105,7 @@ def build_tailored_email(job: Mapping, package, ai_available: bool,
                   "to make one manually.", ""]
     if package.digest:
         lines += ["─" * 30, "WHAT THEY WANT", "─" * 30, package.digest, ""]
-    lines += ["— Caught & tailored by ApplyFirst"]
+    lines += ["— Caught & tailored by Agad"]
     text = "\n".join(lines)
 
     esc = _html.escape
@@ -155,7 +155,7 @@ def build_tailored_email(job: Mapping, package, ai_available: bool,
         '<pre style="white-space:pre-wrap;font-family:inherit;background:#f6f7f9;padding:12px;'
         f'border-radius:8px;margin:0">{esc(package.cover_letter or "—")}</pre>'
         f'{qa_html}{pdf_html}{digest_html}'
-        '<p style="color:#9ca3af;font-size:12px;margin-top:14px">Caught &amp; tailored by ApplyFirst</p>'
+        '<p style="color:#9ca3af;font-size:12px;margin-top:14px">Caught &amp; tailored by Agad</p>'
         "</div>"
     )
     return subject, text, html

@@ -204,7 +204,7 @@ def _client_ip(request: Request, trust_proxy: bool, trusted_header: str | None =
 
 def create_app(config: SaaSConfig | None = None) -> FastAPI:
     cfg = config or load_saas_config()
-    app = FastAPI(title="ApplyFirst", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="Agad", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.cfg = cfg
     # Self-hosted CSS/JS/fonts/icons. Read through the module so a test can point
     # static_assets.STATIC_DIR at a temp folder. Raises here if the folder is missing.

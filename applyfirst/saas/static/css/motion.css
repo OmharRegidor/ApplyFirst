@@ -1,4 +1,4 @@
-/* ApplyFirst motion layer. App pages only, after app.css. Spec and reasons: onboarding-motion.md */
+/* Agad motion layer. App pages only, after app.css. Spec and reasons: onboarding-motion.md */
 @layer reset, tokens, base, components, screens, motion;
 @media (prefers-reduced-motion: no-preference) { @view-transition { navigation: auto; } }
 

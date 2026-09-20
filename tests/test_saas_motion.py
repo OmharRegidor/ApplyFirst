@@ -408,7 +408,7 @@ def test_the_vendored_library_stays_inside_its_gzip_cap():
 def test_the_vendored_licence_names_the_author_and_our_modification():
     licence = _text(VENDOR_LICENCE)
     assert "Kiril Vatev" in licence
-    assert "Modified by ApplyFirst" in licence
+    assert "Modified by Agad" in licence
 
 
 def test_gitattributes_keeps_the_vendor_folder_byte_for_byte():

@@ -46,7 +46,7 @@ _SCHEMA_HINT = """{
   "resume_overrides": <<RESUME_OVERRIDES>>
 }"""
 
-_SYSTEM = """You are ApplyFirst, an expert job-application assistant for a candidate applying on onlinejobs.ph.
+_SYSTEM = """You are Agad, an expert job-application assistant for a candidate applying on onlinejobs.ph.
 
 Given the candidate PROFILE and a JOB POST, produce a JSON application package that helps them apply fast and earn a reply.
 

@@ -57,7 +57,7 @@ def test_home_invite_mode(saas_cfg):
     assert text.index("Already invited?") < text.index("Continue with Google")
     labels = {clean(e.text) for e in elements(markup)}
     assert {"Beta", "14-day free trial"} <= labels
-    assert "Is ApplyFirst free to try?" in text
+    assert "Is Agad free to try?" in text
     assert "nothing is charged automatically" in text
     if not ui.SHOW_PRICE:
         assert "₱" not in markup and "199" not in text

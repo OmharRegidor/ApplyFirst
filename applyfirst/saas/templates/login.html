@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% import "_ui.html" as ui %}
 {% from "_icons.html" import icon %}
-{% block title %}Sign in · ApplyFirst{% endblock %}
+{% block title %}Sign in · Agad{% endblock %}
 {% block head_extra %}
   <link rel="preload" href="/static/fonts/google-sans-button-500.woff2" as="font" type="font/woff2" crossorigin>
 {% endblock %}
@@ -12,7 +12,7 @@
   <div class="auth__sheet">
     <div class="auth__head">
       {{ ui.mark() }}
-      <h1>Sign in to ApplyFirst</h1>
+      <h1>Sign in to Agad</h1>
       <p class="lead">New here? The same button sets up your account.</p>
     </div>
     {{ ui.inapp_notice(request.headers.get('user-agent', '')) }}
@@ -22,7 +22,7 @@
     </div>
     {%- if ui.INVITE_ONLY %}
     {% call ui.alert('info', 'info') %}
-      <p>ApplyFirst is in a private beta. If Google says “Access blocked”, you're not on the list yet.</p>
+      <p>Agad is in a private beta. If Google says “Access blocked”, you're not on the list yet.</p>
       <p><a class="text-link" href="{{ ui.INVITE_MAILTO }}">{{ icon('mail', 18) }}Ask for an invite</a></p>
       <p class="caption">No mail app? Email <span class="select-all">{{ ui.CONTACT_EMAIL }}</span></p>
     {% endcall %}
@@ -30,6 +30,6 @@
     <hr>
     <p class="caption">Signing in shares only your name and email address with us. Connecting Gmail is a separate step, and you choose whether to do it.</p>
   </div>
-  <p class="auth__foot"><a class="text-link" href="/">What is ApplyFirst?</a></p>
+  <p class="auth__foot"><a class="text-link" href="/">What is Agad?</a></p>
 </div>
 {% endblock %}

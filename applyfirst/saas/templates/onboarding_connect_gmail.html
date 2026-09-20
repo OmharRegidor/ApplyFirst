@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% import "_ui.html" as ui %}
 {% from "_icons.html" import icon %}
-{% block title %}Connect Gmail · ApplyFirst{% endblock %}
+{% block title %}Connect Gmail · Agad{% endblock %}
 {% block body_class %}is-onboarding{% endblock %}
 {% block html_attrs %} data-step="1"{% endblock %}
 {% block motion_head %}{{ ui.motion_head() }}{% endblock %}
@@ -40,16 +40,16 @@
         <ol class="numbered">
           <li>Google asks you to choose an account. Choose <strong class="addr-inline">{{ ui.email_text(user.email) }}</strong>, the same one you signed in with.</li>
           {# BETA: remove after Google verification #}
-          <li>{{ ui.tag("Beta") }}You may see <strong>“Google hasn't verified this app”</strong>. That's normal while Google reviews new apps. Tap <strong>Advanced</strong>, then <strong>Go to ApplyFirst (unsafe)</strong>. Google adds the word unsafe to every new app it is still reviewing.</li>
+          <li>{{ ui.tag("Beta") }}You may see <strong>“Google hasn't verified this app”</strong>. That's normal while Google reviews new apps. Tap <strong>Advanced</strong>, then <strong>Go to Agad (unsafe)</strong>. Google adds the word unsafe to every new app it is still reviewing.</li>
           {# /BETA #}
-          <li>Google asks to let ApplyFirst <strong>“Send email on your behalf”</strong>. That's Google's name for the send permission. If you see a box next to it, make sure it's ticked, then tap <strong>Continue</strong>.</li>
-          <li>{% if editing %}You come straight back to ApplyFirst.{% else %}You come straight back here to finish setup.{% endif %}</li>
+          <li>Google asks to let Agad <strong>“Send email on your behalf”</strong>. That's Google's name for the send permission. If you see a box next to it, make sure it's ticked, then tap <strong>Continue</strong>.</li>
+          <li>{% if editing %}You come straight back to Agad.{% else %}You come straight back here to finish setup.{% endif %}</li>
         </ol>
       </div>
       <div class="control">
         {{ icon('lock') }}
         <div>
-          <p>You're in control. Disconnect any time from your dashboard, or remove ApplyFirst in your <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">Google Account<span class="visually-hidden"> (opens in a new tab)</span></a>.</p>
+          <p>You're in control. Disconnect any time from your dashboard, or remove Agad in your <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">Google Account<span class="visually-hidden"> (opens in a new tab)</span></a>.</p>
           <p>What Google gives us is stored encrypted. We never see your Gmail password.</p>
         </div>
       </div>

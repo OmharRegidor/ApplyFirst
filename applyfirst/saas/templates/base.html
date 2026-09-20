@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#F3F6FA">
-  <title>{% block title %}ApplyFirst{% endblock %}</title>
+  <title>{% block title %}Agad{% endblock %}</title>
   {% block meta %}{% endblock %}
   <link rel="preload" href="/static/fonts/plus-jakarta-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   {% block head_extra %}{% endblock %}
@@ -20,7 +20,7 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header{% if user %} site-header--app{% endif %}">
     <div class="{{ 'container--app' if user else 'container' }} site-header__in">
-      <a class="brand" href="/">{{ ui.mark() }}ApplyFirst</a>
+      <a class="brand" href="/">{{ ui.mark() }}Agad</a>
       {%- if user %}
       <div class="account">
         <span class="account__name">{{ user.display_name or user.email }}</span>
@@ -40,8 +40,8 @@
     <div class="{{ 'container--app' if user else 'container' }}">
       <div class="footer__grid">
         <div>
-          <a class="brand" href="/">{{ ui.mark(inverse=true) }}ApplyFirst</a>
-          <p class="footer__blurb">Be first to apply on onlinejobs.ph. Applications land in your own Gmail, and you send them yourself.</p>
+          <a class="brand" href="/">{{ ui.mark(inverse=true) }}Agad</a>
+          <p class="footer__blurb">Apply Agad. Be first on onlinejobs.ph. Applications land in your own Gmail, and you send them yourself.</p>
         </div>
         <nav aria-label="Legal">
           <ul class="footer__links">
@@ -55,8 +55,8 @@
         </div>
       </div>
       <div class="footer__small">
-        <p>ApplyFirst is independent and not affiliated with onlinejobs.ph.</p>
-        <p>© 2026 ApplyFirst</p>
+        <p>Agad is independent and not affiliated with onlinejobs.ph.</p>
+        <p>© 2026 Agad</p>
       </div>
     </div>
   </footer>

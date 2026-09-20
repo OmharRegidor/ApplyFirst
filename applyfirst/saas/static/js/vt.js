@@ -1,4 +1,4 @@
-// ApplyFirst page-transition glue, before first paint. CSP-safe. Spec: onboarding-motion.md section 5.
+// Agad page-transition glue, before first paint. CSP-safe. Spec: onboarding-motion.md section 5.
 (() => {
   "use strict";
   const d = document, root = d.documentElement, nav = navigator, now = Date.now;
