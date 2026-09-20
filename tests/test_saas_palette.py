@@ -1,10 +1,11 @@
 """Owner rule, enforced forever: no purple, violet or indigo anywhere a colour is written.
 
-Scans the stylesheet(s), every SaaS template and the delivered email module for every
-#rgb / #rgba / #rrggbb / #rrggbbaa, rgb() and rgba() value, and fails on a hue from 230 to 345
-with saturation of 8% or more (spec 14.4). Colour words that name a purple, and colour
-functions this scanner cannot read, are banned as CSS values. The Google G PNG is binary and
-never scanned.
+Scans the stylesheet(s), every SaaS template, every static JavaScript file (the vendored
+canvas-confetti included, now that its default colours are the brand blues) and the delivered
+email module for every #rgb / #rgba / #rrggbb / #rrggbbaa, rgb() and rgba() value, and fails on
+a hue from 230 to 345 with saturation of 8% or more (spec 14.4, M-7). Colour words that name a
+purple, and colour functions this scanner cannot read, are banned as CSS values, and in
+JavaScript as whole string literals. The Google G PNG is binary and never scanned.
 """
 
 from __future__ import annotations
@@ -21,7 +22,8 @@ from applyfirst.saas import static_assets
 SAAS = Path(static_assets.__file__).parent
 CSS_FILES = sorted((SAAS / "static" / "css").glob("*.css"))
 TEMPLATE_FILES = sorted((SAAS / "templates").glob("*.html"))
-SCANNED = CSS_FILES + TEMPLATE_FILES + [Path(compose.__file__)]
+JS_FILES = sorted((SAAS / "static").rglob("*.js"))          # own JS and the vendored burst (M-7)
+SCANNED = CSS_FILES + TEMPLATE_FILES + JS_FILES + [Path(compose.__file__)]
 
 # "&#8594;" is an HTML entity, not a colour, hence the (?<![&\w]) guard.
 _HEX = re.compile(r"(?<![&\w])#([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})"
@@ -31,6 +33,9 @@ _RGB = re.compile(r"\brgba?\(\s*(\d{1,3}(?:\.\d+)?)\s*[,\s]\s*(\d{1,3}(?:\.\d+)?
 BANNED_WORDS = ("purple", "violet", "indigo", "lavender", "lilac", "magenta", "fuchsia",
                 "orchid", "plum", "blueviolet", "rebeccapurple", "slateblue")
 _UNREADABLE_FN = re.compile(r"(?<![\w-])(hsla?|hwb|lab|lch|oklab|oklch|color-mix)\(", re.I)
+# A whole JS string literal that is one bare word, optionally with a bracket: "purple",
+# "hsl(280 60% 50%)", "hsl(". Anything with a space or a colon in it is not a colour value.
+_JS_VALUE = re.compile(r"""(['"`])\s*([A-Za-z][\w-]*(?:\([^'"`\n]*\)?)?)\s*\1""")
 
 
 def _hue_sat(r: float, g: float, b: float) -> tuple[float, float]:
@@ -56,8 +61,21 @@ def _is_purple(rgb) -> bool:
     return 230 <= hue <= 345 and sat >= 0.08
 
 
+def _js_values(text: str) -> list[str]:
+    """Every string literal in a .js file that is a colour on its own.
+
+    A colour written in JavaScript is always the whole literal: "rebeccapurple",
+    "hsl(280 60% 50%)", or the open "hsl(" of a concatenation. Requiring the literal to be
+    exactly one word, optionally with a bracket, is what keeps prose out, so the word "plum"
+    in a comment or in a sentence is never mistaken for a colour value.
+    """
+    return [m.group(2) for m in _JS_VALUE.finditer(text)]
+
+
 def _css_values(path: Path, text: str) -> list[str]:
     """The value side of every declaration a file can carry."""
+    if path.suffix == ".js":
+        return _js_values(text)
     if path.suffix == ".css":
         text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
         return re.findall(r"[\w-]+\s*:\s*([^;{}]+)", text)
@@ -72,6 +90,8 @@ def _css_values(path: Path, text: str) -> list[str]:
 def test_there_is_something_to_scan():
     assert CSS_FILES, "static/css/app.css must exist"
     assert len(TEMPLATE_FILES) >= 10
+    assert len(JS_FILES) >= 3, "static/js/*.js and the vendored burst library must be scanned"
+    assert [p.name for p in JS_FILES if p.parent.name == "vendor"], "the vendor file is scanned"
 
 
 def test_the_guard_catches_purple_and_passes_the_brand_colours():
@@ -107,3 +127,21 @@ def test_stylesheet_uses_only_colours_the_guard_can_read(path):
     text = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
     found = sorted({m.group(0).lower() for m in _UNREADABLE_FN.finditer(text)})
     assert found == [], f"{path.name}: use hex or rgb()/rgba() instead of {found}"
+
+
+# --- M-7 ------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("path", JS_FILES, ids=lambda p: p.name)
+def test_javascript_uses_only_colours_the_guard_can_read(path):
+    values = _js_values(path.read_text(encoding="utf-8"))
+    found = sorted({m.group(0).lower() for v in values for m in _UNREADABLE_FN.finditer(v)})
+    assert found == [], f"{path.name}: use hex or rgb()/rgba() instead of {found}"
+
+
+def test_the_javascript_scan_reads_colour_values_and_not_prose():
+    assert "rebeccapurple" in _js_values('el.style.color = "rebeccapurple";')
+    assert "hsl(280 60% 50%)" in _js_values("const c = `hsl(280 60% 50%)`;")
+    assert "hsl(" in _js_values("const c = 'hsl(' + h + ', 60%, 50%)';")   # concatenated
+    prose = '// a plum-coloured note, do not use violet\nconst k = "af:gmail", t = "use strict";'
+    assert not [v for v in _js_values(prose) if v in BANNED_WORDS]
+    assert [raw for raw, rgb in _colours('const c = "#a25afd";') if _is_purple(rgb)] == ["#a25afd"]

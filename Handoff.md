@@ -3,14 +3,14 @@
 - **V1 — personal CLI** (live on Oracle): polls every ~5 min, AI-tailors an application via Gemini,
   emails it to me. Plus a private read-only dashboard over Tailscale. **Unchanged — still running.**
 - **V2 — multi-tenant SaaS** (`applyfirst/saas/`): other onlinejobs.ph applicants sign in with Google,
-  onboard, and the worker delivers tailored applications **to their own Gmail inbox**. **M1–M5 + a full
-  UI redesign are committed.** Deploy targets: **Fly.io beta** (`Dockerfile`/`fly.toml`/`entrypoint.sh`)
+  onboard, and the worker delivers tailored applications **to their own Gmail inbox**. **M1–M5, a full
+  UI redesign and the animated onboarding are committed.** Deploy targets: **Fly.io beta** (`Dockerfile`/`fly.toml`/`entrypoint.sh`)
   and the **Oracle VM production runbook** (`deploy/oracle/`).
 
 # Current State — Where it stands (2026-09-20)
-✅ **Everything is committed and pushed.** Tests: **546 passing** (`.venv/Scripts/python.exe -m pytest -q`)
-— was 211 before the redesign. Smoke: **541 checks, 0 failed**
-(`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
+✅ **Everything is committed.** Tests: **692 passing** (`.venv/Scripts/python.exe -m pytest -q`)
+— was 546 before the animated onboarding, 211 before the redesign. Smoke: **550 checks, 0 failed**
+(`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`). **Not pushed yet.**
 ❌ **Still not deployed anywhere.** No Fly app, no Google OAuth client, no test users. V2 has never run
 outside localhost.
 
@@ -44,6 +44,52 @@ conversion-brief.md, library-research.md, motion-*.md) and artifacts/ (findings.
   (80/80/150/5000/60), real check interval on every page (`check_every_min`), email recoloured in
   `applyfirst/notify/compose.py`, in-app-browser (Facebook/Messenger) notice on `/` and `/login`.
 
+## What shipped in the animated onboarding (2026-09-20)
+Owner approved the prototype, so the whole of `inputs/onboarding-motion.md` was built. Five signature
+moments, each playing once: the step-change slide with the held header and the gliding stepper marker,
+"sealed and sent" after Google, the watch-list ping when a word is added, the letter arriving on Step 4,
+and the one earned peak when Start watching is tapped (button morphs into the live panel, dot lands,
+two radar rings, one 48-piece blue burst).
+- **New files:** `static/css/motion.css`, `static/js/vt.js`, `static/js/motion.js`,
+  `static/vendor/canvas-confetti-1.9.4.js` (upstream 1.9.4 with ONLY the default `colors` array swapped for
+  the brand blues, sha256 `26f0bb1c…e98e`, reversible to upstream `49f4bcbc…0a95`),
+  `static/licenses/canvas-confetti-ISC.txt`, `tests/test_saas_motion.py` (M-1…M-20, 130 tests).
+- **`.gitattributes`** gained `applyfirst/saas/static/vendor/** -text` so `core.autocrlf=true` cannot change
+  the vendored bytes and break its pinned hash.
+- **`app.css`:** the `.live i::after` pulse is now 2 cycles (WCAG 2.2.2), plus a second `@layer screens` block
+  at the end of the file holding `.gconf`, `.since` and the stepper marker (content styles, so the stepper
+  looks the same if motion.css ever fails to load).
+- **Server:** `db.gmail_connected_at`, and in `app.py` `PH`/`MONTHS`/`_utcnow`/`_parse_ts`/
+  `watching_since_text`/`_activated_fresh`; `/dashboard` gained `activated_fresh` + `watching_since`,
+  Step 2 gained `gmail_connected` + `gmail_error`, Step 4 gained `gmail_error`. No schema change, no
+  `user_version` bump, no route/redirect/CSRF/CSP change.
+- **Owner switch:** `CELEBRATE = true` in `_ui.html`. False removes every `data-burst-src`, so no prefetch,
+  no download and no burst.
+- **Byte budgets all hold** (gzip -9, LF-normalised): motion.css 2,821/2,850; vt.js 1,868/1,900;
+  motion.js 2,533/3,000; render-blocking pair 4,689/4,700; own JS 4,401/4,500; with the vendored file
+  11,293/11,500. The pair has only 11 bytes of headroom — adding a comment to motion.css or vt.js WILL
+  break test M-3.
+
+## Review fixes found after the build (spec revision 3, R14–R16)
+A six-lens adversarial review of the diff found three real defects the spec's own revision-2 harness never
+exercised. All three are fixed, in both the shipped files and `inputs/onboarding-motion-drafts/`, each with
+a test under "review fixes (2026-09-20)" in `tests/test_saas_motion.py`.
+- **R14 desktop rail paint order.** From 960 px the marker is the row-sized tint and belongs BEHIND the row,
+  but a named descendant's group paints ABOVE its ancestor's snapshot, so the marker blanked the current
+  step's number and label for the whole 520 ms glide. Fixed with
+  `@media (min-width: 960px) { ::view-transition-group(af-rail) { z-index: 1; } }`. Phones must keep the
+  default order (there the marker is the 6 px bar and has to stay above the rail's grey segment). Reproduced
+  and re-verified in real Chrome 153 at 1280 px, frames in the session scratchpad.
+- **R15 storage-blocked peak.** `vt.js` wrote `data-still` whenever the tap flag was missing, so a browser
+  that refuses `sessionStorage` never got the switch-on peak or the burst — the exact case spec 4.3 says
+  still plays from server truth. Now `step === 0 && S`.
+- **R16 unreadable stored timestamp.** `watching_since_text` parsed unguarded, so any stored value that is
+  not exactly `%Y-%m-%dT%H:%M:%SZ` turned GET /dashboard into a 500 (with no CSP header), and made the
+  `except ValueError` in `_activated_fresh` dead code. `_parse_ts` now returns None.
+- **Known limit, deliberately not tightened:** the palette guard's JS scan reads whole single-word string
+  literals, so a banned colour WORD or an `hsl()` inside a longer JS string is invisible. Hex and `rgb()`
+  are still caught anywhere in any `.js` file, vendored one included.
+
 ## Verification evidence (all green)
 9-Gate PASS → verify-and-fix **loop 1 GREEN** (rounds 1–3) → completion mandate **COMPLETE** → owner-
 requested **loop 2 GREEN** (rounds 4–6). 55 findings total (F-001…F-055): 25 fixed, 1 wontfix, 29
@@ -60,22 +106,18 @@ letters verified unchanged apart from the approved prompt lines.
   `PRICE_TEXT = "₱199 a month"` ready for later). **No billing or trial enforcement is built.**
 - AI letters: never invent availability; "I can send my resume on request" when a resume is requested.
 - Retries never charge the daily cap. Too-long errors name the field.
-- Animated onboarding: **researched + prototyped, NOT built** — awaiting owner approval.
+- Animated onboarding: **approved by the owner on 2026-09-20 and built** (see the section below).
 
 ## Open follow-ups (ordered)
-1. **Animated onboarding** — prototype at https://claude.ai/artifact/FdKYmDFf4XXjWMnrg8KLY3 . Stack decided
-   in `inputs/motion-stack.md`: browser-native cross-document View Transitions + CSS `linear()` springs +
-   ~4 KB own scripts + canvas-confetti 1.9.4 (patched to brand blues) for one moment. GSAP / anime.js /
-   Motion rejected (28–48 KB, cannot animate across a page load). Spec: `inputs/onboarding-motion.md`.
-2. **Deploy (Path A, Fly.io beta)** — unchanged runbook below. Nothing about the redesign changes it.
-3. **Rate limiting beyond `/auth/*` (F-039)** — required **before** turning `INVITE_ONLY` off.
-4. **Oracle web unit needs `APPLYFIRST_WORKER_INTERVAL=330`** (`deploy/oracle/applyfirst-saas-web.service`),
+1. **Deploy (Path A, Fly.io beta)** — unchanged runbook below. Nothing about the redesign changes it.
+2. **Rate limiting beyond `/auth/*` (F-039)** — required **before** turning `INVITE_ONLY` off.
+3. **Oracle web unit needs `APPLYFIRST_WORKER_INTERVAL=330`** (`deploy/oracle/applyfirst-saas-web.service`),
    or the site says "about every 10 minutes" while the worker runs every ~6.
-5. Smaller deferred items in `findings.json`: hyphenated email line breaks (F-033), case-duplicate
+4. Smaller deferred items in `findings.json`: hyphenated email line breaks (F-033), case-duplicate
    keywords (F-023), `Cache-Control: no-store` on authenticated pages (F-028), HTML error pages for
    401/403/429 and the login callback, worker-kill double-charge (F-047, needs a `charged` column in the
    protected `db.py`), GZip for static.
-6. **Owner check:** after deploying, read one of your own V1 letters end-to-end to confirm the prompt
+5. **Owner check:** after deploying, read one of your own V1 letters end-to-end to confirm the prompt
    rewrite reads the way you want.
 
 ## Deploy — Path A (Fly.io beta) unchanged
@@ -155,7 +197,6 @@ Never switch to `gmail.compose` (restricted → CASA). Re-check the scopes page 
   copy** of it, and the two will overwrite each other's files. Let workflow agents finish.
 
 # Next Step — The single next thing to try
-**Decide on the animated onboarding** (approve the prototype → build it, or skip it), then run
-**Path A (Fly.io beta)** to get a public HTTPS URL for invited test users. Add wider rate limiting before
+**Push, then run Path A (Fly.io beta)** to get a public HTTPS URL for invited test users. Add wider rate limiting before
 `INVITE_ONLY` is ever switched off. See `.noxa/redesign-saas-ui/session.md` for the full run record and
 `docs/SYSTEM-DESIGN.md` §10–§11 for the architecture.

@@ -2,6 +2,8 @@
 {% import "_ui.html" as ui %}
 {% from "_icons.html" import icon %}
 {% block title %}Dashboard · ApplyFirst{% endblock %}
+{% block html_attrs %} data-step="0"{% endblock %}
+{% block motion_head %}{{ ui.motion_head() }}{% endblock %}
 {% block content %}
 {%- set N = [check_every_min | default(10), 50] | min %}
 {%- set retry = gmail_error | default(none) %}
@@ -47,10 +49,17 @@
       {{ ui.link_button("/onboarding/keywords", "Edit keywords", variant="secondary") }}
     {% endcall %}
     {%- else %}
-    {% call ui.status_panel("live", "dash-title") %}
+    {% call ui.status_panel("live", "dash-title", fresh=activated_fresh | default(false),
+                            burst=(static_url('vendor/canvas-confetti-1.9.4.js')
+                                   if ui.CELEBRATE and (activated_fresh | default(false)) else none),
+                            arrive=(not retry)) %}
       <h1 id="dash-title">Watching onlinejobs.ph for you</h1>
       <p>We check about every {{ N }} minutes, day and night. New matches go to <strong class="addr-inline">{{ ui.email_text(user.email) }}</strong>.</p>
       <p class="status__kw">{{ icon('tag', 16) }}<span>Watching for: {{ watched }}</span></p>
+      {#- The start of the current unbroken watch. Never faked: the route passes it only when it is true. -#}
+      {%- if watching_since | default(none) %}
+      <p class="since">{{ icon('clock', 16) }}Watching since {{ watching_since }}</p>
+      {%- endif %}
       {#- Ready slot: shows only if the backend ever passes the minutes since the last check. Never faked. #}
       {%- if last_check_minutes is defined and last_check_minutes is not none %}
       <p class="lastcheck">{{ icon('clock', 16) }}Last check {{ last_check_minutes }} minutes ago</p>
@@ -90,7 +99,7 @@
       {% endcall %}
 
       {%- set gmail_title %}Gmail {% if gmail_connected %}{{ ui.badge("Connected", "ok") }}{% else %}{{ ui.badge("Not connected", "attention") }}{% endif %}{% endset %}
-      {% call ui.sheet(gmail_title, "gm-title", cls="span-7") %}
+      {% call ui.sheet(gmail_title, "gm-title", cls="span-7", arrive=(gmail_connected and not retry)) %}
       {%- if gmail_connected %}
       <p class="kv">Applications go to<b class="addr-inline">{{ ui.email_text(user.email) }}</b></p>
       {%- if retry %}

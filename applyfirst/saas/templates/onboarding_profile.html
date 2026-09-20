@@ -2,6 +2,8 @@
 {% import "_ui.html" as ui %}
 {% block title %}Your details · ApplyFirst{% endblock %}
 {% block body_class %}is-onboarding{% endblock %}
+{% block html_attrs %} data-step="2"{% endblock %}
+{% block motion_head %}{{ ui.motion_head() }}{% endblock %}
 {% block content %}
 {#- form_error is None, {"kind": "blank"} or {"kind": "too_long", "field": ..., "limit": ...}. The server builds
     it from a whitelist, so no query value ever reaches this page. over_cap_fields names every SAVED field that is
@@ -20,11 +22,17 @@
 {%- set failed_long = fe is not none and fe.kind == "too_long" and fe.field in too_long_copy %}
 {#- Every field to flag, deduped and in form order: the one the save named plus every saved one over its cap. -#}
 {%- set flagged = too_long_copy | select('in', ([fe.field] if failed_long else []) + (over_cap_fields | default([]))) | list %}
+{%- set initial = (user.display_name or user.email)[:1] | upper %}
 {% call ui.onboarding_shell(2, activated | default(false)) %}
       <div>
         <h1>Your details</h1>
         <p class="lead">We use these to write each application. You do this once and can change it any time.</p>
       </div>
+      {#- Sealed and sent, straight after the return from Google. Someone who already finished setup is
+          editing, not onboarding, so they stay completely quiet. -#}
+      {%- if gmail_connected | default(false) and not gmail_error | default(none) and not (activated | default(false)) %}
+      {{ ui.gmail_confirm(user.email, initial) }}
+      {%- endif %}
       {# maxlength mirrors the server caps in app.py (80, 80, 150, 5000). #}
       <form class="form" method="post" action="/onboarding/profile">
         {{ ui.csrf_field(csrf_token) }}

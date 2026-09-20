@@ -18,10 +18,20 @@
 {# Keep false until payments exist. true adds one sentence to the FAQ answer, nothing else. #}
 {% set SHOW_PRICE = false %}
 {% set PRICE_TEXT = "₱199 a month" %}
+{# The one celebration. false removes every data-burst-src, so nothing is prefetched, downloaded or burst. #}
+{% set CELEBRATE = true %}
 {% set STEPS = [("Gmail", "Connect Gmail"), ("Details", "Your details"), ("Keywords", "Keywords"), ("Preview", "Preview")] %}
 {% set QUICK_KEYWORDS = ["virtual assistant", "customer service", "data entry", "social media manager", "graphic designer", "video editor", "web developer", "content writer"] %}
 
 {#- ===== Basics ============================================================================================ -#}
+{# The motion head, in the one locked order: motion.css, then vt.js (parser-blocking, it sets the tier before
+   the first paint), then deferred motion.js. Only the five signed-in app pages call it. #}
+{% macro motion_head() -%}
+<link rel="stylesheet" href="{{ static_url('css/motion.css') }}">
+  <script src="{{ static_url('js/vt.js') }}"></script>
+  <script src="{{ static_url('js/motion.js') }}" defer></script>
+{%- endmacro %}
+
 {% macro csrf_field(token) -%}
 <input type="hidden" name="csrf" value="{{ token }}">
 {%- endmacro %}
@@ -110,9 +120,10 @@
 
 {#- ===== Messages ========================================================================================= -#}
 {# Tones: info (sky), success (green), attention (amber, "needs you, calmly"), danger (red, destructive only).
-   focus=true makes it focusable so app.js can move focus to it. #}
-{% macro alert(tone, icon_name, role=none, id=none, focus=false, compact=false, cls=none) -%}
-<div class="alert alert--{{ tone }}{% if compact %} alert--compact{% endif %}{% if cls %} {{ cls }}{% endif %}"{% if id %} id="{{ id }}"{% endif %}{% if role %} role="{{ role }}"{% endif %}{% if focus %} tabindex="-1"{% endif %}>
+   focus=true makes it focusable so app.js can move focus to it.
+   arrive=true marks a "Gmail is connected" message, which motion.css settles in on arrival. #}
+{% macro alert(tone, icon_name, role=none, id=none, focus=false, compact=false, cls=none, arrive=false) -%}
+<div class="alert alert--{{ tone }}{% if compact %} alert--compact{% endif %}{% if cls %} {{ cls }}{% endif %}"{% if id %} id="{{ id }}"{% endif %}{% if role %} role="{{ role }}"{% endif %}{% if focus %} tabindex="-1"{% endif %}{% if arrive %} data-arrive-gmail{% endif %}>
   {{ icon(icon_name) }}
   <div>{{ caller() }}</div>
 </div>
@@ -166,12 +177,12 @@
 
 {# A saved keyword with its own remove form. The button's name includes the keyword for screen readers. #}
 {% macro keyword_chip(k, token) -%}
-<li class="kw"><span class="kw__text">{{ k.keyword }}</span><form method="post" action="/onboarding/keywords/{{ k.id }}/delete">{{ csrf_field(token) }}<button class="kw__remove" type="submit">{{ icon('x', 18) }}<span class="visually-hidden">Remove {{ k.keyword }}</span></button></form></li>
+<li class="kw" data-vt-kw="{{ k.keyword }}"><span class="kw__text">{{ k.keyword }}</span><form method="post" action="/onboarding/keywords/{{ k.id }}/delete">{{ csrf_field(token) }}<button class="kw__remove" type="submit">{{ icon('x', 18) }}<span class="visually-hidden">Remove {{ k.keyword }}</span></button></form></li>
 {%- endmacro %}
 
 {# One-tap suggestion: posts the word to the same route as the main add form. #}
 {% macro quick_add(word, token) -%}
-<li><form method="post" action="/onboarding/keywords">{{ csrf_field(token) }}<input type="hidden" name="keyword" value="{{ word }}"><button class="quick" type="submit">{{ icon('plus', 16) }}<span class="visually-hidden">Add </span><span>{{ word }}</span></button></form></li>
+<li><form method="post" action="/onboarding/keywords">{{ csrf_field(token) }}<input type="hidden" name="keyword" value="{{ word }}"><button class="quick" type="submit" data-vt-kw="{{ word }}">{{ icon('plus', 16) }}<span class="visually-hidden">Add </span><span>{{ word }}</span></button></form></li>
 {%- endmacro %}
 
 {#- ===== Layout pieces ===================================================================================== -#}
@@ -181,7 +192,7 @@
   <p class="stepper__count"><b>{{ STEPS[current - 1][1] }}</b> <span>Step {{ current }} of {{ STEPS | length }}</span></p>
   <ol class="stepper__list">
   {%- for short, full in STEPS %}
-    <li class="stepper__item{% if loop.index < current %} is-passed{% endif %}"{% if loop.index == current %} aria-current="step"{% endif %}><span class="stepper__node" aria-hidden="true">{{ loop.index }}</span><span class="stepper__short">{{ short }}</span><span class="stepper__full">{{ full }}</span></li>
+    <li class="stepper__item{% if loop.index < current %} is-passed{% endif %}"{% if loop.index == current %} aria-current="step"{% endif %}>{% if loop.index == current %}<span class="stepper__marker" aria-hidden="true"></span>{% endif %}<span class="stepper__node" aria-hidden="true">{{ loop.index }}</span><span class="stepper__short">{{ short }}</span><span class="stepper__full">{{ full }}</span></li>
   {%- endfor %}
   </ol>
 </nav>
@@ -211,9 +222,10 @@
 </div>
 {%- endmacro %}
 
-{# A white sheet. title may be a {% set %} block when it carries a badge. #}
-{% macro sheet(title=none, id=none, cls=none) -%}
-<section class="sheet{% if cls %} {{ cls }}{% endif %}"{% if title and id %} aria-labelledby="{{ id }}"{% endif %}>
+{# A white sheet. title may be a {% set %} block when it carries a badge.
+   arrive=true marks the sheet that says Gmail is connected, which motion.css settles in on arrival. #}
+{% macro sheet(title=none, id=none, cls=none, arrive=false) -%}
+<section class="sheet{% if cls %} {{ cls }}{% endif %}"{% if title and id %} aria-labelledby="{{ id }}"{% endif %}{% if arrive %} data-arrive-gmail{% endif %}>
   {%- if title %}
   <h2 class="card-title"{% if id %} id="{{ id }}"{% endif %}>{{ title }}</h2>
   {%- endif %}
@@ -222,10 +234,12 @@
 {%- endmacro %}
 
 {# The dashboard's single status panel. kind: gmail (amber), empty (white), paused (sky), live (navy).
-   data-panel is a test hook: exactly one per dashboard render. #}
-{% macro status_panel(kind, title_id) -%}
+   data-panel is a test hook: exactly one per dashboard render.
+   fresh=true is the just-activated switch-on, burst is the confetti file to fetch, arrive=true is
+   the sealed-and-sent return from Google. All three are live-panel hooks and all three are optional. #}
+{% macro status_panel(kind, title_id, fresh=false, burst=none, arrive=false) -%}
 {%- set well = {"gmail": "mail", "empty": "tag", "paused": "clock"} -%}
-<section class="status status--{{ kind }}{% if kind == 'live' %} on-dark{% endif %}" data-panel="{{ kind }}" aria-labelledby="{{ title_id }}">
+<section class="status status--{{ kind }}{% if kind == 'live' %} on-dark{% endif %}" data-panel="{{ kind }}"{% if fresh %} data-fresh{% endif %}{% if burst %} data-burst-src="{{ burst }}"{% endif %}{% if arrive %} data-arrive-gmail{% endif %} aria-labelledby="{{ title_id }}">
   {%- if kind == "live" %}
   <span class="live"><i aria-hidden="true"></i>Live</span>
   {%- else %}
@@ -291,6 +305,14 @@
   <div class="fromto__path"><i aria-hidden="true"></i><span class="fromto__node" aria-hidden="true">{{ icon('mail', 14) }}</span><span class="fromto__via">Sent through your own Gmail</span></div>
   <div class="fromto__end"><span class="avatar" aria-hidden="true">{{ initial }}</span><span class="fromto__label">To</span><span class="addr">{{ email_text(addr) }}</span></div>
   <p class="fromto__note">{{ note }}</p>
+</div>
+{%- endmacro %}
+
+{# "Sealed and sent": the short confirmation Step 2 shows after the return from Google, onboarding only. #}
+{% macro gmail_confirm(addr, initial) -%}
+<div class="gconf" data-arrive-gmail role="group" aria-label="Gmail connected">
+  <div class="gconf__route" aria-hidden="true"><span class="avatar">{{ initial }}</span><span class="gconf__track"><i class="gconf__line"></i><span class="fromto__node">{{ icon('mail', 14) }}</span></span><span class="avatar">{{ initial }}</span></div>
+  <div class="gconf__text">{{ badge("Gmail connected", "ok") }}<p>Applications go from <strong class="addr-inline">{{ email_text(addr) }}</strong> to the same address.</p></div>
 </div>
 {%- endmacro %}
 

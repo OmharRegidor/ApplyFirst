@@ -3,9 +3,12 @@
 {% from "_icons.html" import icon %}
 {% block title %}Preview · ApplyFirst{% endblock %}
 {% block body_class %}is-onboarding{% endblock %}
+{% block html_attrs %} data-step="4"{% endblock %}
+{% block motion_head %}{{ ui.motion_head() }}{% endblock %}
 {% block content %}
 {%- set initial = (user.display_name or user.email)[:1] | upper %}
 {%- set editing = activated | default(false) %}
+{%- set retry = gmail_error | default(none) %}
 {% call ui.onboarding_shell(4, editing, wide=true) %}
       <div>
         <h1>Here's what we'll send you</h1>
@@ -40,7 +43,7 @@
         <a class="text-link" href="/onboarding/keywords">Change keywords</a>
       </div>
       {%- if gmail_connected %}
-      {% call ui.alert('success', 'circle-check') %}<p>Gmail connected. Emails go to <strong class="addr-inline">{{ ui.email_text(user.email) }}</strong>.</p>{% endcall %}
+      {% call ui.alert('success', 'circle-check', arrive=(not retry)) %}<p>Gmail connected. Emails go to <strong class="addr-inline">{{ ui.email_text(user.email) }}</strong>.</p>{% endcall %}
       {%- if editing %}
       {#- Already watching: nothing to start, so the one primary goes back to the dashboard. #}
       <div class="actions">
@@ -48,7 +51,7 @@
         <p class="caption">You can change your keywords or message any time.</p>
       </div>
       {%- else %}
-      <form class="activate actions" method="post" action="/onboarding/activate">
+      <form class="activate actions" method="post" action="/onboarding/activate"{% if ui.CELEBRATE %} data-burst-src="{{ static_url('vendor/canvas-confetti-1.9.4.js') }}"{% endif %}>
         {{ ui.csrf_field(csrf_token) }}
         {{ ui.button("Start watching for jobs", size="lg", busy="Starting") }}
         <p class="caption">You can change your keywords or message any time.</p>

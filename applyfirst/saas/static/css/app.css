@@ -704,7 +704,7 @@
   @media (prefers-reduced-motion: no-preference) {
     .letter { animation: arrive var(--dur-arrive) var(--ease-out) 240ms both; }
     .mail-row--new { animation: highlight 900ms var(--ease-out) 120ms both; }
-    .live i::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--green-400); animation: pulse 2s var(--ease-out) infinite; }
+    .live i::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--green-400); animation: pulse 2s var(--ease-out) 2; }
     .btn__spin { animation: spin 900ms linear infinite; }
     @keyframes arrive { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
     @keyframes highlight { from { background: var(--surface); } to { background: var(--sky-100); } }
@@ -722,5 +722,36 @@
     .meter li, .slots li, .bar, .bar__fill, .stepper__item::before, .stepper__node, .live i, .key { forced-color-adjust: none; }
     .kw__remove:hover, .kw__remove:focus-visible { outline: 2px solid Highlight; }
     :focus-visible { outline-color: Highlight; }
+  }
+}
+
+/* ---- additions for onboarding-motion.md section 4.5. Paste at the END of @layer screens in app.css,
+        after the forced-colours block, so the 960 px and forced-colours overrides below win. ---- */
+@layer screens {
+  /* Step 2: compact "Gmail connected" confirmation. The envelope rests at the To end: delivered. */
+  .gconf { display: grid; gap: 12px; padding: 14px 16px; border-radius: var(--r-lg); background: var(--sky-50); border: 1px solid var(--sky-100); font-size: var(--fs-small); min-width: 0; }
+  .gconf__route { display: flex; align-items: center; }
+  .gconf__route .avatar { width: 32px; height: 32px; font-size: .875rem; }
+  .gconf__track { position: relative; display: flex; align-items: center; justify-content: flex-end; width: 96px; height: 28px; margin-inline: 6px; flex: none; }
+  .gconf__line { position: absolute; left: 0; right: 14px; top: 13px; height: 2px; background: var(--navy-100); }
+  .gconf__text { display: grid; gap: 6px; justify-items: start; min-width: 0; }
+  @media (min-width: 640px) { .gconf { grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 20px; } }
+  /* Dashboard live panel: "Watching since 9:14 AM" or "Watching since 14 Sep" (4.4). Same look as the last-check line. */
+  .since { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; font-size: var(--fs-small); color: var(--navy-100); }
+  .since .icon { color: var(--sky-300); }
+  /* Stepper marker: the current step's blue bar (phone) or the current row's tint (rail, 960 px and up).
+     Content, not motion: the stepper looks the same whether or not motion.css loads. motion.css only names it. */
+  .stepper__item { position: relative; }
+  .stepper__item[aria-current="step"]::before { background: var(--line); }
+  .stepper__marker { position: absolute; inset: 0 0 auto; height: 6px; border-radius: var(--r-pill); background: var(--blue-600); forced-color-adjust: none; }
+  @media (min-width: 960px) {
+    .stepper__list { isolation: isolate; }
+    .stepper__item[aria-current="step"] { background: none; }
+    .stepper__marker { inset: 0; height: auto; border-radius: var(--r-md); background: var(--blue-50); z-index: -1; }
+  }
+  /* High contrast. The phone bar keeps its blue like the other segments. The rail row uses the system selection pair. */
+  @media (forced-colors: active) and (min-width: 960px) {
+    .stepper__marker { forced-color-adjust: auto; background: Highlight; }
+    .stepper__item[aria-current="step"] { color: HighlightText; }
   }
 }

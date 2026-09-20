@@ -3,6 +3,8 @@
 {% from "_icons.html" import icon %}
 {% block title %}Connect Gmail · ApplyFirst{% endblock %}
 {% block body_class %}is-onboarding{% endblock %}
+{% block html_attrs %} data-step="1"{% endblock %}
+{% block motion_head %}{{ ui.motion_head() }}{% endblock %}
 {% block content %}
 {%- set retry = gmail_error | default(none) %}
 {%- set initial = (user.display_name or user.email)[:1] | upper %}

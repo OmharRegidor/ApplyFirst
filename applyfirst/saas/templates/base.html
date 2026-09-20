@@ -1,6 +1,6 @@
 {% import "_ui.html" as ui -%}
 <!doctype html>
-<html lang="en">
+<html lang="en"{% block html_attrs %}{% endblock %}>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,6 +11,7 @@
   <link rel="preload" href="/static/fonts/plus-jakarta-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   {% block head_extra %}{% endblock %}
   <link rel="stylesheet" href="{{ static_url('css/app.css') }}">
+  {% block motion_head %}{% endblock %}
   <link rel="icon" href="{{ static_url('brand/favicon.svg') }}" type="image/svg+xml">
   <link rel="apple-touch-icon" href="{{ static_url('brand/apple-touch-icon.png') }}">
   <script src="{{ static_url('js/app.js') }}" defer></script>

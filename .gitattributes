@@ -3,3 +3,7 @@
 *.sh        text eol=lf
 *.service   text eol=lf
 *.timer     text eol=lf
+
+# The vendored library is pinned by sha256, so a CRLF checkout would change its bytes
+# and break the pin. Leave it exactly as committed.
+applyfirst/saas/static/vendor/** -text

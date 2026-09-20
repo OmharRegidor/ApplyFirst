@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
@@ -113,6 +114,64 @@ def _gmail_error_flag(request: Request) -> str | None:
     """The only honoured value of ?gmail_error= is the exact string "scope" (set by our own
     gmail-callback redirect). Anything else is ignored, and the raw value is never rendered."""
     return "scope" if request.query_params.get("gmail_error") == "scope" else None
+
+
+# Philippine time has had no daylight saving since 1978, so a fixed offset is exact and
+# needs no tzdata on Windows.
+PH = timezone(timedelta(hours=8))
+MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+# Every timestamp this DB writes uses this shape (db.py _now_iso).
+_TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
+
+# How fresh an activation is when the dashboard should play the switch-on moment.
+_FRESH_SECONDS = 120
+
+
+def _utcnow() -> datetime:
+    """The server clock, as one seam. Route code must call this rather than datetime.now
+    directly, so a test can freeze the clock with monkeypatch (M-12, M-13)."""
+    return datetime.now(timezone.utc)
+
+
+def _parse_ts(value: str | None) -> datetime | None:
+    """One stored timestamp, or None when it is missing or not the shape db.py writes.
+    Tolerant on purpose: both readers below feed decorative lines on the dashboard, and a row
+    that predates _now_iso (a restored backup, a hand-edited column) must never cost a user
+    their whole page."""
+    try:
+        return datetime.strptime(value, _TS_FMT).replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def watching_since_text(activated_at: str | None, gmail_at: str | None,
+                        now: datetime) -> str | None:
+    """The start of the current unbroken watch, in Philippine time (R1).
+
+    The later of activation and the last Gmail (re)connect, because while Gmail is off the
+    worker skips every match. Same Manila day → "9:14 AM"; another day this year → "14 Sep";
+    another year → "14 Sep 2025". No %-I (Windows strftime lacks it) and no %b (locale).
+    """
+    start = _parse_ts(activated_at)
+    if start is None:
+        return None
+    reconnected = _parse_ts(gmail_at)
+    if reconnected is not None:
+        start = max(start, reconnected)
+    t, today = start.astimezone(PH), now.astimezone(PH).date()
+    if t.date() == today:
+        return f"{t.hour % 12 or 12}:{t.minute:02d} {'AM' if t.hour < 12 else 'PM'}"
+    return f"{t.day} {MONTHS[t.month - 1]}" + ("" if t.year == today.year else f" {t.year}")
+
+
+def _activated_fresh(activated_at: str | None, now: datetime) -> bool:
+    """True for the first _FRESH_SECONDS after activation. A missing or unparsable
+    timestamp is simply not fresh."""
+    started = _parse_ts(activated_at)
+    if started is None:
+        return False
+    return (now - started).total_seconds() <= _FRESH_SECONDS
 
 
 # /health reports the worker stale (503) once last_cycle_at is older than this × the poll
@@ -260,6 +319,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         profile = db.get_profile(conn, user.id)
         if not _is_activated(profile):
             return RedirectResponse("/onboarding", status_code=302)
+        now = _utcnow()
         return _TEMPLATES.TemplateResponse(request, "dashboard.html", {
             "user": user,
             "profile": profile,
@@ -269,6 +329,9 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             "daily_cap": cfg.daily_tailor_cap,
             "csrf_token": csrf_for(user),
             "gmail_error": _gmail_error_flag(request),
+            "activated_fresh": _activated_fresh(profile.activated_at, now),
+            "watching_since": watching_since_text(
+                profile.activated_at, db.gmail_connected_at(conn, user.id), now),
         })
 
     # --- auth ----------------------------------------------------------------
@@ -416,6 +479,8 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             "csrf_token": csrf_for(user), "activated": _is_activated(profile),
             "form_error": _profile_form_error(request),
             "over_cap_fields": _over_cap_fields(profile),
+            "gmail_connected": db.gmail_connected(conn, user.id),
+            "gmail_error": _gmail_error_flag(request),
         })
 
     @app.post("/onboarding/profile", dependencies=[Depends(require_csrf)])
@@ -479,6 +544,9 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             "user": user, "preview": pv,
             "gmail_connected": db.gmail_connected(conn, user.id),
             "csrf_token": csrf_for(user), "activated": _is_activated(profile),
+            # Step 4's success alert drops data-arrive-gmail on ?gmail_error=scope (M-11),
+            # which the template can only know if the route passes the flag.
+            "gmail_error": _gmail_error_flag(request),
         })
 
     @app.post("/onboarding/activate", dependencies=[Depends(require_csrf)])

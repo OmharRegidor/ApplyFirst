@@ -1,0 +1,116 @@
+/* ApplyFirst motion layer. App pages only, after app.css. Spec and reasons: onboarding-motion.md */
+@layer reset, tokens, base, components, screens, motion;
+@media (prefers-reduced-motion: no-preference) { @view-transition { navigation: auto; } }
+
+@layer motion {
+  :root { --ease-exit: cubic-bezier(.4, 0, 1, 1); --ease-settle: var(--ease-out); --ease-spring: var(--ease-out); }
+  @supports (transition-timing-function: linear(0, 1)) {
+    :root {
+      --ease-settle: linear(0, .005 1.2%, .022 2.8%, .053 4.5%, .095 6.2%, .189 9.5%, .509 19.5%, .607 23%, .686 26.2%, .755 29.5%, .812 32.8%, .862 36.2%, .902 39.8%, .938 44%, .965 48.5%, .985 53.5%, .997 59%, 1.006 72.5%, 1);
+      --ease-spring: linear(0, .006 1.5%, .026 3.2%, .064 5.2%, .113 7.2%, .217 10.8%, .57 21.5%, .671 25%, .753 28.2%, .818 31.2%, .877 34.5%, .924 37.8%, .961 41%, .993 44.8%, 1.016 48.8%, 1.03 53%, 1.037 57.8%, 1.035 66.2%, 1);
+    }
+  }
+
+  /* 4.3 hooks, every mode. The stepper marker is content and lives in app.css. */
+  .status--live { position: relative; isolation: isolate; }
+  .status__kw strong { border-radius: 4px; padding: 1px 3px; margin: -1px -3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+  .burst { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; border-radius: inherit; }
+  a.btn[data-state="busy"]::before { content: ""; width: 16px; height: 16px; flex: none; border: 2px solid; border-right-color: transparent; border-radius: 50%; }
+  .kw[data-new] { position: relative; box-shadow: 0 0 0 2px #38AEEA; }
+  @media (forced-colors: active) { .kw[data-new] { outline: 2px solid Highlight; outline-offset: 1px; } }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* 5.2 names: vt.js sets a token only for what is on screen */
+    [data-vt~="head"] .site-header { view-transition-name: af-head; }
+    [data-vt~="rail"] .stepper { view-transition-name: af-rail; }
+    [data-vt~="rail"] .stepper__marker { view-transition-name: af-marker; }
+    [data-vt~="act"] :is(.activate .btn--primary, .status--live) { view-transition-name: af-activate; }
+    [data-vt-kw] { view-transition-class: kw; }
+
+    /* 6.1 every step change */
+    ::view-transition-old(root) { animation: 180ms var(--ease-exit) both af-out; }
+    ::view-transition-new(root) { animation: 320ms var(--ease-out) 40ms both af-in; }
+    html:active-view-transition-type(back)::view-transition-old(root) { animation-name: af-out-back; }
+    html:active-view-transition-type(back)::view-transition-new(root) { animation-name: af-in-back; }
+    html:active-view-transition-type(same)::view-transition-old(root) { animation: 150ms linear both af-fade-out; }
+    html:active-view-transition-type(same)::view-transition-new(root) { animation: 150ms linear both af-fade-in; }
+    html:active-view-transition-type(activate)::view-transition-old(root) { animation: 220ms var(--ease-exit) both af-sink; }
+    html:active-view-transition-type(activate)::view-transition-new(root) { animation: 420ms var(--ease-out) 120ms both af-rise; }
+    ::view-transition-group(af-head) { animation-duration: 200ms; }
+    ::view-transition-group(af-rail) { animation-duration: 520ms; animation-timing-function: var(--ease-settle); }
+    ::view-transition-group(af-marker) { animation-duration: 520ms; animation-timing-function: var(--ease-spring); }
+    /* 960 px+: lift the rail, else the row-sized marker hides the current step's label. */
+    @media (min-width: 960px) { ::view-transition-group(af-rail) { z-index: 1; } }
+    html:active-view-transition-type(forward) .stepper__item:has(+ [aria-current="step"])::before { transform-origin: left; animation: af-grow 480ms var(--ease-out) 60ms backwards; }
+
+    /* 6.5 keyword add, quick add, remove */
+    ::view-transition-group(*.kw) { animation-duration: 420ms; animation-timing-function: var(--ease-spring); }
+    ::view-transition-old(*.kw):only-child { animation: 160ms var(--ease-exit) both af-pill-out; }
+    ::view-transition-new(*.kw):only-child { animation: 320ms var(--ease-spring) both af-pill-in; }
+    .kw[data-new]::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; border: 2px solid #38AEEA; opacity: 0; pointer-events: none; animation: af-sonar 900ms cubic-bezier(.2, .7, .3, 1) 380ms; }
+
+    /* 6.7 the button opens into the live panel (full tier only: vt.js names it) */
+    ::view-transition-group(af-activate) { animation-duration: 560ms; animation-timing-function: var(--ease-settle); }
+    ::view-transition-image-pair(af-activate) { overflow: clip; animation: 560ms var(--ease-settle) both af-fill; }
+    ::view-transition-old(af-activate) { height: 100%; object-fit: none; animation: 120ms linear both af-fade-out; }
+    ::view-transition-new(af-activate) { height: 100%; object-fit: none; object-position: left top; animation: 240ms linear 280ms both af-fade-in; }
+
+    /* 6.3 sealed and sent, first page after Google. Only blocks the server marked (never next to a retry note). */
+    [data-arrive~="gmail"] [data-arrive-gmail] .gconf__line { transform-origin: left; animation: af-grow 520ms var(--ease-out) 150ms backwards; }
+    [data-arrive~="gmail"] [data-arrive-gmail] .gconf__track .fromto__node { animation: af-deliver 720ms cubic-bezier(.45, 0, .2, 1) 260ms backwards; }
+    [data-arrive~="gmail"] [data-arrive-gmail] .badge--ok { animation: af-stamp 420ms var(--ease-out) 940ms backwards; }
+    [data-arrive~="gmail"] .alert--success[data-arrive-gmail] > .icon { animation: af-stamp 420ms var(--ease-out) 300ms backwards; }
+    [data-arrive~="gmail"] [data-arrive-gmail] .live i { animation: af-dot 420ms var(--ease-out) 300ms backwards; }
+
+    /* 6.6 the letter arrives, after the page slide */
+    .mailcard { animation: af-rise 420ms var(--ease-out) 120ms backwards; }
+    .mailcard__head { animation: af-unread 1100ms ease-out 420ms backwards; }
+    .letter__part, .mailcard .copy-row { animation: af-settle 380ms var(--ease-out) 480ms backwards; }
+    .letter__part + .letter__part { animation-delay: 550ms; }
+    .mailcard .copy-row { animation-delay: 620ms; }
+    .preview__link .fromto__node { animation: af-hop 700ms cubic-bezier(.45, 0, .2, 1) 200ms backwards; }
+    html:active-view-transition :is(.mailcard, .mailcard__head, .letter__part, .copy-row, .preview__link .fromto__node) { animation-play-state: paused; }
+    @media (min-width: 1100px) { .preview__link .fromto__node { animation-name: af-hop-x; } }
+
+    /* 6.8 the peak: server truth, and with JS the tap flag too (data-still = no tap). No text animates. */
+    html:not([data-still]) [data-fresh] .live i { animation: af-dot 420ms var(--ease-out) 560ms backwards; }
+    html:not([data-still]) [data-fresh] .live i::after { animation: none; }
+    html:not([data-still]) [data-fresh] .live i::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid #86CBF2; opacity: 0; animation: af-radar 1000ms cubic-bezier(.2, .7, .3, 1) 760ms 2; }
+    html:not([data-still], [data-motion="lite"]) [data-fresh] .status__kw strong { animation: af-lit 700ms ease-out 1000ms backwards; }
+    html:not([data-still], [data-motion="lite"]) [data-fresh] .status__kw strong:nth-of-type(2) { animation-delay: 1090ms; }
+    html:not([data-still], [data-motion="lite"]) [data-fresh] .status__kw strong:nth-of-type(3) { animation-delay: 1180ms; }
+    html[data-motion="lite"] [data-fresh] .live i::before { animation-iteration-count: 1; }
+    [data-motion="lite"] .mailcard__head { animation: none; }
+
+    /* 6.11 supporting touches */
+    :root { interpolate-size: allow-keywords; }
+    .disclose::details-content { block-size: 0; overflow: clip; opacity: 0; transition: block-size 280ms var(--ease-out), opacity 200ms linear, content-visibility 280ms allow-discrete; }
+    .disclose[open]::details-content { block-size: auto; opacity: 1; }
+    :is([data-copy], [data-copy-url]):not([hidden]) { transition: opacity 200ms var(--ease-out), translate 200ms var(--ease-out); }
+    @starting-style { :is([data-copy], [data-copy-url]):not([hidden]) { opacity: 0; translate: 0 4px; } }
+    a.btn[data-state="busy"]::before { animation: spin 900ms linear infinite; }
+
+    @keyframes af-out { to { opacity: 0; transform: translateX(-24px); } }
+    @keyframes af-in { from { opacity: 0; transform: translateX(24px); } }
+    @keyframes af-out-back { to { opacity: 0; transform: translateX(24px); } }
+    @keyframes af-in-back { from { opacity: 0; transform: translateX(-24px); } }
+    @keyframes af-fade-out { to { opacity: 0; } }
+    @keyframes af-fade-in { from { opacity: 0; } }
+    @keyframes af-sink { to { opacity: 0; transform: scale(.985); } }
+    @keyframes af-rise { from { opacity: 0; transform: translateY(14px); } }
+    @keyframes af-settle { from { opacity: 0; transform: translateY(8px); } }
+    @keyframes af-grow { from { transform: scaleX(0); } }
+    @keyframes af-pill-in { from { opacity: 0; transform: scale(.9); } }
+    @keyframes af-pill-out { to { opacity: 0; transform: scale(.9); } }
+    @keyframes af-sonar { from { opacity: .6; transform: scale(1); } to { opacity: 0; transform: scale(1.18, 1.7); } }
+    @keyframes af-fill { from { background-color: #0B6BC7; border-radius: 12px; } to { background-color: #0B2545; border-radius: 24px; } }
+    @keyframes af-deliver { from { opacity: 0; transform: translateX(-68px) scale(.8); } 20% { opacity: 1; } }
+    @keyframes af-stamp { 0% { opacity: 0; transform: scale(.6); } 60% { opacity: 1; transform: scale(1.08); } }
+    @keyframes af-unread { from { background-color: #DCEFFB; } }
+    @keyframes af-hop { from { opacity: 0; transform: translateY(-20px); } 30% { opacity: 1; } }
+    @keyframes af-hop-x { from { opacity: 0; transform: translateX(-20px); } 30% { opacity: 1; } }
+    @keyframes af-dot { from { transform: scale(0); } 70% { transform: scale(1.35); } }
+    @keyframes af-radar { from { opacity: .7; transform: scale(1); } to { opacity: 0; transform: scale(5); } }
+    @keyframes af-lit { 0%, 100% { background-color: rgba(134, 203, 242, 0); } 20% { background-color: rgba(134, 203, 242, .35); } }
+  }
+}

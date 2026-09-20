@@ -305,6 +305,21 @@ def gmail_connected(conn: sqlite3.Connection, user_id: str) -> bool:
     return row is not None
 
 
+def gmail_connected_at(conn: sqlite3.Connection, user_id: str) -> str | None:
+    """When the user's Gmail grant was last stored, or None if not connected.
+
+    Read-only, no schema change. ``store_gmail_credential`` deletes and re-inserts the row,
+    so ``updated_at`` is the time of the last (re)connect — which is what "Watching since"
+    needs, because while Gmail is off the worker skips every match.
+    """
+    row = conn.execute(
+        "SELECT updated_at FROM oauth_credentials "
+        "WHERE user_id=? AND provider='google' AND gmail_scope_granted=1 LIMIT 1",
+        (user_id,),
+    ).fetchone()
+    return row["updated_at"] if row else None
+
+
 def get_gmail_refresh_token(
     conn: sqlite3.Connection, user_id: str, master_key: bytes,
 ) -> str | None:
