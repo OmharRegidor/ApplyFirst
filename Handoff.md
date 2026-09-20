@@ -8,9 +8,9 @@
   and the **Oracle VM production runbook** (`deploy/oracle/`).
 
 # Current State — Where it stands (2026-09-20)
-✅ **Everything is committed.** Tests: **692 passing** (`.venv/Scripts/python.exe -m pytest -q`)
+✅ **Everything is committed and pushed.** Tests: **692 passing** (`.venv/Scripts/python.exe -m pytest -q`)
 — was 546 before the animated onboarding, 211 before the redesign. Smoke: **550 checks, 0 failed**
-(`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`). **Not pushed yet.**
+(`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
 ❌ **Still not deployed anywhere.** No Fly app, no Google OAuth client, no test users. V2 has never run
 outside localhost.
 
