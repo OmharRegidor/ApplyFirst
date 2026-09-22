@@ -11,6 +11,10 @@ PDF attached) so you can apply first.
 > **Status:** ✅ V1 complete — a **CLI tool** (no login, no browser, $0 to run). Soak next.
 > Full design spec: [`docs/superpowers/specs/2026-06-08-applyfirst-v1-design.md`](docs/superpowers/specs/2026-06-08-applyfirst-v1-design.md)
 
+> **Trying the V2 SaaS on your own PC?** The full walkthrough — Google Cloud setup, both
+> PowerShell windows, what every page says, and the two things that will confuse you — is in
+> [`docs/LOCAL-TEST.md`](docs/LOCAL-TEST.md).
+
 ## The one loop (SLC)
 
 Every ~5 min → run your keyword searches on onlinejobs.ph (**public HTTP, no login**) →
