@@ -5,22 +5,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <meta name="theme-color" content="#F3F6FA">
+  <meta name="theme-color" content="{% block theme_color %}#F3F6FA{% endblock %}">
   <title>{% block title %}Agad{% endblock %}</title>
   {% block meta %}{% endblock %}
-  <link rel="preload" href="/static/fonts/plus-jakarta-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   {% block head_extra %}{% endblock %}
   <link rel="stylesheet" href="{{ static_url('css/app.css') }}">
   {% block motion_head %}{% endblock %}
+  {% block page_css %}{% endblock %}
+  <script src="{{ static_url('js/reveal.js') }}"></script>
   <link rel="icon" href="{{ static_url('brand/favicon.svg') }}" type="image/svg+xml">
   <link rel="apple-touch-icon" href="{{ static_url('brand/apple-touch-icon.png') }}">
   <script src="{{ static_url('js/app.js') }}" defer></script>
+  {% block page_js %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header{% if user %} site-header--app{% endif %}">
     <div class="{{ 'container--app' if user else 'container' }} site-header__in">
-      <a class="brand" href="/">{{ ui.mark() }}Agad</a>
+      <a class="brand" href="/">{% block brand_mark %}{{ ui.mark() }}{% endblock %}Agad</a>
       {%- if user %}
       <div class="account">
         <span class="account__name">{{ user.display_name or user.email }}</span>

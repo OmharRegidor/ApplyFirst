@@ -1,0 +1,114 @@
+/* Agad homepage hero. Light, with a live background. Loaded by home.html into page_css.
+
+   It restates app.css's layer order and puts everything in a final `hero` layer, which is how
+   every rule here wins over @layer screens with no !important and no specificity hacks. Custom
+   properties are not layer-scoped, so app.css's tokens resolve normally.
+
+   Three moving layers, back to front:
+     1. two soft aura blobs, pure CSS transforms, so the compositor carries them for free
+     2. a canvas of drifting job posts (scene.js), one of which flies into the inbox
+     3. a white wash that keeps the copy column sitting on near-white whatever is behind it
+
+   The hero reaches y = 0 and the aura runs behind the header, so the page opens as one field
+   rather than a box pasted under a bar. */
+@layer reset, tokens, base, components, screens, hero;
+
+:root {
+  /* 180x180 grey speckle. Soft radials band on the 6-bit panels in cheap Android phones and this
+     dithers it away. The # is written %23 and the inner parens %28 %29 on purpose: the first keeps
+     the palette guard's hex scanner out of it, the second keeps the smoke's url() scanner from
+     treating the SVG's own filter reference as a file to fetch. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url%28%23n%29' opacity='.035'/%3E%3C/svg%3E");
+}
+
+@layer hero {
+  /* The field reaches the top of the page. The negative margin cannot escape main, because body
+     is a flex column and a flex item establishes its own formatting context. */
+  .is-home { --head-h: 64px; background-color: #FFFFFF; }
+  .is-home main { background-color: var(--ground); }
+  .is-home .site-header { position: relative; z-index: 1; background: transparent; }
+  .is-home .hero {
+    margin-top: calc(var(--head-h) * -1);
+    padding-block: calc(var(--head-h) + clamp(28px, 5vw, 72px)) var(--section-y);
+    position: relative; isolation: isolate; overflow: hidden; overflow: clip;
+    background-color: #FFFFFF;
+    background-image: var(--grain), linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 44%, var(--ground) 100%);
+    background-size: 180px 180px, auto;
+  }
+
+  /* 1. The aura. Two blobs on different paths and different clocks, so they never sync and the
+        field never reads as a loop. Only transform animates, so this costs no layout and no paint. */
+  .is-home .hero::before,
+  .is-home .hero::after {
+    content: ""; position: absolute; z-index: 0; pointer-events: none;
+    width: clamp(340px, 76%, 1100px); aspect-ratio: 1.25 / 1; border-radius: 50%;
+  }
+  .is-home .hero::before {
+    top: -18%; right: -12%;
+    background: radial-gradient(closest-side, rgba(56,174,234,.22), rgba(56,174,234,0) 70%);
+  }
+  .is-home .hero::after {
+    bottom: -24%; left: -16%;
+    background: radial-gradient(closest-side, rgba(11,107,199,.16), rgba(11,107,199,0) 70%);
+  }
+
+  /* 2. The canvas. It ships at width=0 height=0, so with JavaScript off the backing store is
+        empty, nothing paints, and the hero is a finished still composition. */
+  .hero__bg { position: absolute; inset: 0; z-index: 1; display: block; width: 100%; height: 100%; pointer-events: none; }
+
+  /* 3. The wash. This is the contrast guarantee: whatever the aura and the canvas do underneath,
+        the copy column sits on near-white. */
+  .hero__scrim {
+    position: absolute; inset: 0; z-index: 2; pointer-events: none;
+    background: linear-gradient(180deg, rgba(255,255,255,.62) 0%, rgba(255,255,255,.58) 56%, rgba(255,255,255,.30) 100%);
+  }
+  .is-home .hero__grid { position: relative; z-index: 3; }
+
+  /* The one control WCAG 2.2.2 requires, because the aura and the canvas both run indefinitely.
+     scene.js injects it, so with JavaScript off there is no motion and no dead button. */
+  .hero__pause {
+    position: absolute; right: var(--gutter); bottom: 16px; z-index: 4;
+    display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+    border-radius: 50%; border: 1px solid var(--line-strong); background: rgba(255,255,255,.78);
+    color: var(--navy-900); cursor: pointer;
+  }
+  .hero__pause::before {
+    content: ""; width: 11px; height: 13px;
+    border-left: 3.5px solid currentColor; border-right: 3.5px solid currentColor;
+  }
+  .hero__pause[aria-pressed="true"]::before {
+    width: 0; height: 0; border: none;
+    border-left: 13px solid currentColor; border-top: 8px solid transparent;
+    border-bottom: 8px solid transparent; margin-left: 3px;
+  }
+  .hero__pause:hover { background: #FFFFFF; border-color: var(--navy-600); }
+  @media (max-width: 639.98px) { .hero__pause { right: 12px; bottom: 12px; } }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .is-home .hero::before { animation: hero-aura-a 34s ease-in-out infinite; }
+    .is-home .hero::after { animation: hero-aura-b 26s ease-in-out infinite; }
+    /* the pause control stops the CSS field as well as the canvas, or it would not be a pause */
+    .is-home .hero[data-scene="paused"]::before,
+    .is-home .hero[data-scene="paused"]::after { animation-play-state: paused; }
+    @keyframes hero-aura-a {
+      from { transform: translate3d(-5%, -3%, 0) scale(1); }
+      50%  { transform: translate3d(6%, 4%, 0) scale(1.14); }
+      to   { transform: translate3d(-5%, -3%, 0) scale(1); }
+    }
+    @keyframes hero-aura-b {
+      from { transform: translate3d(4%, 5%, 0) scale(1.1); }
+      50%  { transform: translate3d(-6%, -5%, 0) scale(1); }
+      to   { transform: translate3d(4%, 5%, 0) scale(1.1); }
+    }
+  }
+
+  @media (forced-colors: active) {
+    .is-home .hero { background-image: none; }
+    .is-home .hero::before, .is-home .hero::after, .hero__bg, .hero__scrim { display: none; }
+    .hero__pause { border: 1px solid ButtonText; background: ButtonFace; }
+  }
+  @media print {
+    .is-home .hero { background: none; margin-top: 0; }
+    .is-home .hero::before, .is-home .hero::after, .hero__bg, .hero__scrim, .hero__pause { display: none; }
+  }
+}

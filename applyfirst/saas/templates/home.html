@@ -2,6 +2,7 @@
 {% import "_ui.html" as ui %}
 {% from "_icons.html" import icon %}
 {% block title %}Agad — be first to apply on onlinejobs.ph{% endblock %}
+{% block body_class %}is-home{% endblock %}
 {% block meta %}
   <meta name="description" content="Agad watches onlinejobs.ph for new jobs that match you and emails a ready-to-paste application to your own Gmail within minutes. You check it and apply yourself.">
   <meta property="og:type" content="website">
@@ -12,17 +13,22 @@
 {% block head_extra %}
   <link rel="preload" href="/static/fonts/google-sans-button-500.woff2" as="font" type="font/woff2" crossorigin>
 {% endblock %}
+{% block page_css %}
+  <link rel="stylesheet" href="{{ static_url('css/hero.css') }}">
+{% endblock %}
 {% block content %}
 {%- set N = [check_every_min | default(10), 50] | min %}
 {%- set A = apps_per_day | default(10) %}
 {#- The example email lands one check interval after the 9:02 post, on the ruler and in the inbox alike. #}
 {%- set landed_at = "9:%02d AM" | format(2 + N) %}
 <section class="hero" aria-labelledby="hero-title">
+  <canvas class="hero__bg" id="hero-bg" width="0" height="0" aria-hidden="true"></canvas>
+  <div class="hero__scrim" aria-hidden="true"></div>
   <div class="container hero__grid">
     <div class="hero__copy">
       <div class="hero__tags">{{ ui.tag("Beta") }}{{ ui.tag(ui.TRIAL_DAYS ~ "-day free trial") }}</div>
-      <h1 id="hero-title">Apply Agad on onlinejobs.ph</h1>
-      <p class="hero__lead">Agad is Filipino for right away. It watches onlinejobs.ph for the jobs you want, day and night. When a new one is posted, a ready-to-paste application lands in your own Gmail within minutes. You check it, then apply.</p>
+      <h1 id="hero-title">New job posted. Apply Agad.</h1>
+      <p class="hero__lead">Agad watches onlinejobs.ph for the jobs you want, day and night. When a new one is posted, a ready-to-paste application lands in your own Gmail within minutes. You check it, then apply agad. That's Filipino for right away.</p>
       {{ ui.inapp_notice(request.headers.get('user-agent', '')) }}
       {{ ui.cta_block() }}
       <ul class="trust" aria-label="Your Gmail stays yours">
@@ -213,4 +219,7 @@
     {{ ui.cta_block() }}
   </div>
 </section>
+{% endblock %}
+{% block page_js %}
+  <script src="{{ static_url('js/scene.js') }}" defer></script>
 {% endblock %}
