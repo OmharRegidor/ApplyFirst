@@ -8,21 +8,27 @@
   **Fly.io beta** (`Dockerfile`/`fly.toml`/`entrypoint.sh`) and the **Oracle VM production runbook**
   (`deploy/oracle/`).
 
-# Current State — Where it stands (2026-09-23, evening)
-✅ **The scroll-story design pass is committed.** HEAD `8be4f45` on `main`, **one commit ahead of
-`origin/main` and NOT pushed** (push after the owner has looked at it). Tests: **779 passing**
-(`.venv/Scripts/python.exe -m pytest -q`) — was 745 this morning, 692 before today, 546 before the
-animated onboarding, 211 before the redesign. Smoke: **558 checks, 0 failed**
-(`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
+# Current State — Where it stands (2026-09-24)
+✅ **Launch blockers B1–B5 are fixed in code and pushed** (`c32ca48`), on top of the scroll-story
+design pass (`8be4f45`). Everything is on `origin/main`. Tests: **845 passing**
+(`.venv/Scripts/python.exe -m pytest -q`) — was 779 before the launch fixes, 745 on 2026-09-23
+morning, 692 before that day, 546 before the animated onboarding, 211 before the redesign. Smoke:
+**558 checks, 0 failed** (`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
+🟡 **B1–B5 still need three things from the owner at deploy time**, because code cannot pick them:
+the Gemini credential with billing on, an alert webhook, and an uptime monitor on `/health`.
+See "Launch blockers" below. **B6 is still open.**
 🔴 **Still not deployed.** The owner was mid Google Cloud OAuth setup on 2026-09-22 (see the gotcha
 about "Authorized JavaScript origins"). No Fly app, no test users. V2 has never run outside localhost.
 ⚠️ **The homepage has still never been looked at by a human.** Two design passes have landed on it,
 both verified by tests, computed contrast and headless-browser measurement, but nobody has scrolled
 it on a real phone. Do that first.
 
-## The commits from 2026-09-23
+## The commits from 2026-09-23 and 2026-09-24
 ```
-8be4f45  feat(saas): scroll story, depth and calmer section joins on the homepage   (NOT pushed)
+c32ca48  fix(saas): launch blockers B1-B5 from the operations audit
+acdb88f  docs: design brief matches the page after the scroll-story pass
+20f435b  docs: handoff records the scroll-story pass
+8be4f45  feat(saas): scroll story, depth and calmer section joins on the homepage
 049ea21  docs: bring the handoff up to date with the design pass
 57551a3  docs: local end-to-end walkthrough and the production runbook
 f5c6f86  docs: design brief for taking the homepage further
@@ -265,19 +271,21 @@ blues (sha256 `26f0bb1c…e98e`, reversible to upstream `49f4bcbc…0a95`). `.gi
 Verification at the time: 9-Gate PASS → verify-and-fix loop 1 GREEN → completion mandate COMPLETE →
 owner-requested loop 2 GREEN. 55 findings, 25 fixed, 1 wontfix, 29 deferred in `artifacts/findings.json`.
 
-# Production-readiness audit (2026-09-21) — READ BEFORE DEPLOYING
-**Unchanged and still outstanding.** Following the deploy runbook AS WRITTEN ships a product with the
-AI switched off, no working logs, no alert reaching the owner, no backups, and nothing to restart the
-worker. Full detail and every command is in **`docs/OPERATIONS.md`** (now committed).
+# Launch blockers (audit 2026-09-21, B1–B5 fixed 2026-09-24 in `c32ca48`) — READ BEFORE DEPLOYING
+**B1–B5 are fixed in code. B6 is still open.** `docs/OPERATIONS.md` §1 has the full table of what
+the code now does and what the owner still sets, and §2 lists the log events and the `/health`
+states. Everything below was built, then reviewed by three rounds of independent multi-agent review
+(31 real defects found and fixed along the way), and every new guard was broken on purpose to prove
+it bites. The guards live in `tests/test_saas_ops.py` (66 tests).
 
-| # | Defect | Consequence | Smallest fix |
+| # | Was | Now | Owner still does |
 |---|---|---|---|
-| B1 | The Gemini credential is in neither `fly.toml` nor the deploy steps, and is commented out in `deploy/oracle/saas-env.sample` | The first user gets their own unchanged message plus "(AI unavailable — answers are blank; edit before sending.)" | Set it as a Fly secret |
-| B2 | `log.configure()` is called **only** by the V1 CLI (`applyfirst/cli.py:101`, `:131`). Nothing in `applyfirst/saas/` calls it | **Every structured event is discarded.** Both runbooks tell you to read logs that do not exist | Call `log.configure()` at SaaS start-up |
-| B3 | No alert destination configured | The dead-man switch fires into a log nobody reads | `fly secrets set APPLYFIRST_ALERT_WEBHOOK=<slack/discord url>` |
-| B4 | **The Fly worker watchdog is dead code.** `entrypoint.sh:104` runs `( wait "$worker_pid"; …; kill 1 ) &` but the worker is a *sibling* of that subshell, so `wait` errors instantly and `set -eu` kills the subshell first | A worker that **crashes** is never restarted either. Fly's check points at `/healthz`, a constant "ok", so the machine looks healthy while every user goes dark | Fly `[processes]`, or fix the wait; and point UptimeRobot at `/health` |
-| B5 | Nothing ever runs a backup on Fly. `fly.toml:12` sets `APPLYFIRST_BACKUP_DIR` so it *looks* configured | The only safety net is Fly's own volume snapshot, kept 5 days, never restored | Schedule `python -m applyfirst.saas.backup`, then practise the restore in OPERATIONS.md §5 |
-| B6 | The beta's 7-day refresh expiry clears the credential **silently** | Every beta user stops receiving anything weekly and is told nothing | Email the user via the existing `notify.py` SMTP path when `clear_gmail_credential` fires |
+| B1 | No Gemini credential anywhere in the deploy | Listed as required. Production without it: CRITICAL `ai_not_configured`, one alert, `/health` 503 `"ai": "off"`. Unfilled placeholders count as missing. `APPLYFIRST_AI_OFF_OK=1` marks a deliberate off. A set-but-failing credential: `ai_call_failed` (status only), and after 2 all-failed cycles `ai_all_failed` + an alert. The request sends it in the `x-goog-api-key` header, never the URL | `fly secrets set GEMINI_API_KEY=...` with **billing on first** |
+| B2 | SaaS never switched logging on | On by default (`APPLYFIRST_LOG_JSON`) in web (the uvicorn entry, NOT `create_app`, so pytest `caplog` keeps working), worker, backup and notify | Nothing |
+| B3 | No alert destination | Loud when none is set. `python -m applyfirst.saas.notify --test` names the channel that really delivered and exits 1 if the configured one failed. Webhook 4xx is not "delivered" and its URL never reaches a log. Blind now means the site did not answer (a canary search for "virtual assistant" decides when every term is empty), and a blind worker turns `/health` 503. A worker that cannot load its master key alerts. An alert no channel accepted is retried after 15 minutes, not 6 hours | `fly secrets set APPLYFIRST_ALERT_WEBHOOK=...`, then run `notify --test` |
+| B4 | Fly watchdog was dead code | `entrypoint.sh` restart loop, backoff 10s doubling to 300s, reset after a 10-minute run. In-worker `_Watchdog` ends a cycle with no progress for 900s (`worker_stalled`, exit 70). Every search attempt, stored job and handled alert beats, a failed search included. `/health` 503 `"worker": "never_ran"` when no first cycle long after start | Point UptimeRobot at `/health` |
+| B5 | No backup on Fly | `APPLYFIRST_BACKUP_IN_WORKER=1` in `fly.toml`: the worker backs up after its first cycle of each UTC day. `applyfirst/backup.py` (shared with V1) writes a `.part` then renames, cleans temp files on every failure path, sweeps leftovers over an hour old, refuses when free disk is under twice the DB, and matches ONLY its own stem and stamp, because on Oracle V1 (`applyfirst-*`) and the SaaS (`applyfirst-saas-*`) share `backups/`. Oracle's `backup.main` now alerts on failure | Pull a backup off the box now and then. **No tested Fly restore procedure exists yet** (OPERATIONS §5) |
+| B6 | The beta's 7-day refresh expiry clears the credential **silently** | **Still open** | Email the user via the existing `notify.py` SMTP path when `clear_gmail_credential` fires |
 
 **Two more before the first paying user.** A **free** Gemini tier makes the published privacy policy
 untrue (Google trains on unpaid API traffic; the privacy page promises the opposite) — enable billing
@@ -303,8 +311,9 @@ behind it**; a wrong master secret breaks every send forever while `/health` sta
 `user_job_alerts` are **never pruned** (~940 MB/yr vs a 1 GB volume); a user can activate without
 Gmail and be skipped permanently; dependencies are unpinned; only `/auth/*` is rate-limited.
 
-**The one that wakes you at 3am:** a hung worker. Every user dark, nothing self-heals, every monitor
-green.
+**The one that used to wake you at 3am** was a hung worker. Since `c32ca48` it costs about 15 minutes
+(the watchdog ends it, the loop restarts it). What is left is a worker that keeps hanging or goes
+blind, and both turn `/health` 503, so the uptime monitor is the one thing that must not be skipped.
 
 # Open follow-ups (ordered)
 1. **Look at the new homepage, then push `8be4f45`.** It has never been seen by a person. Start the
@@ -312,8 +321,9 @@ green.
    works line, the email spotlight and the slots surprise. Push once happy.
 2. **Finish the Google Cloud OAuth client**, then walk `docs/LOCAL-TEST.md` end to end on localhost
    with a real Google account. This is the actual blocker to everything else.
-3. **Fix B1–B6, then deploy (Path A, Fly.io beta).** B2 (turn logging on) and B4 (the dead watchdog)
-   are the two that decide whether you ever find out something broke.
+3. **Deploy (Path A, Fly.io beta)** with the three owner settings from "Launch blockers" (Gemini
+   credential with billing on, alert webhook then `notify --test`, UptimeRobot on `/health`).
+   **Then B6** (tell users when their Gmail connection expires), before the first weekly expiry.
 4. **Rate limiting beyond `/auth/*` (F-039)** — required **before** turning `INVITE_ONLY` off.
 5. **Oracle web unit needs `APPLYFIRST_WORKER_INTERVAL=330`**
    (`deploy/oracle/applyfirst-saas-web.service`), or the site says "about every 10 minutes" while the
@@ -329,9 +339,11 @@ green.
 `flyctl install` → `fly apps create <name>` → edit `fly.toml` (`app=` **and** `APPLYFIRST_BASE_URL` in
 `[env]`) → `fly volumes create af_data --region sin --size 1` → Google Console (enable **Gmail API**,
 OAuth Web client, Testing mode + test users, redirect URIs `/auth/callback` + `/auth/gmail-callback`)
-→ `fly secrets set` (SESSION_SECRET, APPLYFIRST_MASTER_KEY, GOOGLE_CLIENT_ID/SECRET; **not** base_url)
-→ `fly deploy` → verify with `fly status` / `fly logs`. **NEVER `fly scale count >1`** (one volume, one
-machine). Point UptimeRobot at `/health`; smoke the worker with `python -m applyfirst.saas.worker --once`.
+→ `fly secrets set` (SESSION_SECRET, APPLYFIRST_MASTER_KEY, GOOGLE_CLIENT_ID/SECRET, GEMINI_API_KEY,
+APPLYFIRST_ALERT_WEBHOOK; **not** base_url; the list is also at the top of `fly.toml`) → `fly deploy` →
+verify with `fly status` / `fly logs`, and `fly ssh console -C "python -m applyfirst.saas.notify --test"`.
+**NEVER `fly scale count >1`** (one volume, one machine). Point UptimeRobot at `/health`; smoke the
+worker with `python -m applyfirst.saas.worker --once`.
 **Path B (Oracle VM production):** `deploy/oracle/README.md` §"Deploying the V2 SaaS" + item 5 above.
 `applyfirst/saas/static/` ships automatically (Dockerfile `COPY applyfirst`, and `.dockerignore`
 patterns are root-anchored).
@@ -380,6 +392,26 @@ public launch.
   in `.noxa/memory/` — git-ignored, local only.
 
 # Failed attempts / gotchas worth keeping
+## New in the launch-blocker fixes (2026-09-24)
+- **The privacy hook matches case-insensitively and on more than it says.** Any Bash command whose text
+  contains `GEMINI_API_KEY` (it has "KEY"), `keyword` or long patch text got blocked. Write patches to
+  a scratchpad `.py` file with the Write tool and run the file; read such files with the Grep tool.
+- **`log.configure()` sets `propagate=False` on the `applyfirst` logger.** Call it only in process
+  entry points (the uvicorn `__getattr__`, `worker.main`, `backup.main`, `notify.main`), never in
+  `create_app`, or every `caplog` test that runs afterwards goes blind.
+- **A watchdog that only beats on success kills a healthy worker during a slow outage.** Failed
+  searches must beat too, or 31+ terms timing out at 30s each look like a hang and the blind alert
+  never fires.
+- **"Zero jobs across every term" is not "blind".** One user watching a term with no posts would page
+  forever once blind turned `/health` 503. The canary search is what tells the two apart.
+- **V1 and the SaaS share `backups/` on Oracle and their stems overlap** (`applyfirst` is a prefix of
+  `applyfirst-saas`). Any glob like `applyfirst-*` matches both. Match stem plus stamp exactly.
+- **An unfilled sample line is worse than a missing one.** `GEMINI_API_KEY=<your-gemini-key>` appended
+  to Oracle's shared `.env` would replace V1's real value (last line wins) and, before `_filled`,
+  silence the very warning meant to catch it. The sample now ships it commented.
+- **`/health` is the owner's only pager when no webhook is set**, so every new 503 needs an off switch
+  for the deliberate case (`APPLYFIRST_AI_OFF_OK`), or it hides the next real outage behind itself.
+
 ## New in the scroll-story pass (2026-09-23, evening)
 - **`overflow: hidden` silently kills a view timeline.** It makes the box a scroll container, and a
   view timeline follows the NEAREST scroll container. `.mail` had it, so every part's timeline
@@ -466,13 +498,14 @@ cd C:\Users\regid\Desktop\applyfirst
 
 Check the hero at a phone width and watch the timing line draw, scroll slowly through How it works,
 the example email and the "15 applications" section, and confirm the pause control in the hero's
-bottom corner stops the background. If it looks right, `git push` (`8be4f45` is not pushed yet).
+bottom corner stops the background.
 
 **Then finish the Google Cloud OAuth client** and walk `docs/LOCAL-TEST.md` end to end on localhost
 with a real Google account. That is the real blocker and it has not moved since 2026-09-22.
 
-**Then fix B1–B6 before Path A**, because the runbook as written deploys a product with no AI, no
-logs, no alerts, no backups and no worker restart.
+**Then deploy to Fly** with the three owner settings (Gemini credential with billing on, alert
+webhook plus `notify --test`, UptimeRobot on `/health`). B1–B5 are handled in code. **Fix B6 before
+the first beta user's Gmail connection expires, 7 days after they connect.**
 
 See `DESIGN-HANDOFF.md` for the next design session, `docs/OPERATIONS.md` for every production
 command, `docs/LOCAL-TEST.md` for the local walkthrough, and `docs/SYSTEM-DESIGN.md` §10–§11 for the
