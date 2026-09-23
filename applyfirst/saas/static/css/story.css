@@ -1,0 +1,148 @@
+/* Agad homepage, the scroll story. Loaded by home.html after hero.css, homepage only.
+
+   Three moments, each one a true sentence about the product said with light instead of words.
+     1. The ruler. The timing line in the hero draws itself once, from the 9:02 post to the moment
+        the email lands, and only then does the new row in the inbox light up.
+     2. The route. In How it works the line between the three steps fills as you read down them,
+        and each step lights as the line reaches it, so set up, watch, land is felt in order.
+     3. The spotlight. The labelled example email lights one part at a time as it crosses the
+        middle of the screen, like someone pointing at each part while they explain it.
+   Plus one small courtesy, an FAQ answer arriving softly when it opens.
+
+   The rules this file keeps.
+   - Nothing here hides content. Every fading thing is a decorative pseudo-element, with one
+     exception, the FAQ answer the reader just opened, which fades in over 280ms and always ends
+     fully visible. The hero letter only moves, it never fades.
+   - The ruler waits for reveal.js to see the picture it sits in (.arrival__stage gets
+     data-rv-draw). Its start state is gated on :root[data-rv] exactly like the reveal layer, so
+     no JavaScript means the finished picture.
+   - The route and the spotlight are scroll-driven, inside @supports, so a browser without
+     scroll-driven animations keeps today's static page and loses nothing. Longhands only: the
+     animation shorthand resets duration to 0s and a progress timeline needs the initial auto.
+   - Every moving rule sits inside prefers-reduced-motion: no-preference, so reduced motion gets
+     a still page rather than a faster one.
+   - Transform and opacity only, so the compositor carries all of it and no frame is painted. */
+@layer reset, tokens, base, components, screens, hero, story;
+
+@layer story {
+  /* ---- 1. the ruler. A blue line over the grey track from the first dot to the second, which is
+          exactly one column wide. The third step is yours, so the line stops short of it. This is
+          the finished picture, so it stands outside the motion query and reduced motion sees it
+          too. The dots sit above it, or the line would run through the middle of the first one. */
+  .ruler::after {
+    content: ""; position: absolute; z-index: 0; left: 8px; top: 7px; width: 33.33%; height: 2px; border-radius: 2px;
+    background: var(--blue-600); transform-origin: 0 50%; pointer-events: none;
+  }
+  .ruler li { z-index: 1; }
+
+  /* A printed page is a still, and app.css's arrive would start the letter at opacity 0 there. */
+  @media print { .arrival__stage .letter { animation: none; } }
+
+  @media screen and (prefers-reduced-motion: no-preference) {
+    /* ...and a ring where the email lands, once the line gets there. The whole picture is the
+       trigger, not the thin ruler, so a reload that lands mid-picture still starts it. */
+    .ruler li.is-now::after {
+      content: ""; position: absolute; left: 0; top: 0; width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid var(--blue-600); opacity: 0; pointer-events: none;
+    }
+    :root[data-rv] .arrival__stage:not([data-rv-draw]) .ruler::after { transform: scaleX(0); }
+    :root[data-rv] .arrival__stage[data-rv-draw] .ruler::after { animation: story-draw 900ms cubic-bezier(.65,0,.35,1) 250ms both; }
+    :root[data-rv] .arrival__stage[data-rv-draw] .ruler li.is-now::after { animation: story-ring 900ms var(--ease-out) 1150ms both; }
+    /* The inbox row waits for the line, so the email lands when the timeline says it does, and
+       the opened letter lifts into place after that, because you open an email once it lands.
+       The letter only ever moves. Its animation is the same one with or without the reveal
+       attribute, so losing it (no JavaScript, a bail, the 3s watchdog) changes only the timing
+       and can never swap in app.css's fading arrive. Nothing in the hero is ever hidden. */
+    .arrival__stage .letter { animation: story-lift 560ms var(--ease-land) 240ms both; }
+    :root[data-rv] .arrival__stage .letter { animation-delay: 1500ms; }
+    :root[data-rv] .arrival__stage:not([data-rv-draw]) .mail-row--new,
+    :root[data-rv] .arrival__stage:not([data-rv-draw]) .letter { animation-play-state: paused; }
+    :root[data-rv] .arrival__stage[data-rv-draw] .mail-row--new { animation-delay: 1150ms; }
+
+    @keyframes story-draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    @keyframes story-ring { from { opacity: .8; transform: scale(1); } to { opacity: 0; transform: scale(2.6); } }
+    @keyframes story-lift { from { transform: translate3d(0, 14px, 0); } to { transform: none; } }
+
+    /* ---- the FAQ. The answer the reader just asked for fades in rather than snapping. It only
+            fades, like all reading text, and it always ends fully visible. ---- */
+    .faq__list details[open] > div { animation: story-open 280ms var(--ease-out) both; }
+    @keyframes story-open { from { opacity: 0; } to { opacity: 1; } }
+
+    @supports (animation-timeline: view()) {
+
+      /* ---- 2. the route. The fill lives on the h3's ::before, which is free, and is positioned
+              against the li exactly over the grey connector, so the connector is the track. The
+              lit state is a blue ring laid over the badge's own border, on the h3's ::after.
+              On a phone the steps stack, so each one runs on its own timeline, inset to a 2px
+              line 60% of the way down the screen. A step lights as its top crosses that line,
+              and its line fills over exactly its own height plus the gap, which is the moment
+              the next step's top crosses the same line. So each step lights as the line
+              arrives, on any screen height. On a wide screen they sit in a row, so one timeline
+              on the list plays them in turn. ---- */
+      .how .route { view-timeline-name: --how; view-timeline-axis: block; }
+      .how .route > li { view-timeline-name: --how-step; view-timeline-axis: block;
+        view-timeline-inset: calc(60% - 1px) calc(40% - 1px); }
+      .how .route > li:not(:last-child) > h3::before {
+        content: ""; position: absolute; z-index: 1; left: 17px; top: 40px; bottom: calc(-1 * var(--space-5) + 4px); width: 2px;
+        background: var(--blue-600); transform-origin: 50% 0; pointer-events: none;
+        animation-name: story-fill-y; animation-timeline: --how-step; animation-timing-function: linear;
+        animation-fill-mode: both; animation-range: cover 12px cover calc(100% + var(--space-5) - 2px);
+      }
+      .how .route > li > h3::after {
+        content: ""; position: absolute; left: 0; top: 0; width: 36px; height: 36px; border-radius: 50%;
+        border: 2px solid var(--blue-600); box-shadow: 0 0 0 4px rgba(11,107,199,.16); pointer-events: none;
+        animation-name: story-on; animation-timeline: --how-step; animation-timing-function: linear;
+        animation-fill-mode: both; animation-range: cover 0px cover 12px;
+      }
+      @media (min-width: 960px) {
+        .how .route > li:not(:last-child) > h3::before {
+          left: 44px; right: calc(-1 * var(--space-6) + 8px); top: 17px; bottom: auto; width: auto; height: 2px;
+          transform-origin: 0 50%; animation-name: story-fill-x; animation-timeline: --how;
+        }
+        .how .route > li > h3::after { animation-timeline: --how; }
+        .how .route > li:nth-child(1) > h3::after { animation-range: cover 28% cover 33%; }
+        .how .route > li:nth-child(1) > h3::before { animation-range: cover 33% cover 45%; }
+        .how .route > li:nth-child(2) > h3::after { animation-range: cover 45% cover 49%; }
+        .how .route > li:nth-child(2) > h3::before { animation-range: cover 49% cover 61%; }
+        .how .route > li:nth-child(3) > h3::after { animation-range: cover 61% cover 65%; }
+      }
+
+      /* ---- 3. the spotlight. Each part of the example email runs on its own timeline, inset to
+              a line across the middle of the screen, so a part is lit exactly while it crosses
+              that line. One part at a time, whatever its height, and the light walks down the
+              email as you scroll. A bar on the left edge says which part, a wash behind the text
+              says where to look. The wash sits under the text on z-index -1, inside the part's
+              own stacking context. ---- */
+      /* overflow: hidden makes the card a scroll container, and a view timeline follows the
+         nearest one, so the parts would track a box that never scrolls and freeze. clip rounds
+         the corners the same way without being a scroller. */
+      .mail { overflow: clip; }
+      .mail__parts > div { position: relative; isolation: isolate; view-timeline-name: --part; view-timeline-axis: block;
+        view-timeline-inset: calc(50% - 1px); }
+      .mail__parts > div::before,
+      .mail__parts > div::after {
+        content: ""; position: absolute; pointer-events: none; opacity: 0;
+        animation-name: story-spot; animation-timeline: --part; animation-timing-function: linear;
+        animation-fill-mode: both; animation-range: cover 0% cover 100%;
+      }
+      .mail__parts > div::before { left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--blue-600); }
+      .mail__parts > div::after { inset: 0; z-index: -1; background: linear-gradient(90deg, var(--sky-50), rgba(238,247,253,0) 85%); }
+      /* The message preview fades out with a white overlay, which would paint a white band across
+         the wash. A mask fades the text itself instead, so the wash shows through. */
+      .mail .fade { -webkit-mask-image: linear-gradient(#000 calc(100% - 2.2em), transparent); mask-image: linear-gradient(#000 calc(100% - 2.2em), transparent); }
+      .mail .fade::after { display: none; }
+
+      @keyframes story-fill-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+      @keyframes story-fill-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+      @keyframes story-on { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes story-spot { 0%, 100% { opacity: 0; } 20%, 80% { opacity: 1; } }
+    }
+  }
+
+  /* High contrast keeps the page's own shapes and drops the decoration laid over them. */
+  @media (forced-colors: active) {
+    .ruler::after, .ruler li.is-now::after, .how .route > li:not(:last-child) > h3::before, .how .route > li > h3::after,
+    .mail__parts > div::before, .mail__parts > div::after { display: none; }
+    .mail .fade { -webkit-mask-image: none; mask-image: none; }
+  }
+}

@@ -60,10 +60,13 @@
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px;
   --section-y:clamp(4rem, 2.6rem + 5.5vw, 7rem); --gutter:clamp(20px, 4vw, 48px);
   --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:24px; --r-stage:32px; --r-pill:999px;
-  --shadow-sheet:0 1px 2px rgba(11,37,69,.05);
-  --shadow-raised:0 1px 2px rgba(11,37,69,.06), 0 12px 32px -12px rgba(11,37,69,.18);
-  --shadow-arrival:0 2px 6px rgba(11,37,69,.06), 0 32px 64px -24px rgba(11,37,69,.32);
-  --ease-out:cubic-bezier(.22,.8,.26,1); --dur-press:120ms; --dur-hover:180ms; --dur-arrive:420ms;
+  /* Elevation. One light, straight above, so every shadow falls the same way. Each level stacks a
+     tight contact shadow, a short soft one and a long ambient one, all navy-tinted rather than
+     grey, because a real object on a blue page throws a blue shadow. */
+  --shadow-sheet:0 1px 1px rgba(11,37,69,.04), 0 2px 5px -1px rgba(11,37,69,.05);
+  --shadow-raised:0 1px 1px rgba(11,37,69,.04), 0 2px 6px -2px rgba(11,37,69,.06), 0 12px 24px -12px rgba(11,37,69,.14), 0 28px 56px -28px rgba(11,37,69,.16);
+  --shadow-arrival:0 1px 1px rgba(11,37,69,.05), 0 3px 8px -2px rgba(11,37,69,.07), 0 18px 36px -14px rgba(11,37,69,.20), 0 44px 88px -36px rgba(11,37,69,.30);
+  --ease-out:cubic-bezier(.22,.8,.26,1); --ease-land:cubic-bezier(.16,1,.3,1); --dur-press:120ms; --dur-hover:180ms; --dur-arrive:420ms;
   accent-color:#0B6BC7; -webkit-tap-highlight-color:rgba(11,107,199,.14);
   /* CTA gradients. Every stop sits at hue 187 to 213, outside the banned 230-345 band. */
   --grad-cta:linear-gradient(135deg,#0A7AA0 0%,#0B6BC7 46%,#0C4C90 100%);
@@ -384,8 +387,9 @@
   .account { display: flex; align-items: center; gap: 12px; min-width: 0; }
   .account__name { font-size: var(--fs-small); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 28ch; min-width: 0; }
   .account form { margin: 0; }
-  .site-footer { background: var(--navy-950); color: var(--navy-100); padding-block: var(--space-8) var(--space-7); font-size: var(--fs-small); }
-  .site-footer a, .site-footer a:visited { color: var(--sky-200); }
+  .site-footer { background: radial-gradient(70% 140% at 0% 0%, rgba(56,174,234,.09), rgba(56,174,234,0) 60%), var(--navy-950); box-shadow: inset 0 1px 0 rgba(134,203,242,.14);
+    color: var(--navy-100); padding-block: var(--space-8) var(--space-7); font-size: var(--fs-small); }
+  .site-footer a, .site-footer a:visited { color: var(--sky-200); transition: color var(--dur-hover) var(--ease-out); }
   .site-footer a:hover { color: #fff; }
   .site-footer .brand, .site-footer .brand:visited, .site-footer .brand:hover { color: #fff; text-decoration: none; }
   .footer__grid { display: grid; gap: var(--space-6); }
@@ -419,7 +423,7 @@
 
   /* the arrival: the one elevated object on the page */
   .arrival { min-width: 0; }
-  .arrival__stage { padding: clamp(14px, 2.6vw, 28px); border-radius: var(--r-stage); background: var(--sky-50); border: 1px solid var(--sky-100); }
+  .arrival__stage { padding: clamp(14px, 2.6vw, 28px); border-radius: var(--r-stage); background: var(--sky-50); border: 1px solid var(--sky-100); box-shadow: inset 0 1px 0 #FFFFFF; }
   .ruler { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); position: relative; margin-bottom: 18px; }
   .ruler::before { content: ""; position: absolute; left: 8px; right: calc(33.33% - 8px); top: 7px; height: 2px; background: var(--navy-100); }
   .ruler li { position: relative; padding-top: 26px; padding-right: 10px; font-size: .8125rem; line-height: 1.35; color: var(--text); }
@@ -448,11 +452,17 @@
   .mail-row--read { padding-bottom: 34px; }
   .mail-row--read .mail-row__from, .mail-row--read .mail-row__subject { font-weight: 500; color: var(--text-muted); }
   .letter { position: relative; margin: -22px 0 0 clamp(10px, 6%, 44px); background: var(--surface); border-radius: var(--r-lg); border: 1px solid var(--line); box-shadow: var(--shadow-arrival); padding: 18px 20px 20px; }
+  /* Light catches the top edge of the one object that matters on the page, and of nothing else. */
+  .letter::before { content: ""; position: absolute; top: -1px; left: 14%; right: 14%; height: 1px; pointer-events: none;
+    background: linear-gradient(90deg, rgba(56,174,234,0), rgba(56,174,234,.75) 50%, rgba(56,174,234,0)); }
   .arrival .caption { margin-top: 14px; }
 
   /* ---------- home: sections ---------- */
   .section { padding-block: var(--section-y); }
   .section--white { background: var(--surface); border-block: 1px solid var(--line); }
+  /* Sections are layers, not stripes. A white section is a slab resting a little above the page, so
+     the grey section after it starts in the slab's faint shadow and clears as it goes down. */
+  :is(.section--white, .gmail) + .section:not(.section--white, .gmail, .closing) { background-image: linear-gradient(180deg, rgba(11,37,69,.035), rgba(11,37,69,0) 160px); }
   .section h2 { font-size: var(--fs-h2); line-height: 1.15; letter-spacing: -.02em; }
   .intro { max-width: 36rem; display: grid; gap: var(--space-4); align-content: start; min-width: 0; }
   .intro p { font-size: var(--fs-lead); line-height: 1.55; }
@@ -466,7 +476,7 @@
   .how__close .icon { color: var(--blue-600); margin-top: 3px; }
 
   /* why we ask for Gmail access: the only dark band on the homepage */
-  .gmail { background: var(--navy-800); color: var(--navy-100); }
+  .gmail { background: radial-gradient(60% 70% at 88% 0%, rgba(56,174,234,.13), rgba(56,174,234,0) 70%), var(--navy-800); box-shadow: inset 0 1px 0 rgba(134,203,242,.22); color: var(--navy-100); }
   .gmail h2 { color: #fff; }
   .gmail__grid { display: grid; gap: var(--space-6); }
   .gmail__copy { display: grid; gap: var(--space-5); align-content: start; min-width: 0; }
@@ -486,7 +496,7 @@
 
   /* everything in one email: the annotated email */
   .anatomy__grid { display: grid; gap: var(--space-6); align-items: start; }
-  .mail { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-sheet); overflow: hidden; min-width: 0; }
+  .mail { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-raised); overflow: hidden; min-width: 0; }
   .mail__head { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
   .mail__who { font-size: var(--fs-small); color: var(--text-muted); }
   .mail__who b { color: var(--text-strong); }
@@ -535,11 +545,20 @@
   .faq__grid { display: grid; gap: var(--space-6); align-items: start; }
   .faq__list { border-top: 1px solid var(--line); min-width: 0; }
   .faq__list details { border-bottom: 1px solid var(--line); }
-  .faq__list summary { padding-block: 14px; font-size: 1.0625rem; }
-  .faq__list details > div { padding: 0 40px 22px 0; }
+  .faq__list summary { padding-block: 18px; font-size: 1.0625rem; transition: color var(--dur-hover) var(--ease-out); }
+  /* content-box, or the padding would squeeze the chevron inside its own width */
+  .faq__list summary .icon { box-sizing: content-box; padding: 6px; border-radius: 50%; background: var(--ground);
+    transition: transform var(--dur-hover) var(--ease-out), background-color var(--dur-hover) var(--ease-out), color var(--dur-hover) var(--ease-out); }
+  .faq__list details[open] > summary .icon { background: var(--sky-100); color: var(--blue-600); }
+  .faq__list details > div { padding: 0 min(48px, 8%) 24px 0; max-width: 40rem; }
+  @media (hover: hover) {
+    .faq__list summary:hover { color: var(--blue-700); }
+    .faq__list summary:hover .icon { background: var(--sky-100); color: var(--blue-600); }
+  }
 
   /* closing band */
-  .closing { background: var(--sky-50); border-top: 1px solid var(--sky-100); }
+  /* the last call to action gets a pool of light to stand in, falling from the same place as the rest */
+  .closing { background: radial-gradient(45% 80% at 78% 45%, rgba(56,174,234,.12), rgba(56,174,234,0) 70%), var(--sky-50); border-top: 1px solid var(--sky-100); }
   .closing__grid { display: grid; gap: var(--space-6); align-items: center; }
   .closing__lede { font-size: var(--fs-lead); margin-top: var(--space-4); max-width: var(--measure); }
   .trial-note { margin-top: var(--space-4); font-size: var(--fs-small); font-weight: 600; color: var(--navy-900); max-width: var(--measure-sm); }
@@ -738,6 +757,8 @@
     .meter li, .slots li, .bar, .bar__fill, .stepper__item::before, .stepper__node, .live i, .key { forced-color-adjust: none; }
     .kw__remove:hover, .kw__remove:focus-visible { outline: 2px solid Highlight; }
     :focus-visible { outline-color: Highlight; }
+    .gmail, .closing, .site-footer, .section { background-image: none; }
+    .letter::before { display: none; }
   }
 }
 
@@ -777,14 +798,18 @@
      The selector list must stay in step with TARGETS and SKIP in reveal.js (test R-1). The :not()
      mirrors closest(), excluding both the skipped element and everything inside it. */
   @media screen and (prefers-reduced-motion: no-preference) {
-    :root[data-rv] :is(.intro, .route > li, .facts > li, .mail__parts > div, .faq__list details,
+    :root[data-rv] :is(.intro, .route > li, .facts > li, .mail, .faq__list details,
       .gmail__copy, .gmail__visual, .gmail__foot, .honest, .behind__note, .closing__grid > *,
       .dash__grid > *, .footer__grid > *):not(:is(.status, .mailcard, .preview, .gconf, .arrives),
-      :is(.status, .mailcard, .preview, .gconf, .arrives) *) { opacity: 0; transform: translate3d(0, 16px, 0); }
+      :is(.status, .mailcard, .preview, .gconf, .arrives) *) { opacity: 0; transform: translate3d(0, 12px, 0); }
 
-    /* An animation outranks the start state whatever the specificity. */
-    :root[data-rv] [data-rv-item="in"] { animation: rv-in 520ms var(--ease-out) var(--rv-d, 0ms) both; }
-    :root[data-rv] :is(.honest, .gmail__visual, .closing__grid > *, .dash__grid > *)[data-rv-item="in"] { animation-name: rv-pop; }
+    /* Three arrivals, chosen by what the thing is. Headings rise a little. Reading text only fades,
+       because text that travels is harder to read. Objects settle, coming up from a touch smaller
+       and lower on a long soft ease, so they land rather than pop. An animation outranks the start
+       state whatever the specificity. */
+    :root[data-rv] [data-rv-item="in"] { animation: rv-in 560ms var(--ease-out) var(--rv-d, 0ms) both; }
+    :root[data-rv] :is(.facts > li, .faq__list details, .gmail__foot, .behind__note, .footer__grid > *)[data-rv-item="in"] { animation-name: rv-fade; animation-duration: 480ms; }
+    :root[data-rv] :is(.mail, .honest, .gmail__visual, .closing__grid > .cta, .dash__grid > *)[data-rv-item="in"] { animation-name: rv-settle; animation-duration: 760ms; animation-timing-function: var(--ease-land); }
 
     /* Stagger by place among siblings, three steps then flat, so a lone late card waits 120ms. */
     :root[data-rv] [data-rv-item="in"]:nth-child(2) { --rv-d: 60ms; }
@@ -793,8 +818,10 @@
     /* A page transition already slides the whole page (motion.css 6.1). Let it finish first. */
     html:active-view-transition [data-rv-item="in"] { animation-play-state: paused; }
 
-    @keyframes rv-in { from { opacity: 0; transform: translate3d(0, 16px, 0); } to { opacity: 1; transform: none; } }
-    @keyframes rv-pop { from { opacity: 0; transform: translate3d(0, 16px, 0) scale(.97); } to { opacity: 1; transform: none; } }
+    @keyframes rv-in { from { opacity: 0; transform: translate3d(0, 12px, 0); } to { opacity: 1; transform: none; } }
+    /* transform: none in both frames, or the start state's 12px offset would outlive the fade */
+    @keyframes rv-fade { from { opacity: 0; transform: none; } to { opacity: 1; transform: none; } }
+    @keyframes rv-settle { from { opacity: 0; transform: translate3d(0, 24px, 0) scale(.975); } to { opacity: 1; transform: none; } }
 
     /* The surprise. The fifteen slots fill while you read, then the three early ones pop, because
        the room filled and you were already inside. Pure CSS on a view timeline, so no JavaScript

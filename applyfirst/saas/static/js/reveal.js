@@ -13,10 +13,11 @@
   if (nav.deviceMemory <= 2 || (c && (c.saveData || /2g/.test(c.effectiveType || "")))) return;
 
   // Must match the start-state rule in app.css, selector for selector (test R-1).
-  const TARGETS = ".intro, .route > li, .facts > li, .mail__parts > div, .faq__list details," +
+  const TARGETS = ".intro, .route > li, .facts > li, .mail, .faq__list details," +
     " .gmail__copy, .gmail__visual, .gmail__foot, .honest, .behind__note, .closing__grid > *," +
     " .dash__grid > *, .footer__grid > *";
   const SKIP = ".status, .mailcard, .preview, .gconf, .arrives";
+  const DRAW = ".arrival__stage";
 
   root.dataset.rv = "on";
   let armed = false;
@@ -29,11 +30,17 @@
       const io = new IntersectionObserver((entries) => {
         entries.forEach((e) => {
           if (!e.isIntersecting) return;
-          e.target.dataset.rvItem = "in";    // one shot: it never hides again
-          io.unobserve(e.target);
+          const t = e.target;                // one shot: it never hides again
+          t.dataset[t.matches(DRAW) ? "rvDraw" : "rvItem"] = "in";
+          io.unobserve(t);
         });
       }, { rootMargin: "0px 0px -10% 0px", threshold: 0 });
-      d.querySelectorAll(TARGETS).forEach((el) => { if (!el.closest(SKIP)) io.observe(el); });
+      d.querySelectorAll(TARGETS + "," + DRAW).forEach((el) => { if (!el.closest(SKIP)) io.observe(el); });
+      // Focus inside a target not yet seen shows it, or the focus ring would be invisible.
+      d.addEventListener("focusin", (e) => {
+        for (let t = e.target; t && (t = t.closest(TARGETS)); t = t.parentElement)
+          if (!t.closest(SKIP)) { t.dataset.rvItem = "in"; io.unobserve(t); }
+      });
       armed = true;
     } catch (_) { root.removeAttribute("data-rv"); }
   };
