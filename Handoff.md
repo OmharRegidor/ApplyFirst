@@ -194,11 +194,9 @@ tests/test_saas_story.py              scroll story, arrivals, glows, focus revea
 DESIGN-HANDOFF.md                     a pasteable brief for the NEXT design session
 ```
 **`DESIGN-HANDOFF.md` is the thing to hand a fresh design session**, not this file. It carries the
-constraints, the ranked opportunities, the anti-goals and the measuring traps. **Two warnings about
-it.** Its §3 and §4.11 still describe the rejected DARK hero and a 4.6s one-shot scene. The real hero
-is light and loops for 11s with a pause control (see above). And its §8 opportunities 1–4 and 6–7
-are now DONE by `8be4f45`. Only 5 (the letter rewarding attention), 8 (desktop pointer
-interactions) and 9 (numbers, deliberately cut) remain. Correct it before handing it on.
+constraints, the ranked opportunities, the anti-goals and the measuring traps. It was rewritten
+after `8be4f45` to match the real page (light looping hero with a pause control, the four scroll
+moments, the byte table, the new traps), and its §8 now marks which ideas are done, open or cut.
 
 # Constraints any future UI work must respect
 These are each enforced by a passing test. `DESIGN-HANDOFF.md` §4 has them in full.
