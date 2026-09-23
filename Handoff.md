@@ -8,26 +8,72 @@
   **Fly.io beta** (`Dockerfile`/`fly.toml`/`entrypoint.sh`) and the **Oracle VM production runbook**
   (`deploy/oracle/`).
 
-# Current State — Where it stands (2026-09-23)
-✅ **Everything is committed and pushed.** HEAD `57551a3` on `main`. Tests: **745 passing**
-(`.venv/Scripts/python.exe -m pytest -q`) — was 692 before today, 546 before the animated onboarding,
-211 before the redesign. Smoke: **555 checks, 0 failed**
+# Current State — Where it stands (2026-09-23, evening)
+✅ **The scroll-story design pass is committed.** HEAD `8be4f45` on `main`, **one commit ahead of
+`origin/main` and NOT pushed** (push after the owner has looked at it). Tests: **779 passing**
+(`.venv/Scripts/python.exe -m pytest -q`) — was 745 this morning, 692 before today, 546 before the
+animated onboarding, 211 before the redesign. Smoke: **558 checks, 0 failed**
 (`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
-✅ **The two docs that were stuck are in.** `docs/LOCAL-TEST.md` and `docs/OPERATIONS.md` committed
-cleanly in `57551a3`. The privacy-guard hook did **not** block them this time and no override was
-needed — the old refusal was almost certainly the wording of that commit *message*, not the files.
 🔴 **Still not deployed.** The owner was mid Google Cloud OAuth setup on 2026-09-22 (see the gotcha
 about "Authorized JavaScript origins"). No Fly app, no test users. V2 has never run outside localhost.
-⚠️ **The new homepage has never been looked at by a human.** Every test passes and the contrast is
-computed rather than trusted, but nobody has seen the light animated hero rendered. Do that first.
+⚠️ **The homepage has still never been looked at by a human.** Two design passes have landed on it,
+both verified by tests, computed contrast and headless-browser measurement, but nobody has scrolled
+it on a real phone. Do that first.
 
-## The three commits from 2026-09-23
+## The commits from 2026-09-23
 ```
+8be4f45  feat(saas): scroll story, depth and calmer section joins on the homepage   (NOT pushed)
+049ea21  docs: bring the handoff up to date with the design pass
 57551a3  docs: local end-to-end walkthrough and the production runbook
 f5c6f86  docs: design brief for taking the homepage further
 6cb2342  feat(saas): light animated hero, platform font, scroll reveals, CTA gradients
-597d0ab  refactor: rename the product from ApplyFirst to Agad   (the previous HEAD)
+597d0ab  refactor: rename the product from ApplyFirst to Agad   (the previous day's HEAD)
 ```
+
+# What shipped in the scroll-story pass (2026-09-23, `8be4f45`)
+Built from `DESIGN-HANDOFF.md` §8 items 1–7. Owner approved a seven-item plan, then two rounds of
+independent multi-agent review with an adversarial verifier per finding found **13 real defects**,
+all fixed before the commit, and a mutation pass broke every new guard on purpose to prove it bites.
+
+**The three scroll moments** live in a new homepage-only file,
+`applyfirst/saas/static/css/story.css` (final `story` layer, loaded after `hero.css`):
+1. **The ruler draws itself.** The 9:02 → 9:12 → 9:15 timing line in the hero draws a blue line from
+   dot 1 to dot 2 **only** (the third step is the user's), a ring pulses where the email lands, THEN
+   the inbox's new row lights, THEN the opened letter lifts 14px into place. The trigger is
+   `reveal.js` marking **`.arrival__stage`** with `data-rv-draw="in"` (NOT `data-rv-item`, so the
+   reveal fade can never reach anything in the hero). Without the mark (no JS, a bail, the watchdog)
+   the picture is simply finished.
+2. **The How it works line fills as you read.** Blue fill on `h3::before` exactly over the grey
+   `li::after` connector, lit ring on `h3::after` over the badge. Phones use one view timeline per
+   step, **inset to a 2px line 60% down the screen**, with pixel ranges, so each step lights exactly
+   as the previous line finishes on any screen height. At 960px+ one timeline on the list plays the
+   three in turn.
+3. **The example email spotlight.** Each `.mail__parts > div` is lit (left bar + sky wash) only while
+   it crosses a line across the middle of the screen, so exactly one part is lit at a time.
+Plus a fade-in on an opened FAQ answer.
+
+**Site-wide, in `app.css`:** three reveal arrivals instead of one (`rv-in` headings rise 12px,
+`rv-fade` reading text only fades, `rv-settle` objects settle on `--ease-land`); layered navy-tinted
+shadow tokens with one light source straight above; a lit top edge on the hero letter; a soft shade
+under each white section; radial sky glows on the Gmail band, the closing band and the footer (the
+footer is on every page); FAQ rows with a chevron disc and hover states; `.mail` now uses
+`--shadow-raised`.
+
+**`reveal.js`:** `TARGETS` swapped `.mail__parts > div` for `.mail` (the spotlight owns the parts);
+new `DRAW = ".arrival__stage"` list; and a `focusin` handler that reveals any target a keyboard user
+tabs into. That last one fixed a **pre-existing** WCAG 2.4.7 bug: the observer trims 10% off the
+bottom of the screen, so a target could sit on screen at opacity 0 with a focused link inside it.
+
+**`tests/test_saas_story.py`, 31 guards** (+3 from existing parametrised scans picking up
+`story.css`): load order and homepage-only loading, layer order, no-preference and `@supports`
+wrapping, longhands only, transform/opacity keyframes, the 5s rule, nothing but decorations fading,
+the draw gate, the arrivals clearing their start offset, row/ring/letter timing, pixel alignment of
+the ruler and route fills, phone route sync, the spotlight's scroll-container trap, forced colours
+(including masks), contrast computed from the real glows and grounds, the shade never landing on a
+glowing section, no token collision with `motion.css`, and the byte caps.
+
+**Cut, on purpose:** counting numbers, parallax, mouse tilt, and a card shadow that grows as the
+card lands (it repaints every frame on a cheap phone, so cards settle with transform only).
 
 # What shipped in the premium design pass (2026-09-23)
 
@@ -113,13 +159,21 @@ What was removed with it: the `.on-dark .btn--primary` block and the whole `cta-
 dead because no `.on-dark` surface holds a primary button (the footer, the `.gmail` band and the live
 status panel all use secondary or none).
 
-## Asset weights after the pass (gzip, LF-normalised)
+## Asset weights after both passes (gzip, LF-normalised)
+| file | gzip before `8be4f45` | gzip now | cap |
+|---|---|---|---|
+| `css/app.css` | 14,878 | **15,876** | none |
+| `css/hero.css` | 2,480 | 2,480 | 2,780 |
+| `css/story.css` (new, homepage only) | — | **3,552** | 3,700 |
+| `js/reveal.js` | 1,225 | **1,377** | 1,400 (**23 B spare**) |
+| `js/scene.js` | 4,437 | 4,437 | 4,970 |
+| hero + scene + story together | — | 10,469 | 11,000 |
+
+The scroll-story pass added **4,702 B** gzipped to the homepage and **1,150 B** to every other page.
+The rows below are the older layers, unchanged.
+
 | file | raw | gzip | cap |
 |---|---|---|---|
-| `css/app.css` | 67,816 | 14,878 | none |
-| `css/hero.css` | 6,177 | **2,480** | 2,780 |
-| `js/reveal.js` | 2,471 | **1,225** | 1,400 |
-| `js/scene.js` | 11,490 | **4,437** | 4,970 |
 | `css/motion.css` | 10,081 | 2,818 | 2,850 (**32 B spare**) |
 | `js/vt.js` | 4,471 | 1,868 | 1,900 (**32 B spare**) |
 | `js/motion.js` | 5,658 | 2,529 | 3,000 |
@@ -133,12 +187,18 @@ instead of three fonts totalling 51 KB, so a first visit got *lighter*, not heav
 applyfirst/saas/static/css/hero.css   the light animated hero, homepage only, final `hero` layer
 applyfirst/saas/static/js/reveal.js   the scroll reveal layer, every page, parser-blocking
 applyfirst/saas/static/js/scene.js    the hero canvas, homepage only, deferred
+applyfirst/saas/static/css/story.css  the three scroll moments, homepage only, final `story` layer
 tests/test_saas_hero.py               hero, scene, gradient and font guards (25)
 tests/test_saas_reveal.py             reveal layer and slots surprise guards (15)
+tests/test_saas_story.py              scroll story, arrivals, glows, focus reveal guards (31)
 DESIGN-HANDOFF.md                     a pasteable brief for the NEXT design session
 ```
 **`DESIGN-HANDOFF.md` is the thing to hand a fresh design session**, not this file. It carries the
-constraints, the ranked opportunities, the anti-goals and the measuring traps.
+constraints, the ranked opportunities, the anti-goals and the measuring traps. **Two warnings about
+it.** Its §3 and §4.11 still describe the rejected DARK hero and a 4.6s one-shot scene. The real hero
+is light and loops for 11s with a pause control (see above). And its §8 opportunities 1–4 and 6–7
+are now DONE by `8be4f45`. Only 5 (the letter rewarding attention), 8 (desktop pointer
+interactions) and 9 (numbers, deliberately cut) remain. Correct it before handing it on.
 
 # Constraints any future UI work must respect
 These are each enforced by a passing test. `DESIGN-HANDOFF.md` §4 has them in full.
@@ -153,6 +213,12 @@ These are each enforced by a passing test. `DESIGN-HANDOFF.md` §4 has them in f
   `{% block theme_color %}` / `{% block brand_mark %}` overrides. That ordering is what keeps M-1 true.
 - **`motion.css`, `vt.js` and `motion.js` are full** (32, 32 and 471 bytes of headroom). Do not edit
   them; build in new files.
+- **`reveal.js` is nearly full too** (1,377 of 1,400 B). Trim before adding.
+- **`motion.css` defines `--ease-settle`, `--ease-exit` and `--ease-spring`, and wins on the
+  signed-in pages.** Never give an `app.css` token one of those names (a guard test now fails if you
+  do). The settle curve in `app.css` is `--ease-land` for that reason.
+- **Anything in the hero may move but must never fade.** The letter's lift is transform only and is
+  declared without the reveal gate, so losing `data-rv` changes only its timing.
 - **No purple** — hue 230–345 at ≥8% saturation is rejected in any CSS or JS file.
 - **`app.js` must not contain** `pagereveal`, `view-transition` or `confetti`.
 - **Never `url_for`** in a template. Use `static_url()` and literal paths.
@@ -243,8 +309,9 @@ Gmail and be skipped permanently; dependencies are unpinned; only `/auth/*` is r
 green.
 
 # Open follow-ups (ordered)
-1. **Look at the new homepage.** It has never been seen rendered. Start the preview (below) and check
-   the hero, the slots surprise, and a phone width.
+1. **Look at the new homepage, then push `8be4f45`.** It has never been seen by a person. Start the
+   preview (below), scroll slowly on a phone and a computer, and check the ruler drawing, the How it
+   works line, the email spotlight and the slots surprise. Push once happy.
 2. **Finish the Google Cloud OAuth client**, then walk `docs/LOCAL-TEST.md` end to end on localhost
    with a real Google account. This is the actual blocker to everything else.
 3. **Fix B1–B6, then deploy (Path A, Fly.io beta).** B2 (turn logging on) and B4 (the dead watchdog)
@@ -315,7 +382,33 @@ public launch.
   in `.noxa/memory/` — git-ignored, local only.
 
 # Failed attempts / gotchas worth keeping
-## New this session (2026-09-23)
+## New in the scroll-story pass (2026-09-23, evening)
+- **`overflow: hidden` silently kills a view timeline.** It makes the box a scroll container, and a
+  view timeline follows the NEAREST scroll container. `.mail` had it, so every part's timeline
+  tracked a card that never scrolls and the spotlight sat frozen on part 3. The first screenshot
+  showed exactly that and was misread as working. Fix is `overflow: clip` (clips the rounded
+  corners, is not a scroller). Measure a scroll-driven effect at several scroll positions, never
+  judge it from one screenshot.
+- **A higher-specificity `background-image` wipes a section's own gradient.** The new section shade
+  (0,3,0) matched the Gmail band and erased its glow (0,1,0). The contrast test still passed because
+  it read the declared alphas, not the cascade. A guard now checks every glowing section is excluded.
+- **Changing `animation-name` restarts the animation.** Gating the letter's animation on
+  `:root[data-rv]` meant the 3s watchdog swapped it back to `app.css`'s fading `arrive`, and the
+  letter blinked out. Declare one animation ungated and let the gate change only delay/play-state.
+- **IntersectionObserver can skip a thin element entirely.** A reload that restores scroll below the
+  ruler never saw it intersect, so the gated row and letter waited forever. Trigger on the whole
+  picture (`.arrival__stage`), not its thinnest part.
+- **Percent-based `animation-range` depends on screen height.** Two stacked steps synced on a 390px
+  phone drifted on a tablet. Inset each step's view timeline to a 2px line and use pixel ranges.
+- **The Playwright MCP `browser_run_code_unsafe` sandbox has no `setTimeout`.** Use
+  `page.waitForTimeout()`. If the MCP browser fails to launch, a plain `browser_navigate` restarts
+  it. Fresh `browser.newContext()` windows are signed out; the default one may carry a dev session.
+- **Long Python heredocs through the Bash tool mangle backslashes.** Write the script to the
+  scratchpad with the Write tool and run the file.
+- **Multi-agent review paid for itself.** Five lenses plus one skeptic per finding plus a mutation
+  pass found the frozen spotlight and 12 more. Worth repeating for any visual pass.
+
+## New earlier this session (2026-09-23)
 - **The scrollbar trap, which produced a confidently wrong conclusion.** A headless or desktop browser
   reserves ~15px for a classic scrollbar; a real phone uses an overlay scrollbar and takes none. At a
   320px viewport that is 265px of container versus 280px — enough to change how a headline wraps. The
@@ -373,8 +466,9 @@ cd C:\Users\regid\Desktop\applyfirst
 .\.venv\Scripts\python.exe .noxa\redesign-saas-ui\artifacts\run_local.py --port 8765 --data-dir C:\Users\regid\AppData\Local\Temp\agad-preview
 ```
 
-Check the hero at a phone width, scroll slowly through the "15 applications" section to see the slots
-fill, and confirm the pause control in the hero's bottom corner stops everything.
+Check the hero at a phone width and watch the timing line draw, scroll slowly through How it works,
+the example email and the "15 applications" section, and confirm the pause control in the hero's
+bottom corner stops the background. If it looks right, `git push` (`8be4f45` is not pushed yet).
 
 **Then finish the Google Cloud OAuth client** and walk `docs/LOCAL-TEST.md` end to end on localhost
 with a real Google account. That is the real blocker and it has not moved since 2026-09-22.
