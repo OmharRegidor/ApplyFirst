@@ -17,12 +17,30 @@ db.init_db(load_saas_config().db_path).close()
 print("[entrypoint] schema ready")
 PY
 
-# Start the long-running poll worker.
-python -m applyfirst.saas.worker &
-worker_pid=$!
-
-# If the worker ever exits, stop the machine so Fly restarts it (keeps polling alive).
-( wait "$worker_pid"; echo "[entrypoint] worker exited — restarting machine" >&2; kill 1 ) &
+# Keep the poll worker alive. It exits when it crashes, when it cannot start (a missing master
+# key, say), or on purpose when its own watchdog finds a cycle hung (exit 70). Every time, this
+# loop starts it again, without touching the web server.
+#
+# Why a loop and not `wait`: the old version ran `( wait "$worker_pid"; ...; kill 1 ) &`, but the
+# worker is a sibling of that subshell, not its child, so `wait` failed at once, `set -eu` ended
+# the subshell, and nothing ever restarted a dead worker.
+#
+# Backoff: 10s after a failure, doubling to 5 minutes while it keeps failing fast, back to 10s
+# once a run has lasted 10 minutes. A crash loop is visible in `fly logs` without flooding them.
+(
+  delay=10
+  while :; do
+    started=$(date +%s)
+    status=0
+    python -m applyfirst.saas.worker || status=$?
+    ran=$(( $(date +%s) - started ))
+    if [ "$ran" -ge 600 ]; then delay=10; fi
+    echo "[entrypoint] worker exited with status $status after ${ran}s, restarting in ${delay}s" >&2
+    sleep "$delay"
+    if [ "$ran" -lt 600 ] && [ "$delay" -lt 300 ]; then delay=$(( delay * 2 )); fi
+    if [ "$delay" -gt 300 ]; then delay=300; fi
+  done
+) &
 
 # Web server in the foreground (becomes PID 1).
 exec uvicorn applyfirst.saas.app:app --host 0.0.0.0 --port 8080 --workers 1

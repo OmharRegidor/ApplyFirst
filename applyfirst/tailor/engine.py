@@ -8,14 +8,17 @@ so the pipeline always produces *something* and never crashes on a bad response.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 
+from applyfirst import log
 from applyfirst.profile import Profile
 from applyfirst.screening import detect_screening_hints
 from applyfirst.tailor.contract import ResumeOverrides, ScreeningQA, TailoredPackage
 from applyfirst.tailor.prompt import RESUME_ON_REQUEST, build_system_prompt, build_user_prompt
 
+_LOG = log.get_logger("tailor")
 _NUMBERED = re.compile(r"^\d+[\.\)]")
 # The post asks for a resume or CV (used only when no resume file is sent).
 _ASKS_FOR_RESUME = re.compile(r"\b(r[eé]sum[eé]s?|cvs?|curriculum vitae)\b", re.IGNORECASE)
@@ -90,12 +93,19 @@ class TailoringEngine:
         if self.provider is not None:
             system = build_system_prompt(profile.voice_tone, resume_attached=resume_attached)
             user = build_user_prompt(profile, job_description)
-            for _ in range(self.retries):
+            for attempt in range(1, self.retries + 1):
                 try:
                     raw = self.provider.generate(system, user)
                     package = parse_package(raw)
                     return TailorResult(package, getattr(self.provider, "name", "llm"), True)
-                except Exception:
+                except Exception as exc:
+                    # Why it failed, without str(exc): an HTTP error's text can carry the
+                    # request URL, and nothing that might hold a credential goes to a log.
+                    response = getattr(exc, "response", None)
+                    log.event(_LOG, "ai_call_failed", level=logging.WARNING,
+                              provider=getattr(self.provider, "name", "llm"), attempt=attempt,
+                              error=type(exc).__name__,
+                              status=getattr(response, "status_code", None))
                     continue
         package = self._fallback(job_description, profile, resume_attached=resume_attached)
         return TailorResult(package, "rules-fallback", False)

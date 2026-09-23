@@ -12,8 +12,11 @@ def test_webhook_used_when_configured(saas_cfg, monkeypatch):
     captured = {}
 
     import httpx
-    monkeypatch.setattr(httpx, "post",
-                        lambda url, **kw: captured.update(url=url, json=kw.get("json")))
+    def fake_post(url, **kw):
+        captured.update(url=url, json=kw.get("json"))
+        return httpx.Response(200, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "post", fake_post)
     assert notify.send_owner_alert(cfg, "Subj", "Body") is True
     assert captured["url"] == "https://hook.example/x"
     # both Slack ("text") and Discord ("content") fields carry the message

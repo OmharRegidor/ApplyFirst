@@ -12,7 +12,7 @@ User=applyfirst
 Group=applyfirst
 WorkingDirectory=/opt/applyfirst
 # python-dotenv auto-loads /opt/applyfirst/.env (GOOGLE_*, SESSION_SECRET, APPLYFIRST_BASE_URL,
-# APPLYFIRST_SAAS_DB, master key, optional GEMINI_API_KEY + owner-alert channel — all mode 600).
+# APPLYFIRST_SAAS_DB, master key, GEMINI_API_KEY (required in prod: /health 503 without it) + owner-alert channel — all mode 600).
 Environment=APPLYFIRST_LOG_JSON=1
 Environment=APPLYFIRST_SAAS_SECURE_COOKIES=1
 # Bind to LOOPBACK only — Caddy is the sole public listener and terminates TLS. On the 1 GB

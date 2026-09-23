@@ -4,8 +4,9 @@
 # Copy the lines you need into the deployed secrets file (mode 600), e.g.:
 #     sudo -u applyfirst tee -a /opt/applyfirst/.env < deploy/oracle/saas-env.sample
 #     sudo chmod 600 /opt/applyfirst/.env
-# Fill every <PLACEHOLDER>. The V1 CLI reads its own (different) keys from the
-# same file — the APPLYFIRST_* names below never collide with it.
+# Fill every <PLACEHOLDER>. The V1 CLI reads its own settings from the same file. The
+# APPLYFIRST_* names below never collide with it, but GEMINI_API_KEY is SHARED: one line
+# serves both apps, and if the file has two, the last one wins for both.
 #
 # Legend:  [REQUIRED] won't run without · [PICK ONE] choose a channel ·
 #          [OPTIONAL] graceful default if omitted
@@ -32,8 +33,10 @@ APPLYFIRST_SAAS_DB=applyfirst-saas.db            # [REQUIRED] must NOT be applyf
 MASTER_KEY_PATH=/etc/applyfirst/master.key       # [REQUIRED] (prod)
 # APPLYFIRST_MASTER_KEY=<base64-32-bytes>        #   …or inline base64 for quick dev (one or the other)
 
-# --- Owner alert for the dead-man's switch (worker blind for 3 cycles) --------
-# [PICK ONE]. If neither is set, the alert degrades to a log line only.
+# --- Owner alerts: worker blind for 3 cycles, a failed backup, a missing AI key --------
+# [PICK ONE]. If neither is set, the alert degrades to a log line only, and the worker logs
+# owner_alerts_not_configured at every start. Check the channel with:
+#     sudo -u applyfirst sh -c 'cd /opt/applyfirst && exec .venv/bin/python -m applyfirst.saas.notify --test'
 APPLYFIRST_ALERT_WEBHOOK=<https://hooks.slack.com/services/...>       # Slack OR Discord webhook URL
 #   …or SMTP instead:
 # APPLYFIRST_SMTP_HOST=smtp.gmail.com
@@ -42,8 +45,16 @@ APPLYFIRST_ALERT_WEBHOOK=<https://hooks.slack.com/services/...>       # Slack OR
 # APPLYFIRST_SMTP_PASSWORD=<gmail-app-password>
 # APPLYFIRST_OWNER_EMAIL=you@gmail.com
 
-# --- AI tailoring (optional; absent → deterministic rules-fallback) ----------
-# GEMINI_API_KEY=<your-gemini-key>               # [OPTIONAL]
+# --- AI tailoring ------------------------------------------------------------
+# [REQUIRED] in production. Without it every letter is the user's own unchanged message with
+# blank answers and an "AI unavailable" line, the worker logs ai_not_configured and alerts you,
+# and /health returns 503 until it is set and the worker (and web) are restarted.
+# It is SHARED with the V1 CLI. If this file already has a GEMINI_API_KEY line, keep that one
+# and leave this commented, or an unfilled copy here would replace the real key for BOTH apps.
+# Turn billing on for the key first: on the free tier Google may read the prompts, which the
+# privacy page promises it won't.
+# GEMINI_API_KEY=<your-gemini-key>               # [REQUIRED] (prod), see above before uncommenting
+# APPLYFIRST_AI_OFF_OK=1                         # [OPTIONAL] AI off ON PURPOSE: stops the alert and the /health 503
 # GEMINI_MODEL=gemini-2.5-flash                  # [OPTIONAL]
 # APPLYFIRST_DAILY_TAILOR_CAP=10                 # [OPTIONAL] per-user/day cost guard
 
@@ -57,6 +68,8 @@ APPLYFIRST_ALERT_WEBHOOK=<https://hooks.slack.com/services/...>       # Slack OR
 # APPLYFIRST_TRUST_PROXY=1                       # [OPTIONAL] read client IP from X-Forwarded-For (Caddy ingress)
 
 # --- Nightly backup ----------------------------------------------------------
+# On Oracle the applyfirst-saas-backup.timer takes it at 03:00. Leave APPLYFIRST_BACKUP_IN_WORKER
+# unset here, or you get two backups a day and only half the history in the same 7 slots.
 # APPLYFIRST_BACKUP_DIR=backups                  # [OPTIONAL] local gzip backups dir
 # APPLYFIRST_BACKUP_KEEP=7                       # [OPTIONAL] how many to retain
 # APPLYFIRST_BACKUP_REMOTE=rclone copy {path} remote:bucket   # [OPTIONAL] off-box push; {path} → the .db.gz

@@ -12,20 +12,20 @@ from watching it run in production. Your first deploy is also your first real me
 
 ---
 
-## 1. Before you launch, six things that are not built
+## 1. Before you launch
 
-Following the current deploy runbook exactly would ship a product with the AI switched off, no
-working logs, no alert reaching you, no backups, and nothing to restart the worker when it stops.
-None of these are hard. All of them are missing.
+The 2026-09-21 audit found six things missing. The code for the first five is now in place
+(2026-09-23). Three of them still need **you** to set something, because the code cannot choose
+your credential, your webhook or your uptime monitor for you.
 
-| # | What is wrong | Why it matters | Smallest fix |
+| # | What was wrong | What the code does now | What you still do |
 |---|---|---|---|
-| 1 | The Gemini key is in neither `fly.toml` nor the deploy steps, and is commented out in `deploy/oracle/saas-env.sample` | With no provider the engine uses the rules fallback, so your first user gets their own unchanged message plus the line "(AI unavailable — answers are blank; edit before sending.)" | `fly secrets set GEMINI_API_KEY=... -a <app>` |
-| 2 | Application logging is never switched on in the SaaS. `log.configure()` is called only by the V1 CLI (`applyfirst/cli.py:101`, `:131`) | Every structured event is thrown away. `journalctl ... \| grep worker_blind` returns nothing even when the worker IS blind. Both runbooks tell you to read logs that do not exist | Call `log.configure()` at SaaS start-up |
-| 3 | No alert destination is configured. `fly.toml` sets no webhook, no SMTP, no owner email | The dead-man switch fires into a log nobody reads | `fly secrets set APPLYFIRST_ALERT_WEBHOOK=<slack-or-discord-url>` |
-| 4 | **The Fly worker watchdog is dead code.** `entrypoint.sh:104` runs `( wait "$worker_pid"; ...; kill 1 ) &`, but the worker is a sibling of that subshell, not a child, so `wait` errors immediately and `set -eu` kills the subshell before `kill 1` ever runs | On Fly, a worker that **crashes** is never restarted either, not just one that hangs. Fly's own check points at `/healthz`, which is a constant "ok", so the machine looks perfectly healthy while every user goes dark | Use Fly `[processes]` or fix the wait, and point an uptime monitor at `/health` |
-| 5 | Nothing ever runs a backup on Fly. `entrypoint.sh` starts only the worker and uvicorn, and `fly.toml` has no process or cron stanza, while `fly.toml:12` sets `APPLYFIRST_BACKUP_DIR` so it *looks* configured | Your only Fly safety net is Fly's own volume snapshot, kept 5 days, which you have never restored | Schedule `python -m applyfirst.saas.backup`, and practise section 5 once |
-| 6 | Google forces a 7-day refresh-token expiry while the app is unverified, and the code clears the credential silently | Every beta user stops receiving anything once a week and is told nothing. They only find out if they happen to open the dashboard | Send a "reconnect Gmail" email via the existing `notify.py` SMTP path when the credential is cleared |
+| 1 | No Gemini credential anywhere in the deploy, so every letter was the user's own unchanged message plus "(AI unavailable — answers are blank; edit before sending.)" | `fly.toml` and `saas-env.sample` list it as required, and an unfilled placeholder such as `<your-gemini-key>` counts as missing. In production a worker with no credential logs `ai_not_configured` at every start, sends you one alert, and `/health` returns **503** with `"ai": "off"` until it is set. A credential that is set but wrong or unbilled is caught too: when every AI call fails for two cycles in a row, the worker logs `ai_all_failed` and alerts you, and each failure logs `ai_call_failed` with its status code | `fly secrets set GEMINI_API_KEY=... -a <app>`, with billing on first (see below) |
+| 2 | SaaS logging was never switched on, so every structured event was thrown away | Logging is **on by default** in the web server, the worker and the backup command (`APPLYFIRST_LOG_JSON`, default 1): one JSON object per line on stderr, read with `fly logs` or `journalctl` | Nothing |
+| 3 | No alert destination, so the dead-man switch fired into a log nobody read | A production worker with no channel logs `owner_alerts_not_configured` at every start. A webhook answering 4xx no longer counts as delivered, and its URL never reaches a log. `python -m applyfirst.saas.notify --test` sends a test alert and says which channel delivered it. A blind worker also turns `/health` 503, so your uptime monitor pages you even with no webhook. "Blind" now means the site itself did not answer: when every watched term comes back empty, one search for "virtual assistant" decides, so one user watching a term with no posts pages nobody. A worker that cannot load its master key alerts you before it exits | `fly secrets set APPLYFIRST_ALERT_WEBHOOK=<slack-or-discord-url> -a <app>`, then run the test command in section 2 |
+| 4 | The Fly worker watchdog was dead code, so a worker that crashed or hung was never restarted, while `/healthz` kept saying "ok" | `entrypoint.sh` runs the worker in a restart loop (10s, doubling to 5 minutes while it keeps failing fast). Inside the worker a watchdog ends any cycle that goes 15 minutes with no sign of progress (`worker_stalled`, exit 70), and the loop starts a fresh one. Every search attempt, every job stored and every alert handled counts as progress, a failed search included, so a slow outage at onlinejobs.ph reads as blind rather than as a hang. On Oracle, systemd's `Restart=always` does the restarting | Point an uptime monitor (UptimeRobot, free) at `https://<app>.fly.dev/health` |
+| 5 | Nothing ever ran a backup on Fly | With `APPLYFIRST_BACKUP_IN_WORKER=1` (set in `fly.toml`) the worker takes the day's backup after its first cycle of each UTC day into `/data/backups`, keeping 7. A failure is logged as `backup_failed`, retried after every cycle, and alerted once per 6 hours. A backup that fails or is killed part-way never leaves a truncated file under a real backup name, its temporary files are removed, and it refuses to start when the disk lacks room for twice the database. On Oracle a failed nightly backup now alerts you too | Pull one off the box now and then, and practise the restore in section 5 once |
+| 6 | Google forces a 7-day refresh-token expiry while the app is unverified, and the code clears the credential silently | **Still open.** Every beta user stops receiving anything once a week and is told nothing | Send a "reconnect Gmail" email via the existing `notify.py` SMTP path when the credential is cleared |
 
 Two more worth knowing before the first paying user.
 
@@ -57,14 +57,38 @@ journalctl -u applyfirst-saas-worker -f
 curl -s https://<domain>/health
 ```
 
-**Read `/health` properly.** It returns 503 only when the worker heartbeat is older than
-2.5 times the poll interval, which is 25 minutes at the 600 second default. It reports
-`"db": "ok"` as a hardcoded string, so it tells you nothing about the database. If the database
-file is actually corrupt, `/health` returns **500**, not 503, and so does every page on the site,
-while `/healthz` keeps saying "ok".
+**Read `/health` properly.** It returns 503 in four cases. The worker heartbeat is older than
+2.5 times the poll interval, which is 25 minutes at the 600 second default (`"worker": "stale"`).
+The worker has never finished a cycle that long after the web server started
+(`"worker": "never_ran"`). onlinejobs.ph has not answered for 3 cycles in a row
+(`"polling": "blind"`). Or this is production and the worker is running with no Gemini
+credential (`"ai": "off"`), unless you set `APPLYFIRST_AI_OFF_OK=1` to say the AI is off on
+purpose. The AI state is the one the worker recorded when it last started, so after changing the
+credential, restart the worker. It reports `"db": "ok"` as a hardcoded string, so it tells you
+nothing about the database. If the database file is actually
+corrupt, `/health` returns **500**, not 503, and so does every page on the site, while `/healthz`
+keeps saying "ok".
 
-**Put an uptime monitor on `/health`.** It is the only automatic way you will ever learn that the
-worker has stopped. Nothing else notices.
+**Put an uptime monitor on `/health`.** It is the only thing that pages you when the worker has
+stopped or gone blind with no webhook set. Do not point Fly's own check at it: with one machine, a
+failing Fly check takes the whole site off the air.
+
+**Check the alert channel reaches you**, once after setting it and again after any change.
+
+```bash
+fly ssh console -a <app> -C "python -m applyfirst.saas.notify --test"
+# Oracle
+sudo -u applyfirst sh -c 'cd /opt/applyfirst && exec .venv/bin/python -m applyfirst.saas.notify --test'
+```
+
+It prints `configured: webhook, delivered by: webhook` and exits 0 when it worked. If the webhook
+failed and SMTP stepped in, it says so and exits 1, because the channel you meant is broken.
+
+**The log events worth a search**, all at CRITICAL or ERROR. `worker_stalled` (the watchdog ended a
+hung cycle), `worker_blind`, `ai_not_configured`, `ai_all_failed`, `owner_alerts_not_configured`,
+`backup_failed`, `worker_cycle_crashed`, `worker_no_master_key`. At WARNING, `ai_call_failed`
+carries the status code of each failed AI call, and `search_failed` each failed search. On Fly, `[entrypoint] worker exited with status`
+lines show each restart.
 
 ---
 
@@ -75,12 +99,16 @@ Four switches that already exist. Know them before you need them.
 | Goal | Do this | What actually happens |
 |---|---|---|
 | Stop all AI spend immediately | `fly secrets set APPLYFIRST_DAILY_TAILOR_CAP=0 -a <app>` | Every alert is marked `capped` and **no email is sent at all**. Cached packages still send |
-| Stop AI spend but keep delivering | `fly secrets unset GEMINI_API_KEY -a <app>` | Users still get an email, containing their own standard message and blank screening answers, with an "AI unavailable" line |
+| Stop AI spend but keep delivering | `fly secrets set APPLYFIRST_AI_OFF_OK=1 --stage -a <app>`, then `fly secrets unset GEMINI_API_KEY -a <app>` | Users still get an email, containing their own standard message and blank screening answers, with an "AI unavailable" line. Staging the first setting means one restart carries both, so nothing pages in between. Without it `/health` goes 503 and stays there, which would hide a dead worker behind it. To bring the AI back, `fly secrets set GEMINI_API_KEY=... --stage -a <app>`, then `fly secrets unset APPLYFIRST_AI_OFF_OK -a <app>` |
 | Stop the confetti download | `CELEBRATE = false` in `_ui.html`, then redeploy | Removes every `data-burst-src`, so the library is never fetched |
 | Keep sign-up shut | Leave the Google app in **Testing** | This is the only real gate. `INVITE_ONLY` is only wording |
 
 On Oracle, each of the first two is a line in `/opt/applyfirst/.env` followed by
-`sudo systemctl restart applyfirst-saas-worker`.
+`sudo systemctl restart applyfirst-saas-web applyfirst-saas-worker` (both: the web pages quote the
+daily cap from their own copy of the settings). On Oracle `GEMINI_API_KEY` is **shared with the V1
+poller** in the same file, so removing it there also switches V1 to its rules fallback the next
+time `applyfirst.service` restarts. To stop only the SaaS's AI spend, leave the key and set
+`APPLYFIRST_DAILY_TAILOR_CAP=0` instead (first row).
 
 ---
 
@@ -117,10 +145,14 @@ ls -lh /opt/applyfirst/backups/applyfirst-saas-*.db.gz
 ```
 
 ```bash
-# Fly (nothing is scheduled, so this is the only way)
+# Fly (the worker also does this once a day, after its first cycle of each UTC day)
 fly ssh console -a <app> -C "python -m applyfirst.saas.backup"
+fly ssh console -a <app> -C "ls -lh /data/backups"
 fly ssh sftp get /data/backups/<file>.db.gz -a <app>      # pull it OFF the box
 ```
+
+The daily Fly backup lands on the same volume as the database, so it protects you from a bad write
+or a bad deploy, not from losing the volume. That is what pulling a copy off the box is for.
 
 Backups land on the same disk as the database, and the process briefly writes an uncompressed copy
 first, which roughly doubles disk use for a moment. On a nearly full volume that is how you fill
@@ -153,7 +185,11 @@ curl -s https://<domain>/health
 The `-wal` and `-shm` files **must** be deleted. Leave them and SQLite tries to replay a write-ahead
 log belonging to the old file.
 
-On Fly there are no local backups, so recovery is from a volume snapshot.
+On Fly the daily backups sit in `/data/backups`, but **there is no tested procedure yet for swapping
+one in**, because the database file can only be replaced while nothing has it open, and on a
+one-machine app the only shell you get is inside the running machine. Until that is worked out and
+practised, recovery on Fly is from a volume snapshot, and the daily backup is the copy you pull off
+the box so you have one either way.
 
 ```bash
 fly volumes list -a <app>
@@ -284,9 +320,11 @@ commits per second, against a read pattern of one small query set per page view.
 
 ## 9. Which one wakes you at 3am
 
-**A hung worker.** It is the only failure where every user goes dark, nothing self-heals, and every
-monitor you have shows green. On Fly the restart watchdog does not work at all. On Oracle the
-health watchdog restarts the V1 poller, not the SaaS worker.
+**It used to be a hung worker**, the one failure where every user went dark, nothing self-healed and
+every monitor showed green. Since 2026-09-23 the worker ends any cycle that goes 15 minutes without
+progress (`worker_stalled`), and `entrypoint.sh` on Fly or `Restart=always` on Oracle starts a
+fresh one, so a hang now costs about 15 minutes, not a night.
 
-Everything else can wait until morning without a user noticing, as long as `/health` is being
-watched by something that can wake you.
+What is left is a worker that restarts and hangs again every time, or goes blind. Both turn
+`/health` 503, so everything can wait until morning without a user noticing, **as long as `/health`
+is being watched by something that can wake you.**

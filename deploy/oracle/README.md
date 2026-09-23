@@ -173,7 +173,8 @@ sudo bash /opt/applyfirst/deploy/oracle/setup.sh
 
 ### 2. Add the SaaS keys to `/opt/applyfirst/.env` (mode 600, shared with the CLI)
 Copy-paste template with every variable + inline notes: **`deploy/oracle/saas-env.sample`**.
-Distinct `APPLYFIRST_*` names mean no collision with the CLI's settings:
+Distinct `APPLYFIRST_*` names mean no collision with the CLI's settings, with one exception:
+`GEMINI_API_KEY` is shared. Keep exactly one line for it, or the last one wins for both apps:
 ```ini
 # --- V2 SaaS ---
 GOOGLE_CLIENT_ID=...apps.googleusercontent.com
@@ -182,9 +183,9 @@ SESSION_SECRET=<openssl rand -base64 32>
 APPLYFIRST_BASE_URL=https://apply.example.com     # no trailing slash
 APPLYFIRST_SAAS_DB=applyfirst-saas.db             # must NOT be applyfirst.db
 APPLYFIRST_MASTER_KEY=...                          # base64 dev; prod uses /etc/applyfirst/master.key (0600)
-# GEMINI_API_KEY=...                               # optional; absent → rules-fallback tailoring
-# Owner alert for the dead-man's switch — pick ONE channel:
-APPLYFIRST_ALERT_WEBHOOK=https://hooks.slack.com/services/...    # Slack/Discord-compatible
+# GEMINI_API_KEY=<your-gemini-key>                # REQUIRED in prod. SHARED with V1: if .env already has it, leave this commented
+# Owner alerts (worker blind, backup failed, AI missing) — pick ONE channel:
+APPLYFIRST_ALERT_WEBHOOK=<https://hooks.slack.com/services/...>  # Slack/Discord-compatible
 #   …or SMTP:
 # APPLYFIRST_SMTP_HOST=smtp.gmail.com
 # APPLYFIRST_SMTP_USER=you@gmail.com
@@ -210,9 +211,10 @@ sudo systemctl enable --now applyfirst-saas-backup.timer
 ### 5. Verify
 ```bash
 curl -s https://apply.example.com/healthz            # -> ok (liveness)
-curl -s https://apply.example.com/health             # JSON; 200 ready / 503 worker stale
+curl -s https://apply.example.com/health             # JSON; 200 ready / 503 worker stale, blind, or AI missing
 systemctl status applyfirst-saas-web applyfirst-saas-worker
 journalctl -u applyfirst-saas-worker -f              # watch poll cycles (cycle_complete events)
+sudo -u applyfirst sh -c 'cd /opt/applyfirst && exec .venv/bin/python -m applyfirst.saas.notify --test'   # alert reaches you?
 ```
 Point a free **UptimeRobot** monitor at `/health` (503 → it pages you). Then submit Google
 verification (runbook: `docs/legal/google-verification.md`).

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -31,7 +32,7 @@ from fastapi.templating import Jinja2Templates
 from applyfirst import log
 from applyfirst.saas import (crypto, db, google_oauth, onboarding, preview, session,
                              static_assets)
-from applyfirst.saas.config import SaaSConfig, load_saas_config
+from applyfirst.saas.config import DEADMAN_THRESHOLD, SaaSConfig, load_saas_config
 from applyfirst.saas.tenant import tenant_scope
 
 _LOG = log.get_logger("saas.app")
@@ -206,6 +207,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
     cfg = config or load_saas_config()
     app = FastAPI(title="Agad", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.cfg = cfg
+    app.state.started_at = time.monotonic()   # /health: how long "starting" may last
     # Self-hosted CSS/JS/fonts/icons. Read through the module so a test can point
     # static_assets.STATIC_DIR at a temp folder. Raises here if the folder is missing.
     app.mount("/static", static_assets.CachedStaticFiles(directory=static_assets.STATIC_DIR),
@@ -410,10 +412,15 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
 
     @app.get("/health")
     def health(request: Request):
-        """Readiness probe: DB reachable + worker not stale. 503 → UptimeRobot pages.
+        """Readiness probe. 503 → UptimeRobot pages. Four things make it 503: the worker is
+        stale; it has never finished a cycle long after this server started; it is blind
+        (onlinejobs.ph answered nothing for DEADMAN_THRESHOLD cycles in a row); or this is
+        production and the worker is running without an AI credential it was not told to do
+        without, so every letter goes out as the user's own unchanged message.
 
-        A worker that has never recorded a cycle is reported as 'starting' (200), so a
-        fresh deploy doesn't page before the first poll completes.
+        A worker that has never recorded a cycle is 'starting' (200) for the first
+        worker_interval x _HEALTH_STALE_FACTOR seconds, so a fresh deploy doesn't page before
+        the first poll completes, then 'never_ran' (503).
         """
         from datetime import datetime, timezone
         cfg_ = request.app.state.cfg
@@ -422,11 +429,16 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             conn.execute("SELECT 1").fetchone()
             last = db.get_worker_meta(conn, "last_cycle_at")
             blind = db.get_worker_meta(conn, "blind_cycles")
+            ai_state = db.get_worker_meta(conn, "ai_state")
         finally:
             conn.close()
 
         worker_state, stale = "starting", False
-        if last:
+        if not last:
+            up = time.monotonic() - request.app.state.started_at
+            if up > cfg_.worker_interval * _HEALTH_STALE_FACTOR:
+                worker_state, stale = "never_ran", True
+        else:
             try:
                 age = (datetime.now(timezone.utc)
                        - datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
@@ -437,10 +449,23 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
                 # Unparseable timestamp = something corrupted it → degraded, not "ok".
                 worker_state, stale = "unknown", True
 
+        try:
+            blind_n = int(blind or 0)
+        except ValueError:
+            blind_n = DEADMAN_THRESHOLD   # corrupted → degraded, never a 500
+        is_blind = blind_n >= DEADMAN_THRESHOLD
+        # The worker's own record wins: it writes the letters, and on Oracle the web and the
+        # worker restart separately. Before the worker has started, fall back to this process.
+        if ai_state is None:
+            ai_state = ("on" if cfg_.ai_configured else "off_ok" if cfg_.ai_off_ok else "off")
+        ai_missing = cfg_.is_production and ai_state == "off"
+        degraded = stale or is_blind or ai_missing
         return JSONResponse(
-            {"status": "degraded" if stale else "ok", "db": "ok", "worker": worker_state,
-             "last_cycle_at": last, "blind_cycles": int(blind or 0)},
-            status_code=503 if stale else 200,
+            {"status": "degraded" if degraded else "ok", "db": "ok", "worker": worker_state,
+             "last_cycle_at": last, "blind_cycles": blind_n,
+             "polling": "blind" if is_blind else "ok",
+             "ai": "on" if ai_state == "on" else "off"},
+            status_code=503 if degraded else 200,
         )
 
     # --- onboarding wizard ---------------------------------------------------
@@ -656,5 +681,9 @@ def __getattr__(name: str):
     ``from applyfirst.saas.app import create_app`` and pass their own config.
     """
     if name == "app":
-        return create_app()
+        # This is the production entry (uvicorn), so it is where web logging is switched on.
+        # Tests build their own app through create_app and keep pytest's log capture intact.
+        cfg = load_saas_config()
+        log.configure(cfg.log_json, cfg.log_level)
+        return create_app(cfg)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -36,7 +36,9 @@ class GeminiProvider:
             "contents": [{"role": "user", "parts": [{"text": user}]}],
             "generationConfig": {"responseMimeType": "application/json", "temperature": 0.4},
         }
-        resp = self._client.post(url, params={"key": self.api_key}, json=body)
+        # The credential rides in a header, never the URL, so no URL an HTTP library logs or
+        # an error message repeats can ever carry it.
+        resp = self._client.post(url, headers={"x-goog-api-key": self.api_key}, json=body)
         resp.raise_for_status()
         data = resp.json()
         # candidates[0].content.parts[0].text

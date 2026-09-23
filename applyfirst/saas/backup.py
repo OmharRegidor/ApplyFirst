@@ -40,7 +40,19 @@ def run_backup(cfg: SaaSConfig) -> str:
 
 
 def main() -> int:
-    run_backup(load_saas_config())
+    """The Oracle timer's entry. A failure is logged and sent to the owner, then exits 1 so
+    systemd marks the unit failed too. The timer fires once a day, so no debounce is needed."""
+    cfg = load_saas_config()
+    log.configure(cfg.log_json, cfg.log_level)   # or backup_written / backup_remote_failed vanish
+    try:
+        run_backup(cfg)
+    except Exception as exc:  # noqa: BLE001 — report it, then fail the unit
+        log.event(_LOG, "backup_failed", level=logging.ERROR, error=str(exc)[:200])
+        from applyfirst.saas import notify
+        notify.send_owner_alert(cfg, "Agad backup failed",
+                                f"The nightly database backup failed: {str(exc)[:200]}. "
+                                "A full disk is the usual cause.")
+        return 1
     return 0
 
 

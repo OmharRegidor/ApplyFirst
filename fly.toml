@@ -7,9 +7,30 @@
 app = "CHANGE-ME-applyfirst-beta"     # must be globally unique on Fly; edit before deploy
 primary_region = "sin"                # Singapore = nearest Fly region to the Philippines
 
+# SECRETS. Set these with `fly secrets set NAME=value -a <app>` before the first deploy. Never put
+# them in [env] below, which is committed to git.
+#   SESSION_SECRET            required, the app refuses to boot without it
+#   APPLYFIRST_MASTER_KEY     required, see the note under [env]
+#   GOOGLE_CLIENT_ID          required for sign-in
+#   GOOGLE_CLIENT_SECRET      required for sign-in
+#   GEMINI_API_KEY            required. Without it every letter is the user's own unchanged
+#                             message, the worker logs ai_not_configured, alerts you, and /health
+#                             returns 503 until it is set. Turn billing on for it first: the free
+#                             tier lets Google read the prompts, which the privacy page says it won't.
+#                             If you switch the AI off ON PURPOSE, also set APPLYFIRST_AI_OFF_OK=1
+#                             so /health stays free to report a dead or blind worker.
+#   APPLYFIRST_ALERT_WEBHOOK  strongly recommended, a Slack or Discord webhook URL. It is how the
+#                             worker tells you it is blind, a backup failed, or the AI is missing.
+#                             Check it with: fly ssh console -a <app> -C "python -m applyfirst.saas.notify --test"
+
 [env]
   APPLYFIRST_SAAS_DB = "/data/applyfirst-saas.db"   # lives on the persistent volume
   APPLYFIRST_BACKUP_DIR = "/data/backups"
+  # Fly has no scheduler, so the worker takes the day's backup itself after its first cycle of
+  # each UTC day, into APPLYFIRST_BACKUP_DIR, keeping the last 7. Same volume as the database,
+  # so also pull one off the box now and then (docs/OPERATIONS.md section 5).
+  APPLYFIRST_BACKUP_IN_WORKER = "1"
+  APPLYFIRST_LOG_JSON = "1"                         # structured events to stderr, read with `fly logs`
   APPLYFIRST_TRUSTED_IP_HEADER = "fly-client-ip"    # rate-limit key: Fly Proxy sets this per real client
   # EDIT THIS in the SAME pass as `app` above -> https://<your-app>.fly.dev (no trailing slash).
   # It builds the Google OAuth redirect_uri; a wrong/localhost value = 100% sign-in failure, and
@@ -36,8 +57,13 @@ primary_region = "sin"                # Singapore = nearest Fly region to the Ph
     grace_period = "30s"
     method = "GET"
     path = "/healthz"                 # liveness only (always "ok" if web is up).
-                                      # NOTE: /health (no z) can return 503 by design when the
-                                      # worker is stale — don't point the Fly check at it.
+                                      # NOTE: /health (no z) returns 503 by design when the worker
+                                      # is stale or blind, or the AI credential is missing. Don't
+                                      # point the Fly check at it: with one machine, a failing
+                                      # check takes the whole site off the air. Point an outside
+                                      # uptime monitor (UptimeRobot) at /health instead, so it
+                                      # pages YOU. A crashed or hung worker is restarted by
+                                      # entrypoint.sh, not by this check.
 
 [[vm]]
   size = "shared-cpu-1x"

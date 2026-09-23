@@ -18,6 +18,16 @@ def _as_bool(value: str | None, default: bool = False) -> bool:
     return value.strip().lower() in ("1", "true", "yes", "on")
 
 
+def _filled(name: str) -> str | None:
+    """An environment value, or None when it is empty or still a template placeholder such as
+    ``<your-gemini-key>`` or ``...``. A copied-but-unfilled sample line must read as missing, or
+    it would quietly switch off the warnings that exist to catch exactly that."""
+    value = (os.getenv(name) or "").strip()
+    if not value or value == "..." or (value.startswith("<") and value.endswith(">")):
+        return None
+    return value
+
+
 # The CLI's database file — the SaaS must NEVER point at it (R4 in the M1 plan).
 _CLI_DB_NAMES = ("applyfirst.db",)
 
@@ -57,6 +67,38 @@ class SaaSConfig:
     backup_dir: str = "backups"
     backup_keep: int = 7
     backup_remote_cmd: str | None = None  # off-box push template; "{path}" → the .db.gz (inert if unset)
+    # The worker takes the day's backup itself after its first cycle of each UTC day. For hosts
+    # with no scheduler of their own (Fly). Leave it off where a timer already does it (Oracle).
+    backup_in_worker: bool = False
+    # Logging. The SaaS prints nothing for humans, so its structured events ARE its logs: on by
+    # default, one JSON object per line on stderr, which Fly logs and journald both collect.
+    log_json: bool = True
+    log_level: str = "INFO"
+    # Worker self-watchdog: a cycle that makes no progress (no keyword polled, no alert handled)
+    # for this long is treated as hung, and the worker exits so its supervisor starts a fresh one.
+    worker_stall_seconds: int = 900
+    # The owner switched the AI off on purpose (to stop spend, say). The missing credential then
+    # stops paging through /health and the start-up alert, so the one monitor stays free to
+    # report a dead or blind worker.
+    ai_off_ok: bool = False
+
+    @property
+    def is_production(self) -> bool:
+        """Secure cookies are on only in a real deployment (tests and http dev turn them off)."""
+        return self.secure_cookies
+
+    @property
+    def ai_configured(self) -> bool:
+        return bool(self.gemini_api_key)
+
+    @property
+    def alert_channel(self) -> str | None:
+        """The owner-alert channel ``notify.send_owner_alert`` would try first, or None."""
+        if self.alert_webhook_url:
+            return "webhook"
+        if self.smtp_host and self.smtp_user and self.smtp_password and self.owner_alert_email:
+            return "smtp"
+        return None
 
     @property
     def redirect_uri(self) -> str:
@@ -108,17 +150,17 @@ def load_saas_config() -> SaaSConfig:
         session_secret=session_secret,
         base_url=base_url,
         secure_cookies=secure,
-        gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
+        gemini_api_key=_filled("GEMINI_API_KEY"),
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
         daily_tailor_cap=int(os.getenv("APPLYFIRST_DAILY_TAILOR_CAP") or "10"),
         worker_interval=int(os.getenv("APPLYFIRST_WORKER_INTERVAL") or "600"),
         worker_jitter=float(os.getenv("APPLYFIRST_WORKER_JITTER") or "0.25"),
-        owner_alert_email=os.getenv("APPLYFIRST_OWNER_EMAIL") or None,
-        smtp_host=os.getenv("APPLYFIRST_SMTP_HOST") or None,
+        owner_alert_email=_filled("APPLYFIRST_OWNER_EMAIL"),
+        smtp_host=_filled("APPLYFIRST_SMTP_HOST"),
         smtp_port=int(os.getenv("APPLYFIRST_SMTP_PORT") or "465"),
-        smtp_user=os.getenv("APPLYFIRST_SMTP_USER") or None,
-        smtp_password=os.getenv("APPLYFIRST_SMTP_PASSWORD") or None,
-        alert_webhook_url=os.getenv("APPLYFIRST_ALERT_WEBHOOK") or None,
+        smtp_user=_filled("APPLYFIRST_SMTP_USER"),
+        smtp_password=_filled("APPLYFIRST_SMTP_PASSWORD"),
+        alert_webhook_url=_filled("APPLYFIRST_ALERT_WEBHOOK"),
         auth_rate_limit=int(os.getenv("APPLYFIRST_AUTH_RATE_LIMIT") or "20"),
         auth_rate_window=int(os.getenv("APPLYFIRST_AUTH_RATE_WINDOW") or "60"),
         trust_proxy=_as_bool(os.getenv("APPLYFIRST_TRUST_PROXY"), default=True),
@@ -126,4 +168,14 @@ def load_saas_config() -> SaaSConfig:
         backup_dir=os.getenv("APPLYFIRST_BACKUP_DIR") or "backups",
         backup_keep=int(os.getenv("APPLYFIRST_BACKUP_KEEP") or "7"),
         backup_remote_cmd=os.getenv("APPLYFIRST_BACKUP_REMOTE") or None,
+        backup_in_worker=_as_bool(os.getenv("APPLYFIRST_BACKUP_IN_WORKER")),
+        log_json=_as_bool(os.getenv("APPLYFIRST_LOG_JSON") or None, default=True),   # empty = default
+        log_level=os.getenv("APPLYFIRST_LOG_LEVEL") or "INFO",
+        worker_stall_seconds=int(os.getenv("APPLYFIRST_WORKER_STALL_SECONDS") or "900"),
+        ai_off_ok=_as_bool(os.getenv("APPLYFIRST_AI_OFF_OK")),
     )
+
+
+# Consecutive cycles in which onlinejobs.ph returned no jobs at all before the worker is called
+# blind. Shared by the worker (owner alert) and /health (503), so both trip on the same cycle.
+DEADMAN_THRESHOLD = 3
