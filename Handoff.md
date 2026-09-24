@@ -9,16 +9,21 @@
   (`deploy/oracle/`).
 
 # Current State — Where it stands (2026-09-24)
-✅ **Launch blockers B1–B5 are fixed in code and pushed** (`c32ca48`), on top of the scroll-story
-design pass (`8be4f45`). Everything is on `origin/main`. Tests: **887 passing** with B6
+✅ **Launch blockers B1–B6 are all fixed in code and committed.** B1–B5 (`c32ca48`) are pushed.
+**B6 (`8c65928`, `d8cb2a9`) and the redesign spec (`ba60723`) are committed on `main` but NOT
+pushed yet** (`main` is 3 ahead of `origin/main`). Tests: **887 passing** with B6
 (`.venv/Scripts/python.exe -m pytest -q`) — 845 before B6, 779 before the launch fixes, 745 on 2026-09-23
 morning, 692 before that day, 546 before the animated onboarding, 211 before the redesign. Smoke:
 **558 checks, 0 failed** (`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
 🟡 **B1–B6 need four things from the owner at deploy time**, because code cannot pick them:
 the Gemini credential with billing on, an alert webhook, the SMTP settings (for B6), and an
 uptime monitor on `/health`. See "Launch blockers" below.
-✅ **B6 is fixed in code (2026-09-24, uncommitted when this was written).** A user whose Gmail
-connection Google ends is now emailed once to reconnect. See "What shipped in B6" below.
+✅ **B6 is fixed and committed (2026-09-24, `8c65928`).** A user whose Gmail connection Google
+ends is now emailed once to reconnect. See "What shipped in B6" below.
+🟡 **Sign-up journey redesign: design approved, spec written, build NOT started.** The owner
+chose a Supabase-plus-Apple look built on a trimmed copy of Basecoat. The spec is
+`docs/superpowers/specs/2026-09-24-signup-redesign-design.md` and is waiting for the owner's
+review. Next step is the implementation plan. See "Sign-up journey redesign (in progress)" below.
 🔴 **Still not deployed.** The owner was mid Google Cloud OAuth setup on 2026-09-22 (see the gotcha
 about "Authorized JavaScript origins"). No Fly app, no test users. V2 has never run outside localhost.
 ⚠️ **The homepage has still never been looked at by a human.** Two design passes have landed on it,
@@ -27,6 +32,11 @@ it on a real phone. Do that first.
 
 ## The commits from 2026-09-23 and 2026-09-24
 ```
+ba60723  docs: design for the sign-up journey redesign            (not pushed)
+d8cb2a9  docs: handoff records the B6 fix                        (not pushed)
+8c65928  fix(saas): B6, email users when Google ends their Gmail connection   (not pushed)
+2693ca6  docs: handoff carries a ready-to-start brief for B6
+771b36a  docs: handoff records the launch-blocker fixes
 c32ca48  fix(saas): launch blockers B1-B5 from the operations audit
 acdb88f  docs: design brief matches the page after the scroll-story pass
 20f435b  docs: handoff records the scroll-story pass
@@ -37,6 +47,85 @@ f5c6f86  docs: design brief for taking the homepage further
 6cb2342  feat(saas): light animated hero, platform font, scroll reveals, CTA gradients
 597d0ab  refactor: rename the product from ApplyFirst to Agad   (the previous day's HEAD)
 ```
+
+# Sign-up journey redesign (in progress, 2026-09-24)
+**Where it stands.** Brainstormed with the owner, approved section by section, written up and
+committed as `docs/superpowers/specs/2026-09-24-signup-redesign-design.md` (`ba60723`). **The owner
+has not yet reviewed the written spec.** No code has been written. The next step, once the owner
+approves the spec, is the implementation plan (superpowers writing-plans), then the build.
+
+**What the owner asked for.** Make the pages a new user touches when signing up feel premium, like
+Apple products and Supabase's dashboard: clean, minimal, easy to navigate, small type on computers,
+readable buttons, the right font, and animation or 3D only where it helps.
+
+**Owner decisions, in the order they were made.**
+1. Of the three researched options (refine by hand, Basecoat, a React rewrite) the owner chose
+   **Basecoat**, the shadcn/ui look as plain HTML, on the existing FastAPI and Jinja pages.
+2. **Sign-up journey first**: login, the four onboarding steps and the dashboard. The homepage,
+   privacy and terms pages keep today's look.
+3. **Inter** for Android and Windows, self-hosted. Apple devices keep SF and download nothing.
+   This reverses the "device font" lock, for the journey pages only.
+4. **Flat solid blue primary button** on the journey pages. The homepage keeps its gradient.
+5. **No build step**: vendor Basecoat's ready-made file rather than adding the Tailwind compiler.
+6. **Dark mode follows the phone's setting**, by CSS alone.
+7. **Only the Basecoat parts we use** (buttons, cards, fields, inputs, labels, textareas, alerts,
+   badges), trimmed by a script from the upstream file. No reset, no menus or pop-ups, no JS.
+8. Include **two fixes**: a styled "Sign-in didn't finish" page instead of the bare JSON on
+   `/auth/callback` failures, and a redirect to `/login` for signed-out GETs of onboarding pages
+   instead of a 401 JSON reply.
+
+**Why the trimmed copy, not the whole Basecoat file.** A six-reader map of the journey found about
+15 ways the full file (218 KB raw, 21.9 KB gzip) fights our CSS even when wrapped in a layer. Its
+reset merges into our `base` layer (layer names `base` and `components` collide), it redefines
+`--font-sans` and the frozen `--ease-out`, its `.btn:not([data-variant])` paints every button
+near-black, `.btn:disabled{opacity:.5}` would fade the Activate button inside the frozen morph,
+`.badge` clips "Connected", `.alert>svg` adds an empty strip, `field-sizing:content` grows the
+message box, and it adds smooth scrolling and turns off pull-to-refresh. Its unlayered `:root`,
+`.dark` and `pulse` keyframes beat every layered rule. The sign-up pages need no Basecoat JS, which
+also fails test M-5 (`innerHTML`). Trimmed to the parts we use it measured about 6.8 KB gzip before
+tightening the selector filter.
+
+**Design in one paragraph** (the spec has every value). The trimmed file is
+`static/vendor/basecoat-1.0.2-agad.css`, rebuilt by `tools/basecoat/trim.py` from the pinned
+upstream copy in `tools/basecoat/`, wrapped in `@layer basecoat`, with dark variants rewritten to
+`prefers-color-scheme`. Our look is `static/css/journey.css` in `@layer journey`. The layer order at
+`app.css:6` becomes `basecoat, reset, tokens, base, components, screens, journey`, so Basecoat is
+lowest and `journey` sits below the frozen `motion` layer, which motion.css adds after it. Both
+files are linked with `static_url()` from the `page_css` block of the seven journey templates only,
+so they get the one-year cache and there is no `@import` chain. Light and dark palettes are
+contrast-checked in spec 5.3. Spec 9 lists every frozen hook the motion files read.
+
+**Research results worth keeping** (the raw notes were in a session scratchpad that gets cleared).
+- Supabase's UI is shadcn/ui on Radix and Tailwind, on Next.js, with Inter plus Manrope. Buttons
+  press to `scale(.97)` over 200ms, weight 500, heights 26 to 50px. Corners 8, 10.7 and 16px. Motion
+  100 to 300ms on `cubic-bezier(0.16,1,0.3,1)`, the same curve as our `--ease-land`.
+- Apple sets 17px body on iPhone and 13pt on Mac, blue `#0071E3` (hue 210, ours is 209), and serves
+  SF Pro as a webfont to every platform. SF Pro's licence forbids us doing that.
+- Inter from google/fonts is 72 KB with both axes, **46.9 KB with opsz pinned at 14** (Latin plus
+  the peso sign, tabular figures kept). Writing WOFF2 needs `pip install brotli` (dev only).
+  Geist was the runner-up at 28 KB. Figtree, Onest and Instrument Sans lack the peso sign.
+- Skipped on purpose: three.js (187.5 KB for r185 minified, r186 ships 417 KB unminified; its core
+  runs under our CSP but it is six times the whole homepage), React Three Fiber (needs React and a
+  build), Spline (WASM, its own CDN, an eval block), GSAP (free since the Webflow deal but not open
+  source, and its `hsla(` fails the palette guard), Motion (49 KB no-build file, `hsla(`, `.mjs`
+  build), Anime.js (purple colours inside), Lenis (smooth scrolling is banned).
+- A React rewrite was estimated at 6 to 10 weeks, 68 KB for React alone, and about 400 of the tests
+  rewritten. Next.js would also need a loosened CSP.
+
+**What the build must not forget** (from the map and its critic, all in the spec).
+- The Activate button must stay solid `#0B6BC7`, 12px corners and opacity 1 even when disabled and
+  busy, and the live panel navy `#0B2545` with 24px corners, because the frozen `af-fill` morph
+  runs between those values.
+- Keep Basecoat off `/privacy` and `/terms`. Its reset strips the bullets from their lists, which
+  Google reviewers read.
+- Do not make the header sticky. It would cover fields that the error links and focus moves jump to.
+- Do not use `overflow:hidden` on the grouped rows or on anything around `.kw` chips. It clips focus
+  rings and the frozen new-chip ring.
+- Switch "small type on computers" on `(hover:hover) and (pointer:fine)`, never on width alone, and
+  keep every input at 16px or more.
+- Tests to change on purpose: the font tests and the gradient test in `tests/test_saas_hero.py`, the
+  palette guard (scan the vendor folder, read zero-chroma `oklch()` and three `color-mix()` forms),
+  the callback-failure and signed-out 401 tests, and the rendered-template count.
 
 # What shipped in the scroll-story pass (2026-09-23, `8be4f45`)
 Built from `DESIGN-HANDOFF.md` §8 items 1–7. Owner approved a seven-item plan, then two rounds of
@@ -233,7 +322,13 @@ These are each enforced by a passing test. `DESIGN-HANDOFF.md` §4 has them in f
 # Locked owner decisions (do not relitigate)
 - Colour: **sky blue / dark blue only, zero purple.**
 - **The homepage hero is LIGHT.** A dark one was built and rejected (see above).
-- **The device's own font stays.** No webfont. SF Pro cannot be licensed for the web.
+- **The device's own font stays on the homepage, privacy and terms.** SF Pro cannot be licensed for
+  the web. **Changed 2026-09-24 for the sign-up journey only:** login, onboarding and the dashboard
+  get self-hosted Inter on Android and Windows, never preloaded, and Apple devices keep SF.
+- **The primary button keeps its gradient on the homepage.** **Changed 2026-09-24 for the sign-up
+  journey only:** a flat solid `#0B6BC7` button. Both changes are decided, not yet built.
+- **Signed-in pages follow the phone's dark mode** (decided 2026-09-24, not yet built). The homepage
+  hero stays light.
 - **The animated background is drawn in the browser, not a video file.** The audience is on mobile
   data; a video was explicitly rejected on weight.
 - The inbox mock and the opened letter stay **bright white** — the promise is an email landing in
@@ -375,9 +470,15 @@ every guard on purpose (17, 18, 15, then 5 for the round-3 fixes), all caught ex
 equivalent mutant (`>` vs `>=` once every attempt has its own instant).
 
 # Open follow-ups (ordered)
-1. **Look at the new homepage, then push `8be4f45`.** It has never been seen by a person. Start the
+Before the numbered list:
+- **Push the three unpushed commits** (`8c65928`, `d8cb2a9`, `ba60723`) when the owner says so.
+- **Sign-up journey redesign.** The owner reviews the spec, then write the implementation plan,
+  then build it in the spec's five stages (foundation, login, onboarding, dashboard, the two fixes),
+  with both gates green at every stage, then a multi-agent review and a mutation pass.
+
+1. **Look at the new homepage.** It has never been seen by a person. Start the
    preview (below), scroll slowly on a phone and a computer, and check the ruler drawing, the How it
-   works line, the email spotlight and the slots surprise. Push once happy.
+   works line, the email spotlight and the slots surprise.
 2. **Finish the Google Cloud OAuth client**, then walk `docs/LOCAL-TEST.md` end to end on localhost
    with a real Google account. This is the actual blocker to everything else.
 3. **Deploy (Path A, Fly.io beta)** with the four owner settings from "Launch blockers" (Gemini
@@ -563,7 +664,13 @@ public launch.
   the viewport mid-measurement. Re-navigate and re-check the page identity before trusting a reading.
 
 # Next Step — The single next thing to try
-**Start the preview in your own PowerShell window and look at the new homepage.** Nobody has seen it.
+**If this is the redesign session:** read "Sign-up journey redesign (in progress)" above and the
+spec at `docs/superpowers/specs/2026-09-24-signup-redesign-design.md`. If the owner has approved the
+spec, write the implementation plan with superpowers writing-plans. If not, ask for their review
+first. Do not start building before both the spec and the plan are approved.
+
+**Otherwise, start the preview in your own PowerShell window and look at the new homepage.**
+Nobody has seen it.
 
 ```powershell
 cd C:\Users\regid\Desktop\applyfirst
