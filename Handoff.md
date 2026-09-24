@@ -10,14 +10,15 @@
 
 # Current State — Where it stands (2026-09-24)
 ✅ **Launch blockers B1–B5 are fixed in code and pushed** (`c32ca48`), on top of the scroll-story
-design pass (`8be4f45`). Everything is on `origin/main`. Tests: **845 passing**
-(`.venv/Scripts/python.exe -m pytest -q`) — was 779 before the launch fixes, 745 on 2026-09-23
+design pass (`8be4f45`). Everything is on `origin/main`. Tests: **887 passing** with B6
+(`.venv/Scripts/python.exe -m pytest -q`) — 845 before B6, 779 before the launch fixes, 745 on 2026-09-23
 morning, 692 before that day, 546 before the animated onboarding, 211 before the redesign. Smoke:
 **558 checks, 0 failed** (`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
-🟡 **B1–B5 still need three things from the owner at deploy time**, because code cannot pick them:
-the Gemini credential with billing on, an alert webhook, and an uptime monitor on `/health`.
-See "Launch blockers" below. **B6 is still open, left for its own session on purpose.** The brief
-for it is the section "Next session: B6" further down.
+🟡 **B1–B6 need four things from the owner at deploy time**, because code cannot pick them:
+the Gemini credential with billing on, an alert webhook, the SMTP settings (for B6), and an
+uptime monitor on `/health`. See "Launch blockers" below.
+✅ **B6 is fixed in code (2026-09-24, uncommitted when this was written).** A user whose Gmail
+connection Google ends is now emailed once to reconnect. See "What shipped in B6" below.
 🔴 **Still not deployed.** The owner was mid Google Cloud OAuth setup on 2026-09-22 (see the gotcha
 about "Authorized JavaScript origins"). No Fly app, no test users. V2 has never run outside localhost.
 ⚠️ **The homepage has still never been looked at by a human.** Two design passes have landed on it,
@@ -273,7 +274,7 @@ Verification at the time: 9-Gate PASS → verify-and-fix loop 1 GREEN → comple
 owner-requested loop 2 GREEN. 55 findings, 25 fixed, 1 wontfix, 29 deferred in `artifacts/findings.json`.
 
 # Launch blockers (audit 2026-09-21, B1–B5 fixed 2026-09-24 in `c32ca48`) — READ BEFORE DEPLOYING
-**B1–B5 are fixed in code. B6 is still open.** `docs/OPERATIONS.md` §1 has the full table of what
+**B1–B6 are fixed in code.** `docs/OPERATIONS.md` §1 has the full table of what
 the code now does and what the owner still sets, and §2 lists the log events and the `/health`
 states. Everything below was built, then reviewed by three rounds of independent multi-agent review
 (31 real defects found and fixed along the way), and every new guard was broken on purpose to prove
@@ -286,7 +287,7 @@ it bites. The guards live in `tests/test_saas_ops.py` (66 tests).
 | B3 | No alert destination | Loud when none is set. `python -m applyfirst.saas.notify --test` names the channel that really delivered and exits 1 if the configured one failed. Webhook 4xx is not "delivered" and its URL never reaches a log. Blind now means the site did not answer (a canary search for "virtual assistant" decides when every term is empty), and a blind worker turns `/health` 503. A worker that cannot load its master key alerts. An alert no channel accepted is retried after 15 minutes, not 6 hours | `fly secrets set APPLYFIRST_ALERT_WEBHOOK=...`, then run `notify --test` |
 | B4 | Fly watchdog was dead code | `entrypoint.sh` restart loop, backoff 10s doubling to 300s, reset after a 10-minute run. In-worker `_Watchdog` ends a cycle with no progress for 900s (`worker_stalled`, exit 70). Every search attempt, stored job and handled alert beats, a failed search included. `/health` 503 `"worker": "never_ran"` when no first cycle long after start | Point UptimeRobot at `/health` |
 | B5 | No backup on Fly | `APPLYFIRST_BACKUP_IN_WORKER=1` in `fly.toml`: the worker backs up after its first cycle of each UTC day. `applyfirst/backup.py` (shared with V1) writes a `.part` then renames, cleans temp files on every failure path, sweeps leftovers over an hour old, refuses when free disk is under twice the DB, and matches ONLY its own stem and stamp, because on Oracle V1 (`applyfirst-*`) and the SaaS (`applyfirst-saas-*`) share `backups/`. Oracle's `backup.main` now alerts on failure | Pull a backup off the box now and then. **No tested Fly restore procedure exists yet** (OPERATIONS §5) |
-| B6 | The beta's 7-day refresh expiry clears the credential **silently** | **Still open** | Email the user via the existing `notify.py` SMTP path when `clear_gmail_credential` fires |
+| B6 | The beta's 7-day refresh expiry cleared the credential **silently** | The worker emails the user once to reconnect, from the server's SMTP account, to the address they signed in with (`applyfirst/saas/reconnect.py`). Details in "What shipped in B6" | `fly secrets set APPLYFIRST_SMTP_HOST=smtp.gmail.com APPLYFIRST_SMTP_USER=... APPLYFIRST_SMTP_PASSWORD=<app password>`, then `python -m applyfirst.saas.reconnect --test you@example.com` |
 
 **Two more before the first paying user.** A **free** Gemini tier makes the published privacy policy
 untrue (Google trains on unpaid API traffic; the privacy page promises the opposite) — enable billing
@@ -316,67 +317,62 @@ Gmail and be skipped permanently; dependencies are unpinned; only `/auth/*` is r
 (the watchdog ends it, the loop restarts it). What is left is a worker that keeps hanging or goes
 blind, and both turn `/health` 503, so the uptime monitor is the one thing that must not be skipped.
 
-# Next session: B6, tell users when their Gmail connection expires
-**Deliberately left for its own session by the owner (2026-09-24). Nothing for B6 has been started.**
-Everything a fresh session needs to begin is below. Read the "Launch blockers" table above first,
-because B6 reuses pieces B1 to B5 built.
+# What shipped in B6 (2026-09-24): tell users when their Gmail connection ends
+**Owner decision:** only an email after the connection ends, no reminder the day before.
 
-**The problem.** While the Google app is in Testing mode, Google expires every refresh token 7 days
-after the user connects. On the next send, Google answers `invalid_grant`, and the user silently
-stops getting applications. Nothing tells them. They only find out if they happen to open the
-dashboard.
+**The problem it fixes.** While the Google app is in Testing mode, Google expires every refresh
+token 7 days after the user connects. On the next send Google answers `invalid_grant`, the worker
+cleared the credential, and the user silently stopped getting applications.
 
-**Where it happens, hop by hop.**
-- `applyfirst/saas/gmail_send.py:67-68` raises `GmailAuthError` on `invalid_grant`, and `:115` raises it
-  on an insufficient-scope 403.
-- `applyfirst/saas/worker.py` `process_alert`, the `except gmail_send.GmailAuthError:` branch (about
-  line 192), calls `db.clear_gmail_credential(conn, alert.user_id)` and marks the alert `failed` with
-  `last_error="gmail auth revoked"`. **This branch is where the new email belongs.**
-- `applyfirst/saas/db.py:343` `clear_gmail_credential` just deletes the `oauth_credentials` row.
-- After that, every later alert for the user is marked `skipped` / "gmail not connected", so the auth
-  error fires **once per disconnection**. Still stamp it, so a retry can never double-send.
-- The dashboard already shows "Gmail isn't connected" plus "During the beta, Google asks you to
-  reconnect every 7 days" (`templates/dashboard.html:20-25`), with a Connect Gmail button to
-  `/auth/connect-gmail`.
+**How it works now, hop by hop.**
+- `worker.process_alert` reads `db.gmail_connected_at` BEFORE the token. On `GmailAuthError` it
+  re-reads it. If it changed, the user reconnected or disconnected mid-send: the alert is retried,
+  nothing is cleared, nothing is mailed.
+- Otherwise it calls `reconnect.expired()` FIRST (queues the email), then
+  `reconnect.clear_dead_grant()`, which deletes the grant only if `updated_at` still matches, so a
+  reconnect landing in between keeps its new grant. `db.clear_gmail_credential` is no longer used
+  here (it deletes whatever row is there).
+- `run_once` calls `worker._tell_expired_users()` after the alert loop, which runs
+  `reconnect.send_due()` and raises the owner alerts.
+- State is one `worker_meta` row per user, `reconnect_mail_<user_id>`: `due <connected_at> <since>
+  <tried>`, `sent <connected_at>`, `refused <connected_at>`, `off <connected_at>`. No schema change.
+- The web app writes `off <connected_at>` BEFORE revoking on `/auth/disconnect-gmail` (the revoke
+  makes an in-flight send fail exactly like an expiry) and deletes the row after a reconnect in
+  `/auth/gmail-callback`.
+- `reconnect._send` uses `smtplib.SMTP_SSL` directly (not the V1 `SmtpNotifier`), so it can tell
+  "connecting or logging in failed" (server-wide) from "this message was refused". Errors after the
+  message was handed over (a bad QUIT) are ignored.
+- The email links to `/dashboard` (signed-out users go through `/login` first), not
+  `/auth/connect-gmail`, which answers a signed-out click with a raw 401.
 
-**Traps to avoid.**
-- **Do not hook `db.clear_gmail_credential`.** `app.py` `/auth/disconnect-gmail` (about line 655)
-  calls it too, when the **user** disconnects on purpose. They must not get a "your connection
-  expired" email for that.
-- **The user's own Gmail cannot send it.** The grant is exactly what just died. It needs a
-  server-owned sender. The obvious one is the owner SMTP settings `notify.py` already uses for owner
-  alerts (`APPLYFIRST_SMTP_HOST/PORT/USER/PASSWORD`, read through `config._filled`), through
-  `applyfirst/notify/email_smtp.py` `SmtpNotifier` with `recipient=user.email`. On Fly those arrive as
-  secrets, so `fly.toml`'s secrets comment and `saas-env.sample` need the SMTP lines marked as
-  needed for B6, not just "or SMTP instead" for owner alerts.
-- **If no SMTP is configured**, the email cannot go. Log it (`user_reconnect_email_skipped` or
-  similar, at ERROR) and send the owner one debounced alert via `worker._alert_owner_once`, so the
-  owner learns users are expiring unnoticed. Never log the SMTP password (the webhook URL rule in
-  `notify.deliver` is the pattern to copy).
-- **Per-user stamp, no schema change.** `db.py` is treated as protected. A `worker_meta` key per user,
-  such as `reconnect_mailed_<user_id>` holding the timestamp, is enough. Clear or ignore it once the
-  user reconnects (`db.gmail_connected_at` gives the new connect time).
-- **Links use a literal path** built from `cfg.base_url` plus `/auth/connect-gmail`. Never `url_for`.
-- **Copy rules.** Plain and friendly, no em dashes, never implies Agad applies for them, and says the
-  7-day rule is Google's beta rule. Say "we never read your email". Keep it short enough to read on a
-  phone. Suggested subject: "Reconnect Gmail to keep getting job applications".
-- **Check the privacy page before sending anything.** `templates/privacy.html` currently says nothing
-  about emailing users outside their own Gmail. A service email about their own account is normally
-  fine, but the page should say it.
+**Failure handling, each pinned by a test.** Server-wide failures (connect, login, any 421, a
+dropped line, the same refusal twice running) pause sending 15 min, 1 h, then 6 h, and a restart
+or a quiet 6 h resets it. One refused message holds nobody up (least recently tried goes first) and is retried on its own
+slower clock (15 min, then hourly, then 6 h). A user is given up only after 3 days of refusals AND
+only if another message went through after the first refusal.
+The SMTP password, any character of it, and the user's address never reach a log or an alert. With
+owner alerts on SMTP only, a broken SMTP account logs `user_reconnect_mail_down` (CRITICAL) rather
+than alerting through itself. Delivery is at least once, normally exactly once.
 
-**An owner decision to ask about first.** Whether to also send a **reminder a day before** the 7 days
-are up (from `db.gmail_connected_at`), so nothing is ever missed, or only the "it expired" email
-after the fact. The reminder is kinder but is a second scheduled email per user per week.
+**Other changes.** `SaaSConfig.user_mail_configured` (host, user and password, no owner email
+needed). A production worker without them logs `user_mail_not_configured` at start. The privacy
+page has one new sentence about account service emails and "Last updated: 24 September 2026", and
+`tests/fixtures/legal_privacy.txt` pins both (**the owner should read that sentence**, the legal
+wording was frozen). The email's 7-day sentence is marked `# BETA` / `# /BETA` in
+`reconnect.compose()`, and `docs/legal/google-verification.md` now lists every beta-only line to
+delete after verification.
 
-**How to test it**, in the style of `tests/test_saas_ops.py`. Extend
-`tests/test_saas_worker.py::test_invalid_grant_disconnects_user_and_fails_alert` or add beside it.
-Cover these cases. The email goes to the user's own address once, with the reconnect link. A second
-auth error for the same disconnection sends nothing. A user who disconnects on purpose gets nothing.
-No SMTP configured means a log line plus one owner alert, and nothing crashes. The SMTP password never
-appears in a log. Break each guard on purpose to prove it bites, as every other guard here was.
+**Check it after deploying:** `python -m applyfirst.saas.reconnect --test you@example.com` sends
+the real email (OPERATIONS §2 has the Fly and Oracle forms). `notify --test` does not touch these
+settings when a webhook is set.
 
-**When done**, update `docs/OPERATIONS.md` §1 row 6 and the "Launch blockers" table above, and run
-both gates (845 tests and 558 smoke checks before B6).
+**Verification.** 42 tests in `tests/test_saas_reconnect.py`. Three rounds of independent
+multi-agent review with two skeptics per finding (round 1 confirmed 14, round 2 confirmed 15, most
+of them about guessing SMTP failures from reply codes, which led to the phase-based redesign, and
+round 3 confirmed 4 narrower ones: a lone refused message resent every cycle, a give-up proof that
+came before the refusal, and two contradicting owner alerts). A mutation pass after each round broke
+every guard on purpose (17, 18, 15, then 5 for the round-3 fixes), all caught except one
+equivalent mutant (`>` vs `>=` once every attempt has its own instant).
 
 # Open follow-ups (ordered)
 1. **Look at the new homepage, then push `8be4f45`.** It has never been seen by a person. Start the
@@ -384,9 +380,9 @@ both gates (845 tests and 558 smoke checks before B6).
    works line, the email spotlight and the slots surprise. Push once happy.
 2. **Finish the Google Cloud OAuth client**, then walk `docs/LOCAL-TEST.md` end to end on localhost
    with a real Google account. This is the actual blocker to everything else.
-3. **Deploy (Path A, Fly.io beta)** with the three owner settings from "Launch blockers" (Gemini
-   credential with billing on, alert webhook then `notify --test`, UptimeRobot on `/health`).
-   **Then B6** (tell users when their Gmail connection expires), before the first weekly expiry.
+3. **Deploy (Path A, Fly.io beta)** with the four owner settings from "Launch blockers" (Gemini
+   credential with billing on, alert webhook then `notify --test`, the SMTP settings then
+   `reconnect --test`, UptimeRobot on `/health`).
 4. **Rate limiting beyond `/auth/*` (F-039)** — required **before** turning `INVITE_ONLY` off.
 5. **Oracle web unit needs `APPLYFIRST_WORKER_INTERVAL=330`**
    (`deploy/oracle/applyfirst-saas-web.service`), or the site says "about every 10 minutes" while the
@@ -455,6 +451,21 @@ public launch.
   in `.noxa/memory/` — git-ignored, local only.
 
 # Failed attempts / gotchas worth keeping
+## New in B6 (2026-09-24)
+- **Never classify an SMTP failure by its exception type or reply code alone.** smtplib raises
+  `SMTPRecipientsRefused` for a 421 "try again later" and for a 450 greylist, not only for a bad
+  address, and a non-ASCII password or a host typo raises `UnicodeError`. Two designs built on
+  guessing from the code each had several ways to give up on every user at once. What held up is
+  WHEN it failed: connecting or logging in is the server's fault, only handing over one message
+  can be that user's.
+- **`UnicodeEncodeError` text quotes the offending character and its position.** For a password
+  that is part of the secret, so it is replaced with a fixed message, never logged as is.
+- **`db.clear_gmail_credential` deletes whatever grant is there.** Between "this grant is dead" and
+  the delete, the user can reconnect, so the worker deletes only the row whose `updated_at` still
+  matches (`reconnect.clear_dead_grant`).
+- **Timestamps are to the second.** Tests that reconnect "later" must move `db._now_iso` forward,
+  or the new grant looks identical to the old one.
+- **A broken SMTP account cannot report itself** when owner alerts also go by SMTP. Keep a webhook.
 ## New in the launch-blocker fixes (2026-09-24)
 - **The privacy hook matches case-insensitively and on more than it says.** Any Bash command whose text
   contains `GEMINI_API_KEY` (it has "KEY"), `keyword` or long patch text got blocked. Write patches to
@@ -566,10 +577,9 @@ bottom corner stops the background.
 **Then finish the Google Cloud OAuth client** and walk `docs/LOCAL-TEST.md` end to end on localhost
 with a real Google account. That is the real blocker and it has not moved since 2026-09-22.
 
-**Then deploy to Fly** with the three owner settings (Gemini credential with billing on, alert
-webhook plus `notify --test`, UptimeRobot on `/health`). B1–B5 are handled in code. **Fix B6 before
-the first beta user's Gmail connection expires, 7 days after they connect.** If this session is the
-B6 session, start from "Next session: B6" above.
+**Then deploy to Fly** with the four owner settings (Gemini credential with billing on, alert
+webhook plus `notify --test`, the SMTP settings plus `reconnect --test`, UptimeRobot on `/health`).
+B1–B6 are handled in code.
 
 See `DESIGN-HANDOFF.md` for the next design session, `docs/OPERATIONS.md` for every production
 command, `docs/LOCAL-TEST.md` for the local walkthrough, and `docs/SYSTEM-DESIGN.md` §10–§11 for the
