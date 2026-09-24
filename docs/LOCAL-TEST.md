@@ -140,7 +140,7 @@ you would rather skip it for now.
 | The page says Google sign-in is not configured | The client ID is not set in that PowerShell window | The `$env:` lines only live in the window you typed them in, so set them again after reopening |
 | The worker exits straight away | It could not read the encryption password | `APPLYFIRST_MASTER_KEY` is missing in window 2, and it must be the same value as window 1 |
 | Nothing ever arrives in your inbox | Usually the baseline above, or two different databases | Check both windows are in `C:\Users\regid\Desktop\applyfirst` |
-| Gmail stops working after about a week | Google forces a 7-day refresh-token expiry while an app is in Testing | Connect Gmail again from the dashboard. This goes away after Google verification |
+| Gmail stops working after about a week | Google forces a 7-day refresh-token expiry while an app is in Testing | Connect Gmail again from the dashboard. This goes away after Google verification. With the `APPLYFIRST_SMTP_*` settings set in window 2, the worker also emails you when it happens. Without them it logs `user_reconnect_email_skipped` instead |
 
 ---
 

@@ -91,9 +91,13 @@ Once hosted on your domain, the URLs Google needs are:
   and must click **Advanced → Go to Agad (unsafe)** to proceed. Expected until verified.
 - **7-day refresh-token expiry.** In testing mode, `gmail.send` refresh tokens expire 7 days
   after consent. Agad already handles this: the worker treats `invalid_grant` as
-  "reconnect needed" — it clears the stored credential and the user re-connects Gmail. This
-  weekly reconnect goes away once the app is verified and in Production. (No code change needed;
-  see `applyfirst/saas/gmail_send.py` + `worker.process_alert`.)
+  "reconnect needed". It clears the stored credential and emails the user to reconnect
+  (`applyfirst/saas/reconnect.py`, which needs the `APPLYFIRST_SMTP_*` settings). This weekly
+  reconnect goes away once the app is verified and in Production. A grant can still die after
+  that (a Google password change, or the user removing Agad at their Google account), so the
+  email stays. **After verification, delete the beta-only wording**, found by searching for
+  `BETA` (each block ends at `/BETA`): the 7-day sentence in `reconnect.py` `compose()`, and the
+  `{# BETA #}` blocks in `dashboard.html` and the connect-Gmail page.
 
 ## Common rejection reasons (avoid these)
 

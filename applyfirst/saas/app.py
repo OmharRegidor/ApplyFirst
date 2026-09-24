@@ -30,8 +30,8 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 from fastapi.templating import Jinja2Templates
 
 from applyfirst import log
-from applyfirst.saas import (crypto, db, google_oauth, onboarding, preview, session,
-                             static_assets)
+from applyfirst.saas import (crypto, db, google_oauth, onboarding, preview, reconnect,
+                             session, static_assets)
 from applyfirst.saas.config import DEADMAN_THRESHOLD, SaaSConfig, load_saas_config
 from applyfirst.saas.tenant import tenant_scope
 
@@ -621,6 +621,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
                                       master_key=crypto.load_master_key())
         except crypto.CryptoError:
             return _gmail_retry(request, cfg_, user, conn, "crypto")
+        reconnect.forget(conn, user.id)   # back on Gmail: the next expiry is news again (B6)
         resp = RedirectResponse("/onboarding", status_code=302)
         session.clear_oauth_txn(resp, cfg_.secure_cookies)
         return resp
@@ -654,6 +655,9 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
 
     @app.post("/auth/disconnect-gmail", dependencies=[Depends(require_csrf)])
     def disconnect_gmail(user: db.User = Depends(require_user), conn=Depends(get_conn)):
+        # First, before the revoke: a worker send in flight fails on it exactly like an expiry,
+        # and this mark is what keeps the "your connection ended" email from going out (B6).
+        reconnect.disconnected_on_purpose(conn, user.id, db.gmail_connected_at(conn, user.id))
         try:
             token = db.get_gmail_refresh_token(conn, user.id, crypto.load_master_key())
             if token:

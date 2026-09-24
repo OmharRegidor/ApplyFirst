@@ -14,9 +14,10 @@ from watching it run in production. Your first deploy is also your first real me
 
 ## 1. Before you launch
 
-The 2026-09-21 audit found six things missing. The code for the first five is now in place
-(2026-09-23). Three of them still need **you** to set something, because the code cannot choose
-your credential, your webhook or your uptime monitor for you.
+The 2026-09-21 audit found six things missing. The code for all six is now in place (the first
+five 2026-09-23, the sixth 2026-09-24). Four of them still need **you** to set something, because
+the code cannot choose your credential, your webhook, your mail account or your uptime monitor for
+you.
 
 | # | What was wrong | What the code does now | What you still do |
 |---|---|---|---|
@@ -25,7 +26,7 @@ your credential, your webhook or your uptime monitor for you.
 | 3 | No alert destination, so the dead-man switch fired into a log nobody read | A production worker with no channel logs `owner_alerts_not_configured` at every start. A webhook answering 4xx no longer counts as delivered, and its URL never reaches a log. `python -m applyfirst.saas.notify --test` sends a test alert and says which channel delivered it. A blind worker also turns `/health` 503, so your uptime monitor pages you even with no webhook. "Blind" now means the site itself did not answer: when every watched term comes back empty, one search for "virtual assistant" decides, so one user watching a term with no posts pages nobody. A worker that cannot load its master key alerts you before it exits | `fly secrets set APPLYFIRST_ALERT_WEBHOOK=<slack-or-discord-url> -a <app>`, then run the test command in section 2 |
 | 4 | The Fly worker watchdog was dead code, so a worker that crashed or hung was never restarted, while `/healthz` kept saying "ok" | `entrypoint.sh` runs the worker in a restart loop (10s, doubling to 5 minutes while it keeps failing fast). Inside the worker a watchdog ends any cycle that goes 15 minutes with no sign of progress (`worker_stalled`, exit 70), and the loop starts a fresh one. Every search attempt, every job stored and every alert handled counts as progress, a failed search included, so a slow outage at onlinejobs.ph reads as blind rather than as a hang. On Oracle, systemd's `Restart=always` does the restarting | Point an uptime monitor (UptimeRobot, free) at `https://<app>.fly.dev/health` |
 | 5 | Nothing ever ran a backup on Fly | With `APPLYFIRST_BACKUP_IN_WORKER=1` (set in `fly.toml`) the worker takes the day's backup after its first cycle of each UTC day into `/data/backups`, keeping 7. A failure is logged as `backup_failed`, retried after every cycle, and alerted once per 6 hours. A backup that fails or is killed part-way never leaves a truncated file under a real backup name, its temporary files are removed, and it refuses to start when the disk lacks room for twice the database. On Oracle a failed nightly backup now alerts you too | Pull one off the box now and then, and practise the restore in section 5 once |
-| 6 | Google forces a 7-day refresh-token expiry while the app is unverified, and the code clears the credential silently | **Still open.** Every beta user stops receiving anything once a week and is told nothing | Send a "reconnect Gmail" email via the existing `notify.py` SMTP path when the credential is cleared |
+| 6 | Google forces a 7-day refresh-token expiry while the app is unverified, and the code cleared the credential silently | When a send fails because the grant died, the worker queues an email to the user first, then clears the grant, so a crash in between can never drop them untold. The email goes to the address they signed in with, from the server's SMTP account (`applyfirst/saas/reconnect.py`). It links to `/dashboard`, says this usually happens because Google's beta asks for a reconnect every 7 days, tells anyone who disconnected on purpose to ignore it, and says we never read their email. One email per ended connection, normally exactly one. A second copy can go out if the mail server takes it but its reply is lost, or the worker stops at that moment. The next connection that ends is news again. A user who presses Disconnect in Agad gets nothing, even with a send in flight, and so does one who reconnects during a send (the new grant is kept and the letter retried). Someone who removes Agad at their Google account does get the email, which is why it tells them they can ignore it. Any failure while connecting or logging in, a 421, or a dropped line is the server's: sending pauses for 15 minutes, then an hour, then 6 hours, and you are alerted, so a wrong password does not log in to your mail account all day. A restart ends the pause, and a pause long past is forgotten. A refusal of one message holds nobody else up, since the least recently tried user goes first, and that message is retried less often as time goes on (every 15 minutes, then hourly, then every 6 hours). Two refusals in a row look like the server (a quota, a relay rule) and pause it too. A user is given up only after 3 days of refusals and only if another email went through after the first refusal, and you get a separate alert for that. Neither the SMTP password (or any character of it) nor the user's address reaches a log or an alert. If your owner alerts also go by SMTP, a broken SMTP account cannot report itself, so it logs `user_reconnect_mail_down` at CRITICAL instead. Only a webhook can tell you about a broken SMTP account. With no SMTP set, the worker logs `user_mail_not_configured` at start and `user_reconnect_email_skipped` when it happens, alerts you, and sends the email once SMTP is set, unless they reconnected first. The privacy page now says we may email about the account | Set `APPLYFIRST_SMTP_HOST`, `APPLYFIRST_SMTP_USER` and `APPLYFIRST_SMTP_PASSWORD` (for Gmail, an app password), then check them with `python -m applyfirst.saas.reconnect --test you@example.com`, which sends the real email to you. `notify --test` does not check these when a webhook is set |
 
 Two more worth knowing before the first paying user.
 
@@ -84,10 +85,29 @@ sudo -u applyfirst sh -c 'cd /opt/applyfirst && exec .venv/bin/python -m applyfi
 It prints `configured: webhook, delivered by: webhook` and exits 0 when it worked. If the webhook
 failed and SMTP stepped in, it says so and exits 1, because the channel you meant is broken.
 
+**Check the email users get when their Gmail connection ends.** `notify --test` uses the webhook
+whenever one is set, so it never touches these SMTP settings. This sends the real reconnect email
+to the address you give, the same way a real one goes, and exits 0 only when the server took it.
+
+```bash
+fly ssh console -a <app> -C "python -m applyfirst.saas.reconnect --test you@example.com"
+# Oracle
+sudo -u applyfirst sh -c 'cd /opt/applyfirst && exec .venv/bin/python -m applyfirst.saas.reconnect --test you@example.com'
+```
+
 **The log events worth a search**, all at CRITICAL or ERROR. `worker_stalled` (the watchdog ended a
 hung cycle), `worker_blind`, `ai_not_configured`, `ai_all_failed`, `owner_alerts_not_configured`,
-`backup_failed`, `worker_cycle_crashed`, `worker_no_master_key`. At WARNING, `ai_call_failed`
-carries the status code of each failed AI call, and `search_failed` each failed search. On Fly, `[entrypoint] worker exited with status`
+`backup_failed`, `worker_cycle_crashed`, `worker_no_master_key`, `user_mail_not_configured`,
+`user_reconnect_email_skipped` (no SMTP set), `user_reconnect_email_failed` (the mail server
+failed, sending paused), `user_reconnect_mail_down` (the same, when owner alerts ride that SMTP
+account and so cannot arrive), `user_reconnect_email_refused` (one message refused, `gave_up`
+says whether that user was given up), `user_reconnect_round_failed` (the notice itself crashed;
+it alerts nobody, so search for it).
+At WARNING, `ai_call_failed` carries the status code of each failed AI call, `search_failed` each
+failed search, `gmail_connection_ended` each user whose Gmail grant died, and
+`user_reconnect_clear_failed` a dead grant that could not be cleared yet (its email waits, so the
+dashboard shows the Connect button it points to). At INFO,
+`user_reconnect_emailed` is each user told to reconnect. On Fly, `[entrypoint] worker exited with status`
 lines show each restart.
 
 ---

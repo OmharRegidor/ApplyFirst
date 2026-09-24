@@ -38,12 +38,22 @@ MASTER_KEY_PATH=/etc/applyfirst/master.key       # [REQUIRED] (prod)
 # owner_alerts_not_configured at every start. Check the channel with:
 #     sudo -u applyfirst sh -c 'cd /opt/applyfirst && exec .venv/bin/python -m applyfirst.saas.notify --test'
 APPLYFIRST_ALERT_WEBHOOK=<https://hooks.slack.com/services/...>       # Slack OR Discord webhook URL
-#   …or SMTP instead:
-# APPLYFIRST_SMTP_HOST=smtp.gmail.com
-# APPLYFIRST_SMTP_PORT=465
-# APPLYFIRST_SMTP_USER=you@gmail.com
-# APPLYFIRST_SMTP_PASSWORD=<gmail-app-password>
+#   …or SMTP instead: the SMTP lines below plus
 # APPLYFIRST_OWNER_EMAIL=you@gmail.com
+
+# --- User email: "reconnect your Gmail" ---------------------------------------
+# [REQUIRED] while the Google app is in Testing mode. Google ends every user's Gmail connection
+# 7 days after they connect, and the worker emails them from this account to reconnect. Without
+# it they just stop getting letters, the worker logs user_mail_not_configured at every start, and
+# it alerts you when a user's connection ends. The same lines serve owner alerts by SMTP, but
+# a broken SMTP account cannot report itself that way, so keep the webhook as well.
+# Commented so an unfilled copy can never replace lines you already have. Fill, then uncomment.
+# Then send yourself the real email to check them (notify --test does not, when a webhook is set):
+#     sudo -u applyfirst sh -c 'cd /opt/applyfirst && exec .venv/bin/python -m applyfirst.saas.reconnect --test you@example.com'
+# APPLYFIRST_SMTP_HOST=smtp.gmail.com            # [REQUIRED] (beta)
+# APPLYFIRST_SMTP_PORT=465
+# APPLYFIRST_SMTP_USER=you@gmail.com             # [REQUIRED] (beta) the address users see it from
+# APPLYFIRST_SMTP_PASSWORD=<gmail-app-password>  # [REQUIRED] (beta)
 
 # --- AI tailoring ------------------------------------------------------------
 # [REQUIRED] in production. Without it every letter is the user's own unchanged message with

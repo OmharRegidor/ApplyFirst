@@ -22,6 +22,15 @@ primary_region = "sin"                # Singapore = nearest Fly region to the Ph
 #   APPLYFIRST_ALERT_WEBHOOK  strongly recommended, a Slack or Discord webhook URL. It is how the
 #                             worker tells you it is blind, a backup failed, or the AI is missing.
 #                             Check it with: fly ssh console -a <app> -C "python -m applyfirst.saas.notify --test"
+#   APPLYFIRST_SMTP_HOST      required for the beta, with APPLYFIRST_SMTP_USER and
+#   APPLYFIRST_SMTP_USER      APPLYFIRST_SMTP_PASSWORD (for Gmail: smtp.gmail.com, your address, an
+#   APPLYFIRST_SMTP_PASSWORD  app password). Google ends every user's Gmail connection after 7 days
+#                             while the app is in Testing, and this is how the worker emails them to
+#                             reconnect. Without it they just stop getting letters, the worker logs
+#                             user_mail_not_configured at start, and alerts you when it happens.
+#                             Adding APPLYFIRST_OWNER_EMAIL as well makes it an owner alert channel too.
+#                             Check it (notify --test does not, when a webhook is set) with:
+#                             fly ssh console -a <app> -C "python -m applyfirst.saas.reconnect --test you@example.com"
 
 [env]
   APPLYFIRST_SAAS_DB = "/data/applyfirst-saas.db"   # lives on the persistent volume

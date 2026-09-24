@@ -186,11 +186,15 @@ APPLYFIRST_MASTER_KEY=...                          # base64 dev; prod uses /etc/
 # GEMINI_API_KEY=<your-gemini-key>                # REQUIRED in prod. SHARED with V1: if .env already has it, leave this commented
 # Owner alerts (worker blind, backup failed, AI missing) — pick ONE channel:
 APPLYFIRST_ALERT_WEBHOOK=<https://hooks.slack.com/services/...>  # Slack/Discord-compatible
-#   …or SMTP:
+#   …or SMTP: the three SMTP lines below plus
+# APPLYFIRST_OWNER_EMAIL=you@gmail.com
+# SMTP is REQUIRED for the beta either way: Google ends each user's Gmail connection after 7 days
+# and the worker emails them from this account to reconnect. Fill, then uncomment, then check
+# it by sending yourself the real email (notify --test does not, when a webhook is set):
+#   sudo -u applyfirst sh -c 'cd /opt/applyfirst && exec .venv/bin/python -m applyfirst.saas.reconnect --test you@example.com'
 # APPLYFIRST_SMTP_HOST=smtp.gmail.com
 # APPLYFIRST_SMTP_USER=you@gmail.com
 # APPLYFIRST_SMTP_PASSWORD=<app password>
-# APPLYFIRST_OWNER_EMAIL=you@gmail.com
 ```
 Then `sudo chmod 600 /opt/applyfirst/.env`. (Worker cadence + secure cookies are set in the
 units; override with `APPLYFIRST_WORKER_INTERVAL` / `APPLYFIRST_AUTH_RATE_LIMIT` / etc. if needed.)
@@ -215,6 +219,7 @@ curl -s https://apply.example.com/health             # JSON; 200 ready / 503 wor
 systemctl status applyfirst-saas-web applyfirst-saas-worker
 journalctl -u applyfirst-saas-worker -f              # watch poll cycles (cycle_complete events)
 sudo -u applyfirst sh -c 'cd /opt/applyfirst && exec .venv/bin/python -m applyfirst.saas.notify --test'   # alert reaches you?
+sudo -u applyfirst sh -c 'cd /opt/applyfirst && exec .venv/bin/python -m applyfirst.saas.reconnect --test you@example.com'   # users' reconnect email goes out?
 ```
 Point a free **UptimeRobot** monitor at `/health` (503 → it pages you). Then submit Google
 verification (runbook: `docs/legal/google-verification.md`).

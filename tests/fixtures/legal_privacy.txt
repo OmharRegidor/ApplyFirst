@@ -1,5 +1,5 @@
 Privacy Policy
-Last updated: 21 June 2026
+Last updated: 24 September 2026
 Agad ("we", "us") helps job seekers on onlinejobs.ph apply faster by watching for matching jobs and emailing a ready-to-paste application to your own inbox. This policy explains what we collect, how we use it, and the choices you have. Questions: omharregidor@gmail.com.
 Information we collect
 Google account information — when you sign in with Google we receive your name, email address, and Google account identifier, to create and identify your account.
@@ -10,6 +10,7 @@ Operational records and logs — which public job postings we matched for you an
 How we use your information, and Gmail access
 We request the gmail.send permission for a single purpose: to send you your own tailored job application, to your own email address, so it is ready when you apply. We send only to you — we do not email employers or anyone else on your behalf.
 We never read, download, list, modify, or delete any of your existing emails. We request only the send permission; we do not request any Gmail read or modify scope.
+We may also email you from our own address about your account, for example to tell you that your Gmail connection has ended and needs reconnecting. These are service messages only, never marketing, and they do not use your Gmail.
 We use your other information to watch onlinejobs.ph for jobs matching your keywords and to generate a tailored application from your profile and the public job posting.
 Third parties we share data with
 Google — Sign in with Google (identity) and the Gmail API (sending).

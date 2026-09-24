@@ -14,7 +14,8 @@ Security invariants (see docs/plans/M3-worker.md §6):
   context ever reaches the LLM.
 - The refresh token is decrypted in memory only (AAD=user_id), never logged, never stored
   in ``last_error``.
-- ``invalid_grant`` / insufficient scope → clear the user's gmail credential (stop retrying).
+- ``invalid_grant`` / insufficient scope → clear the user's gmail credential (stop retrying),
+  then tell the user by email so they can reconnect (B6, ``reconnect.py``).
 
 Run it:
     python -m applyfirst.saas.worker --once        # one deterministic cycle (also what tests call)
@@ -34,7 +35,7 @@ from datetime import datetime, timezone
 
 from applyfirst import log
 from applyfirst.notify.compose import build_tailored_email
-from applyfirst.saas import crypto, db, gmail_send, preview
+from applyfirst.saas import crypto, db, gmail_send, preview, reconnect
 from applyfirst.saas.config import DEADMAN_THRESHOLD, SaaSConfig, load_saas_config
 from applyfirst.tailor.contract import TailoredPackage
 from applyfirst.tailor.prompt import PROMPT_FINGERPRINT
@@ -71,6 +72,7 @@ class CycleResult:
     site_ok: bool | None = None
     ai_calls: int = 0        # fresh tailors attempted with an AI credential configured
     ai_fallbacks: int = 0    # ...of which the AI failed and the rules fallback wrote the letter
+    reconnect_mailed: int = 0  # users told by email that their Gmail connection ended (B6)
 
 
 def default_engine_factory(cfg: SaaSConfig):
@@ -169,7 +171,9 @@ def process_alert(conn, alert, cfg, master_key, *, engine_factory, sender, stats
         return "skipped"
 
     # Fetch the user's gmail token BEFORE tailoring, so we don't spend a cap slot on a
-    # user who can't receive anything. Decrypted in memory only (AAD=user_id).
+    # user who can't receive anything. Decrypted in memory only (AAD=user_id). Which grant
+    # this is gets read first, so a reconnect between the two reads can only make it look older.
+    connected_at = db.gmail_connected_at(conn, alert.user_id)
     refresh = db.get_gmail_refresh_token(conn, alert.user_id, master_key)
     if refresh is None:
         db.mark_alert(conn, alert.id, "skipped", last_error="gmail not connected")
@@ -190,19 +194,42 @@ def process_alert(conn, alert, cfg, master_key, *, engine_factory, sender, stats
     try:
         sender(cfg, refresh, to=user.email, subject=subject, text=text, html=html)
     except gmail_send.GmailAuthError:
-        # The grant is gone — stop retrying this user forever; force a reconnect.
-        db.clear_gmail_credential(conn, alert.user_id)
+        if connected_at is None or db.gmail_connected_at(conn, alert.user_id) != connected_at:
+            # The user reconnected or disconnected while this send held the old grant. That is
+            # not an expiry: keep whatever they have now, and retry the alert with it.
+            return _retry_later(conn, alert, "gmail changed during the send")
+        # The grant is gone. Queue the email that tells the user FIRST (B6): if anything below
+        # fails, the dead grant is still stored, the next alert lands here again, and nobody is
+        # dropped untold. run_once sends it once the alerts are done.
+        queued = reconnect.expired(conn, alert.user_id, connected_at)
+        # Stop retrying this user forever; force a reconnect.
+        if not reconnect.clear_dead_grant(conn, alert.user_id, connected_at):
+            # A reconnect landed after the check above. Keep it. The row just queued is for the
+            # old grant, so send_due drops it without a word.
+            return _retry_later(conn, alert, "gmail changed during the send")
         db.mark_alert(conn, alert.id, "failed", last_error="gmail auth revoked")
+        if queued:
+            log.event(_LOG, "gmail_connection_ended", level=logging.WARNING,
+                      user_id=alert.user_id)
+            if not cfg.user_mail_configured:
+                log.event(_LOG, "user_reconnect_email_skipped", level=logging.ERROR,
+                          user_id=alert.user_id,
+                          hint="set APPLYFIRST_SMTP_HOST, _USER and _PASSWORD so users are told")
         return "failed"
     except gmail_send.GmailSendError as exc:
-        db.bump_attempts(conn, alert.id)
-        if alert.attempts + 1 >= _MAX_ATTEMPTS:
-            db.mark_alert(conn, alert.id, "failed", last_error=str(exc)[:200])
-            return "failed"
-        return "pending"  # left pending → retried next cycle, never charged again (_tailor)
+        return _retry_later(conn, alert, str(exc))
 
     db.mark_alert(conn, alert.id, "sent", sent_at=db._now_iso())
     return "sent"
+
+
+def _retry_later(conn, alert, error: str) -> str:
+    """Leave the alert pending for the next cycle, or fail it once it has used every attempt."""
+    db.bump_attempts(conn, alert.id)
+    if alert.attempts + 1 >= _MAX_ATTEMPTS:
+        db.mark_alert(conn, alert.id, "failed", last_error=error[:200])
+        return "failed"
+    return "pending"  # left pending → retried next cycle, never charged again (_tailor)
 
 
 def run_once(conn, source, cfg, master_key, *,
@@ -267,12 +294,68 @@ def run_once(conn, source, cfg, master_key, *,
             setattr(result, status, getattr(result, status) + 1)
         beat()
 
+    result.reconnect_mailed = _tell_expired_users(conn, cfg, beat)
+
     log.event(_LOG, "cycle_complete", keywords=result.keywords, jobs=result.jobs_seen,
               alerts=result.alerts_created, sent=result.sent, failed=result.failed,
               capped=result.capped, skipped=result.skipped, ai_calls=result.ai_calls,
-              ai_fallbacks=result.ai_fallbacks)
+              ai_fallbacks=result.ai_fallbacks, reconnect_mailed=result.reconnect_mailed)
     _track_ai_failures(conn, cfg, result)
     return result
+
+
+def _tell_expired_users(conn, cfg: SaaSConfig, beat) -> int:
+    """B6: email every user whose Gmail connection ended and who has not been told yet, and page
+    the owner when they cannot be told. Every cycle, so a mail that failed goes out on a later
+    one. Returns how many were sent. Never raises: this must not cost anyone their next job."""
+    try:
+        out = reconnect.send_due(conn, cfg, beat=beat)
+        if out.waiting:
+            _alert_owner_once(
+                conn, cfg, "last_reconnect_skipped_alert_at",
+                "Agad cannot tell users to reconnect Gmail",
+                f"{out.waiting} user(s) lost their Gmail connection and nobody told them, because no "
+                "SMTP settings are set. Set APPLYFIRST_SMTP_HOST, APPLYFIRST_SMTP_USER and "
+                "APPLYFIRST_SMTP_PASSWORD (fly secrets set, or the .env on the Oracle VM) and restart "
+                "the worker. They are emailed on the next cycle, unless they reconnected first.",
+            )
+        if out.failed and out.server_down and cfg.alert_channel == "smtp":
+            # Owner alerts ride the same SMTP account that could not even log in, so the alert
+            # could not arrive, and trying would only add another bad login. This line is it.
+            log.event(_LOG, "user_reconnect_mail_down", level=logging.CRITICAL, error=out.failed,
+                      hint="owner alerts use the same SMTP account; a webhook would reach you")
+        elif out.failed:
+            _alert_owner_once(
+                conn, cfg, "last_reconnect_failed_alert_at", "Agad's reconnect emails are failing",
+                f"The mail server failed while emailing a user that their Gmail connection ended: "
+                f"{out.failed}. Sending pauses for 15 minutes, then 1 hour, then 6 hours, and a "
+                "worker restart ends the pause. Check the APPLYFIRST_SMTP_* settings and test them "
+                "with reconnect --test (docs/OPERATIONS.md section 2 has the Fly and Oracle "
+                "commands).",
+            )
+        if out.rejected and not out.failed:
+            # Not when the round paused: then the refusals were the server's, and the alert above
+            # already says so. This one would claim the opposite.
+            _alert_owner_once(
+                conn, cfg, "last_reconnect_rejected_alert_at",
+                "Agad's reconnect email to a user was refused",
+                f"The mail server refused the reconnect email to {out.rejected} user(s): "
+                f"{out.rejected_error}. The login works, so this is about that message, not the "
+                "settings. Agad retries it, less often as time goes on, and gives up on a user "
+                "after 3 days of refusals if other emails go through meanwhile.",
+            )
+        if out.gave_up:
+            _alert_owner_once(
+                conn, cfg, "last_reconnect_gaveup_alert_at",
+                "Agad gave up telling a user to reconnect Gmail",
+                f"After 3 days of refusals, Agad stopped trying to email {out.gave_up} user(s) "
+                "that their Gmail connection ended, so they have not been told. Their user ids are "
+                "in the user_reconnect_email_refused log lines with gave_up true.",
+            )
+        return out.sent
+    except Exception as exc:  # noqa: BLE001 — the letters matter more than this notice
+        log.event(_LOG, "user_reconnect_round_failed", level=logging.ERROR, error=str(exc)[:200])
+        return 0
 
 
 def _track_ai_failures(conn, cfg: SaaSConfig, result: CycleResult) -> None:
@@ -366,11 +449,16 @@ def _startup_checks(conn, cfg: SaaSConfig) -> None:
     # the letters, and on Oracle the two restart separately.
     db.set_worker_meta(conn, "ai_state", "on" if cfg.ai_configured
                        else "off_ok" if cfg.ai_off_ok else "off")
+    reconnect.reset_backoff(conn)   # a restart usually follows a settings fix, so try mail at once
     if not cfg.is_production:
         return
     if cfg.alert_channel is None:
         log.event(_LOG, "owner_alerts_not_configured", level=logging.CRITICAL,
                   hint="set APPLYFIRST_ALERT_WEBHOOK, or the SMTP settings and APPLYFIRST_OWNER_EMAIL")
+    if not cfg.user_mail_configured:
+        log.event(_LOG, "user_mail_not_configured", level=logging.ERROR,
+                  hint="set APPLYFIRST_SMTP_HOST, _USER and _PASSWORD, or nobody is told when "
+                       "Google ends their Gmail connection")
     if not cfg.ai_configured and cfg.ai_off_ok:
         log.event(_LOG, "ai_off_by_choice", level=logging.WARNING,
                   hint="APPLYFIRST_AI_OFF_OK is set; letters are the user's own message")

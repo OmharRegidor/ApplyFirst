@@ -46,8 +46,9 @@ class SaaSConfig:
     daily_tailor_cap: int = 10          # per-user tailoring calls/day
     worker_interval: int = 600          # seconds between poll cycles
     worker_jitter: float = 0.25         # ± fraction of the interval (two-sided)
-    # M5 owner alerting (dead-man's switch → the OWNER, never tenants). Prefer a webhook;
-    # else SMTP; else log-only. Supply ONE channel — all are optional/default-safe.
+    # M5 owner alerting (dead-man's switch → the OWNER). Prefer a webhook; else SMTP; else
+    # log-only. Supply ONE channel — all are optional/default-safe. The SMTP settings also carry
+    # the one email a user gets when Google ends their Gmail connection (B6, reconnect.py).
     owner_alert_email: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 465
@@ -99,6 +100,12 @@ class SaaSConfig:
         if self.smtp_host and self.smtp_user and self.smtp_password and self.owner_alert_email:
             return "smtp"
         return None
+
+    @property
+    def user_mail_configured(self) -> bool:
+        """SMTP is set up, so the worker can tell a user their Gmail connection ended (B6). Owner
+        alerts by SMTP also need APPLYFIRST_OWNER_EMAIL. This does not."""
+        return bool(self.smtp_host and self.smtp_user and self.smtp_password)
 
     @property
     def redirect_uri(self) -> str:
