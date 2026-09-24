@@ -9,9 +9,8 @@
   (`deploy/oracle/`).
 
 # Current State — Where it stands (2026-09-24)
-✅ **Launch blockers B1–B6 are all fixed in code and committed.** B1–B5 (`c32ca48`) are pushed.
-**B6 (`8c65928`, `d8cb2a9`) and the redesign spec (`ba60723`) are committed on `main` but NOT
-pushed yet** (`main` is 3 ahead of `origin/main`). Tests: **887 passing** with B6
+✅ **Launch blockers B1–B6 are all fixed, committed and pushed** (B1–B5 `c32ca48`, B6 `8c65928`),
+along with the redesign spec (`ba60723`). Everything is on `origin/main`. Tests: **887 passing** with B6
 (`.venv/Scripts/python.exe -m pytest -q`) — 845 before B6, 779 before the launch fixes, 745 on 2026-09-23
 morning, 692 before that day, 546 before the animated onboarding, 211 before the redesign. Smoke:
 **558 checks, 0 failed** (`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
@@ -32,9 +31,10 @@ it on a real phone. Do that first.
 
 ## The commits from 2026-09-23 and 2026-09-24
 ```
-ba60723  docs: design for the sign-up journey redesign            (not pushed)
-d8cb2a9  docs: handoff records the B6 fix                        (not pushed)
-8c65928  fix(saas): B6, email users when Google ends their Gmail connection   (not pushed)
+a2034b8  docs: handoff records the sign-up redesign decisions and progress
+ba60723  docs: design for the sign-up journey redesign
+d8cb2a9  docs: handoff records the B6 fix
+8c65928  fix(saas): B6, email users when Google ends their Gmail connection
 2693ca6  docs: handoff carries a ready-to-start brief for B6
 771b36a  docs: handoff records the launch-blocker fixes
 c32ca48  fix(saas): launch blockers B1-B5 from the operations audit
@@ -471,7 +471,6 @@ equivalent mutant (`>` vs `>=` once every attempt has its own instant).
 
 # Open follow-ups (ordered)
 Before the numbered list:
-- **Push the three unpushed commits** (`8c65928`, `d8cb2a9`, `ba60723`) when the owner says so.
 - **Sign-up journey redesign.** The owner reviews the spec, then write the implementation plan,
   then build it in the spec's five stages (foundation, login, onboarding, dashboard, the two fixes),
   with both gates green at every stage, then a multi-agent review and a mutation pass.
