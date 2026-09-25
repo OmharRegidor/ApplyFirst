@@ -3,7 +3,7 @@
    Colour rule (owner): navy and sky/action blue only. Every chromatic value here sits at hue 200 to 217,
    or is a status colour (green 144-153, amber 33-40, red 3-7), or one of Google's fixed button neutrals.
    Nothing at hue 230 to 345. Breakpoints, mobile first: 420, 640, 800, 960, 1100. */
-@layer reset, tokens, base, components, screens;
+@layer basecoat, reset, tokens, base, components, screens, journey;
 
 /* ---------------------------------------------------------------------------------------------- reset */
 @layer reset {

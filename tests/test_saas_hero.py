@@ -15,19 +15,28 @@ to survive two extra blocks.
 
 from __future__ import annotations
 
+import hashlib
+import importlib.util
 import re
 
 import pytest
+from fontTools.ttLib import TTFont
 
 from _saas_client import client_for
 from test_saas_motion import (
-    MOTION_ASSETS, NON_APP_PAGES, STATIC, _five_pages, _gz, _strip_comments, _text,
+    MOTION_ASSETS, NON_APP_PAGES, REPO, STATIC, TEMPLATES, _five_pages, _gz, _strip_comments,
+    _text,
 )
 
 HERO_CSS = STATIC / "css" / "hero.css"
 SCENE_JS = STATIC / "js" / "scene.js"
 APP_CSS = STATIC / "css" / "app.css"
 BASE_HTML = STATIC.parents[0] / "templates" / "base.html"
+JOURNEY_CSS = STATIC / "css" / "journey.css"
+INTER = STATIC / "fonts" / "inter-4.1-latin-wght.woff2"
+INTER_SHA256 = "effa0eae43e76b7d0f6ebfb74c77db701a420ae30a24c14b09a3fc82646b1fd0"
+INTER_LICENCE = STATIC / "licenses" / "OFL-inter.txt"
+BUILD_INTER = REPO / "tools" / "fonts" / "build_inter.py"
 
 GROUND = (243, 246, 250)        # --ground, the darkest end of the hero's base gradient
 WHITE = (255, 255, 255)
@@ -185,7 +194,8 @@ def test_the_scene_is_deterministic_so_every_visitor_sees_the_same_still_frame()
 
 # --- the new files stay off the onboarding motion layer ---------------------------------------
 
-@pytest.mark.parametrize("name", ["hero.css", "reveal.js", "scene.js"])
+@pytest.mark.parametrize("name", ["hero.css", "reveal.js", "scene.js", "journey.css",
+                                  "inter-4.1-latin-wght.woff2"])
 def test_the_new_filenames_cannot_trip_the_public_page_guard(name):
     """M-2 forbids these four substrings on the public pages. A file called, say,
     home-motion.css would contain 'motion.css' and fail that test the moment it loaded."""
@@ -256,23 +266,151 @@ def test_no_sheen_survives_on_a_light_button():
 
 
 # --- the font contract ------------------------------------------------------------------------
+# The homepage, privacy and terms keep the device's own font. The sign-up journey adds Inter for
+# Android and Windows (spec D5): one subset file, declared in journey.css only, never preloaded,
+# with a metric-matched local fallback so the swap barely moves text.
 
-def test_the_site_uses_the_device_own_font_and_downloads_none_of_it():
+def _builder():
+    """tools/fonts/build_inter.py, loaded by path, so the tests and the build share one formula."""
+    spec = importlib.util.spec_from_file_location("build_inter", BUILD_INTER)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _faces(css: str) -> dict[str, dict[str, str]]:
+    """Every @font-face in a stylesheet, by family, as {descriptor: value} with spaces collapsed."""
+    out: dict[str, dict[str, str]] = {}
+    for body in re.findall(r"@font-face\s*\{([^}]*)\}", _strip_comments(css)):
+        d = {k: " ".join(v.split()) for k, v in re.findall(r"([\w-]+)\s*:\s*([^;]+)", body)}
+        out[d["font-family"].strip("\"'")] = d
+    return out
+
+
+def _tnum_advances(font: TTFont) -> set[int]:
+    """The advance of each digit 0-9 after the tnum substitution."""
+    gsub = font["GSUB"].table
+    wanted = {i for r in gsub.FeatureList.FeatureRecord if r.FeatureTag == "tnum"
+              for i in r.Feature.LookupListIndex}
+    mapping: dict[str, str] = {}
+    for i in wanted:
+        for sub in gsub.LookupList.Lookup[i].SubTable:
+            mapping.update(getattr(getattr(sub, "ExtSubTable", sub), "mapping", None) or {})
+    cmap, hmtx = font.getBestCmap(), font["hmtx"]
+    return {hmtx[mapping.get(cmap[c], cmap[c])][0] for c in range(0x30, 0x3A)}
+
+
+def test_app_css_keeps_the_device_font_and_never_asks_for_inter():
     css = _text(APP_CSS)
     faces = re.findall(r"@font-face\s*\{[^}]*\}", css)
     assert not any("Jakarta" in f for f in faces), "a Plus Jakarta face is still declared"
     assert len(faces) == 1 and "Google Sans Button" in faces[0], (
-        "only Google's own button face may be downloaded")
+        "only Google's own button face may be downloaded by app.css")
     m = re.search(r"--font-sans:\s*([^;]+);", css)
     assert m and m.group(1).strip().startswith("system-ui"), (
         f"--font-sans must lead with system-ui, got {m and m.group(1)!r}")
+    for sheet in (APP_CSS, HERO_CSS, STATIC / "css" / "story.css", STATIC / "css" / "motion.css"):
+        src = _text(sheet)
+        assert "Inter Agad" not in src and INTER.name not in src, f"{sheet.name} asks for Inter"
 
 
 def test_no_page_preloads_a_font_the_stylesheet_never_asks_for():
     base = _text(BASE_HTML)
     assert "plus-jakarta" not in base, "base.html still preloads a deleted font on every page"
     fonts = sorted(p.name for p in (STATIC / "fonts").glob("*.woff2"))
-    assert fonts == ["google-sans-button-500.woff2"], f"unexpected fonts on disk: {fonts}"
+    assert fonts == ["google-sans-button-500.woff2", INTER.name], f"unexpected fonts: {fonts}"
+
+
+def test_no_template_preloads_or_names_inter():
+    """Spec 4.5: never preloaded. Apple devices match -apple-system first and must download
+    nothing, and a preload would fetch the file on every iPhone. Only journey.css names it."""
+    for tpl in sorted(TEMPLATES.glob("*.html")):
+        src = _text(tpl)
+        assert INTER.name not in src and "Inter Agad" not in src, f"{tpl.name} names Inter"
+        for tag in re.findall(r"<link\b[^>]*>", src):
+            assert not ("preload" in tag and "inter" in tag.lower()), f"{tpl.name}: {tag}"
+
+
+def test_the_inter_file_is_the_pinned_subset_under_its_cap():
+    data = INTER.read_bytes()
+    assert data[:4] == b"wOF2", "the Inter file must be WOFF2"
+    assert len(data) <= 50_000, f"{INTER.name} is {len(data)} B, over the 50,000 B cap (spec 8)"
+    assert hashlib.sha256(data).hexdigest() == INTER_SHA256, (
+        "the Inter file changed: rebuild it only with tools/fonts/build_inter.py, then re-pin")
+
+
+def test_the_inter_file_name_carries_the_version_from_its_name_table():
+    """journey.css loads it without ?v, so a new Inter must arrive under a new name."""
+    b = _builder()
+    assert INTER.name == b.font_name(b.version_of(TTFont(INTER)))
+
+
+def test_the_inter_subset_keeps_what_the_journey_pages_print():
+    font = TTFont(INTER)
+    axes = [(a.axisTag, a.minValue, a.maxValue) for a in font["fvar"].axes]
+    assert axes == [("wght", 400, 600)], f"opsz must be pinned and wght limited to 400-600: {axes}"
+    cmap = font.getBestCmap()
+    need = [*range(0x20, 0x7F), *range(0xA0, 0xAD), *range(0xAE, 0x100),   # U+00AD has no glyph
+            0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2026, 0x20B1]
+    missing = [f"U+{c:04X}" for c in need if c not in cmap]
+    assert not missing, f"the subset lost characters the pages print: {missing}"
+    assert set(cmap) <= set(_builder().unicodes()), "the file holds more than its unicode-range"
+    gpos = {r.FeatureTag for r in font["GPOS"].table.FeatureList.FeatureRecord}
+    assert "kern" in gpos, "kerning was dropped"
+    digits = {font["hmtx"][cmap[c]][0] for c in range(0x30, 0x3A)}
+    assert len(digits) > 1 and len(_tnum_advances(font)) == 1, (
+        "tnum must give all ten digits one width (usage counts and times line up)")
+
+
+def test_the_inter_face_is_declared_in_journey_css_only():
+    faces = _faces(_text(JOURNEY_CSS))
+    assert set(faces) == {"Inter Agad", "Inter Agad Fallback"}, sorted(faces)
+    inter = faces["Inter Agad"]
+    assert inter["font-display"] == "swap" and inter["font-style"] == "normal"
+    assert inter["font-weight"] == "400 600", "the face must declare the weight range it ships"
+    one_url = r'url\("\.\./fonts/' + re.escape(INTER.name) + r'"\) format\("woff2"\)'
+    assert re.fullmatch(one_url, inter["src"]), (
+        f"one url and no ?v, the name carries the version: {inter['src']}")
+    assert inter["unicode-range"].replace(" ", "") == _builder().unicode_range_css()
+
+
+def test_the_fallback_face_is_tuned_to_the_served_inter():
+    """Segoe UI on Windows and Roboto on Android, scaled to Inter's average width and line box
+    (spec 4.5). The expected numbers come from the served file through the formula the build
+    script prints, so a new Inter without retuned numbers fails here."""
+    fb = _faces(_text(JOURNEY_CSS))["Inter Agad Fallback"]
+    assert "url(" not in fb["src"], "the fallback face must never download anything"
+    names = re.findall(r'local\("([^"]+)"\)', fb["src"])
+    assert "Segoe UI" in names and "Roboto" in names, names
+    want = _builder().fallback_descriptors(TTFont(INTER))
+    assert {k: fb.get(k) for k in want} == want, f"retune Inter Agad Fallback to {want}"
+
+
+def test_the_inter_licence_ships_beside_the_font():
+    lic = _text(INTER_LICENCE)
+    assert "SIL OPEN FONT LICENSE Version 1.1" in lic and "The Inter Project Authors" in lic
+    assert "Modified by Agad" in lic and INTER.name in lic and _builder().COMMIT in lic
+
+
+def test_the_build_script_pins_one_commit_one_hash_and_the_spec_settings():
+    b = _builder()
+    assert re.fullmatch(r"[0-9a-f]{40}", b.COMMIT) and b.COMMIT in b.SOURCE_URL
+    assert "/main/" not in b.SOURCE_URL and re.fullmatch(r"[0-9a-f]{64}", b.SOURCE_SHA256)
+    assert (b.OPSZ, b.WGHT, b.MAX_BYTES) == (14, (400, 600), 50_000)
+    assert "tnum" in b.FEATURES and (0x20B1, 0x20B1) in b.UNICODE_RANGES
+
+
+def test_the_inter_file_is_served_as_a_cached_font(saas_cfg):
+    """A first visit on a slow Android connection. Text paints at once in the tuned fallback
+    (font-display swap, tested above) while the file comes from our own origin as a font, and a
+    second visit reuses it: no ?v on its url, so a day of caching plus an ETag, and a new Inter
+    arrives under a new file name."""
+    r = client_for(saas_cfg).get(f"/static/fonts/{INTER.name}")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "font/woff2"
+    assert r.headers["cache-control"] == "public, max-age=86400"
+    assert r.headers.get("etag")
+    assert r.content == INTER.read_bytes()
 
 
 def test_the_headline_measure_is_font_relative_not_glyph_relative():

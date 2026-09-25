@@ -3,7 +3,14 @@
 {% from "_icons.html" import icon %}
 {% block title %}Dashboard · Agad{% endblock %}
 {% block html_attrs %} data-step="0"{% endblock %}
+{% block color_scheme %}light dark{% endblock %}
+{% block theme_color_meta %}<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111B2B" media="(prefers-color-scheme: dark)">{% endblock %}
 {% block motion_head %}{{ ui.motion_head() }}{% endblock %}
+{% block page_css %}
+  <link rel="stylesheet" href="{{ static_url('vendor/basecoat-1.0.2-agad.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/journey.css') }}">
+{% endblock %}
 {% block content %}
 {%- set N = [check_every_min | default(10), 50] | min %}
 {%- set retry = gmail_error | default(none) %}
@@ -68,12 +75,61 @@
     {% endcall %}
     {%- endif %}
 
+    {#- Three groups of rows, each a direct child of .dash__grid (the reveal layer reads .dash__grid > *).
+        Quiet Edit links replace the old secondary buttons; the panel above keeps the one primary. #}
     <div class="dash__grid">
-      {% call ui.sheet("Today", "today-title", cls="span-5") %}
-      {# The usage line stays one text node with single spaces. #}
-      <p class="usage">{{ usage_today }} / {{ daily_cap }}</p>
-      <p class="usage-label">applications today</p>
-      {{ ui.meter(usage_today, daily_cap) }}
+      {% call ui.sheet("Watching", "watch-title", cls="dash__group") %}
+      <div class="dash__row">
+        <p class="dash__label">Keywords</p>
+        {%- if keywords %}
+        <ul class="chip-list dash__value" aria-label="Your keywords">
+          {%- for k in keywords %}
+          {{ ui.chip(k.keyword) }}
+          {%- endfor %}
+        </ul>
+        {%- else %}
+        <p class="dash__value">None yet</p>
+        {%- endif %}
+        <a class="text-link dash__end" href="/onboarding/keywords">Edit<span class="visually-hidden"> keywords</span></a>
+      </div>
+      <div class="dash__row">
+        <p class="dash__label">Looking for</p>
+        <p class="dash__value">{% if profile and profile.job_type %}{{ profile.job_type }}{% else %}Not set yet{% endif %}</p>
+        <a class="text-link dash__end" href="/onboarding/profile">Edit details</a>
+      </div>
+      {% endcall %}
+
+      {% call ui.sheet("Gmail", "gm-title", cls="dash__group", arrive=(gmail_connected and not retry)) %}
+      <div class="dash__row">
+        <p class="dash__label addr-inline">{{ ui.email_text(user.email) }}</p>
+        {%- if gmail_connected %}
+        {{ ui.badge("Connected", "ok") }}
+        {%- else %}
+        {{ ui.badge("Not connected", "attention") }}
+        {%- endif %}
+      </div>
+      {%- if gmail_connected %}
+      {%- if retry %}
+      {#- The reconnect failed but the old grant still works: this is the only Connect Gmail on the page. #}
+      <div class="dash__row">{{ ui.link_button("/auth/connect-gmail", "Connect Gmail", variant="secondary", icon_name="mail") }}</div>
+      {%- endif %}
+      {% call ui.disclose("Disconnect Gmail", cls="disconnect") %}
+        <p>We'll stop sending you applications and remove our access at Google. You can reconnect any time.</p>
+        <form method="post" action="/auth/disconnect-gmail">
+          {{ ui.csrf_field(csrf_token) }}
+          {{ ui.button("Disconnect Gmail", variant="danger", busy="Disconnecting") }}
+        </form>
+      {% endcall %}
+      {%- endif %}
+      {% endcall %}
+
+      {% call ui.sheet("Today", "today-title", cls="dash__group") %}
+      <div class="dash__row">
+        <p class="dash__label">Applications today</p>
+        {# The usage line stays one text node with single spaces. #}
+        <p class="usage">{{ usage_today }} / {{ daily_cap }}</p>
+        {{ ui.meter(usage_today, daily_cap) }}
+      </div>
       {%- if usage_today >= daily_cap %}
       {# The lowercase limit phrase lives only in this capped branch. #}
       <p class="usage-note usage-note--cap">{{ icon('clock', 16) }}<span>Paused for today, daily limit reached. New matches today are skipped. We start again at 8:00 AM.</span></p>
@@ -83,59 +139,17 @@
       <p class="usage-note">{{ icon('clock', 16) }}<span>Resets at 8:00 AM Philippine time.</span></p>
       {%- endif %}
       {% endcall %}
+    </div>
 
-      {% call ui.sheet("Keywords you're watching", "kw-title", cls="span-7") %}
-      {%- if keywords %}
-      <ul class="chip-list" aria-label="Your keywords">
-        {%- for k in keywords %}
-        {{ ui.chip(k.keyword) }}
-        {%- endfor %}
-      </ul>
-      <div class="card-actions">{{ ui.link_button("/onboarding/keywords", "Edit keywords", variant="secondary") }}</div>
-      {%- else %}
-      <p class="kv">None yet.</p>
-      <div class="card-actions">{{ ui.link_button("/onboarding/keywords", "Add keywords", variant="secondary", icon_name="plus") }}</div>
-      {%- endif %}
-      {% endcall %}
-
-      {%- set gmail_title %}Gmail {% if gmail_connected %}{{ ui.badge("Connected", "ok") }}{% else %}{{ ui.badge("Not connected", "attention") }}{% endif %}{% endset %}
-      {% call ui.sheet(gmail_title, "gm-title", cls="span-7", arrive=(gmail_connected and not retry)) %}
-      {%- if gmail_connected %}
-      <p class="kv">Applications go to<b class="addr-inline">{{ ui.email_text(user.email) }}</b></p>
-      {%- if retry %}
-      <div class="card-actions">{{ ui.link_button("/auth/connect-gmail", "Connect Gmail", variant="secondary", icon_name="mail") }}</div>
-      {%- endif %}
-      {% call ui.disclose("Disconnect Gmail", cls="disconnect") %}
-        <p>We'll stop sending you applications and remove our access at Google. You can reconnect any time.</p>
-        <form method="post" action="/auth/disconnect-gmail">
-          {{ ui.csrf_field(csrf_token) }}
-          {{ ui.button("Disconnect Gmail", variant="danger", busy="Disconnecting") }}
-        </form>
-      {% endcall %}
-      {%- else %}
-      <p class="kv">New matches can't reach you until you connect it.</p>
-      <div class="card-actions">{{ ui.link_button("/auth/connect-gmail", "Connect Gmail", variant="secondary", icon_name="mail") }}</div>
-      {%- endif %}
-      {% endcall %}
-
-      {% call ui.sheet("Your details", "det-title", cls="span-5") %}
-      {%- if profile and profile.job_type %}
-      <p class="kv">Looking for<b>{{ profile.job_type }}</b></p>
-      {%- else %}
-      <p class="kv">Not set yet.</p>
-      {%- endif %}
-      <div class="card-actions">{{ ui.link_button("/onboarding/profile", "Edit details", variant="secondary") }}</div>
-      {% endcall %}
-
-      {% call ui.sheet("When an email arrives", "arr-title", cls="span-12 arrives") %}
-      {% call ui.route(horizontal=true) %}
+    <section class="dash__help" aria-labelledby="arr-title">
+      <h2 id="arr-title">When an email arrives</h2>
+      <ol>
         <li>Look for an email from <strong>me</strong> with 🆕 at the start of the subject.</li>
         <li>Copy the subject and message.</li>
         <li>Paste them into your application on onlinejobs.ph, check, and send.</li>
-      {% endcall %}
-      <p class="arrives__note">We only send jobs posted after you start, so every email is a fresh post. That's how you stay early.</p>
-      {% endcall %}
-    </div>
+      </ol>
+      <p>We only send jobs posted after you start, so every email is a fresh post. That's how you stay early.</p>
+    </section>
   </div>
 </div>
 {% endblock %}

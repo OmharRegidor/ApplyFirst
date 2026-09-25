@@ -1,9 +1,16 @@
 {% extends "base.html" %}
 {% import "_ui.html" as ui %}
 {% block title %}Keywords · Agad{% endblock %}
+{% block color_scheme %}light dark{% endblock %}
+{% block theme_color_meta %}<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111B2B" media="(prefers-color-scheme: dark)">{% endblock %}
 {% block body_class %}is-onboarding{% endblock %}
 {% block html_attrs %} data-step="3"{% endblock %}
 {% block motion_head %}{{ ui.motion_head() }}{% endblock %}
+{% block page_css %}
+  <link rel="stylesheet" href="{{ static_url('vendor/basecoat-1.0.2-agad.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/journey.css') }}">
+{% endblock %}
 {% block content %}
 {%- set N = [check_every_min | default(10), 50] | min %}
 {%- set A = apps_per_day | default(10) %}
@@ -27,7 +34,7 @@
         {% call ui.field("keyword", "Add a keyword", hint="1 to 3 words work best.", autocomplete="off", placeholder="e.g. virtual assistant", enterkeyhint="done", maxlength=60, autocapitalize="none") %}{{ ui.button("Add", variant="secondary", icon_name="plus", busy="Add") }}{% endcall %}
       </form>
       {%- endif %}
-      {# The saved list and the next step sit right under the add form, newest chip first, so after an add (the page reloads at the top) the new chip shows without scrolling on a phone however many there are.
+      {# The saved list sits right under the add form, newest chip first, so after an add (the page reloads at the top) the new chip shows without scrolling on a phone however many there are. The quick adds follow it, then the next step (spec 6.2).
          While the list is empty its heading is for screen readers only, which keeps the first quick add in a 360 x 740 first view. #}
       <div>
         <h2 class="h-mini{% if not keywords %} visually-hidden{% endif %}">Your keywords</h2>
@@ -41,16 +48,6 @@
         {{ ui.empty_state("No keywords yet", "Add at least one keyword to continue.") }}
         {%- endif %}
       </div>
-      {%- if keywords %}
-      <div class="actions">
-        {%- if activated | default(false) %}
-        {{ ui.link_button("/dashboard", "Done", size="lg") }}
-        <a class="text-link" href="/onboarding/preview">See a sample email</a>
-        {%- else %}
-        {{ ui.link_button("/onboarding/preview", "Next: see a sample", size="lg") }}
-        {%- endif %}
-      </div>
-      {%- endif %}
       {%- if suggestions and not at_cap %}
       <div>
         <h2 class="h-mini">Quick add</h2>
@@ -59,6 +56,16 @@
           {{ ui.quick_add(word, csrf_token) }}
           {%- endfor %}
         </ul>
+      </div>
+      {%- endif %}
+      {%- if keywords %}
+      <div class="actions">
+        {%- if activated | default(false) %}
+        {{ ui.link_button("/dashboard", "Done", size="lg") }}
+        <a class="text-link" href="/onboarding/preview">See a sample email</a>
+        {%- else %}
+        {{ ui.link_button("/onboarding/preview", "Next: see a sample", size="lg") }}
+        {%- endif %}
       </div>
       {%- endif %}
       {% call ui.alert('info', 'info', compact=true) %}<p>Start with 2 to 5 keywords. You get up to {{ A }} application{{ '' if A == 1 else 's' }} a day, and very broad words like “assistant” can use them up fast.</p>{% endcall %}

@@ -2,9 +2,16 @@
 {% import "_ui.html" as ui %}
 {% from "_icons.html" import icon %}
 {% block title %}Connect Gmail · Agad{% endblock %}
+{% block color_scheme %}light dark{% endblock %}
+{% block theme_color_meta %}<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111B2B" media="(prefers-color-scheme: dark)">{% endblock %}
 {% block body_class %}is-onboarding{% endblock %}
 {% block html_attrs %} data-step="1"{% endblock %}
 {% block motion_head %}{{ ui.motion_head() }}{% endblock %}
+{% block page_css %}
+  <link rel="stylesheet" href="{{ static_url('vendor/basecoat-1.0.2-agad.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/journey.css') }}">
+{% endblock %}
 {% block content %}
 {%- set retry = gmail_error | default(none) %}
 {%- set initial = (user.display_name or user.email)[:1] | upper %}
@@ -35,8 +42,7 @@
       </div>
       {{ ui.from_to(user.email, initial, "Same address on both ends. Only you get these emails.") }}
       {{ ui.ledger("short") }}
-      <div>
-        <h2 class="h-sub">What you'll see next</h2>
+      {% call ui.disclose("What will Google ask me?") %}
         <ol class="numbered">
           <li>Google asks you to choose an account. Choose <strong class="addr-inline">{{ ui.email_text(user.email) }}</strong>, the same one you signed in with.</li>
           {# BETA: remove after Google verification #}
@@ -45,7 +51,7 @@
           <li>Google asks to let Agad <strong>“Send email on your behalf”</strong>. That's Google's name for the send permission. If you see a box next to it, make sure it's ticked, then tap <strong>Continue</strong>.</li>
           <li>{% if editing %}You come straight back to Agad.{% else %}You come straight back here to finish setup.{% endif %}</li>
         </ol>
-      </div>
+      {% endcall %}
       <div class="control">
         {{ icon('lock') }}
         <div>
@@ -59,9 +65,9 @@
       </div>
       <div class="skip">
         {%- if editing %}
-        <a href="/dashboard">Not now</a>
+        <a class="text-link" href="/dashboard">Not now</a>
         {%- else %}
-        <a href="/onboarding/profile">Skip for now</a>
+        <a class="text-link" href="/onboarding/profile">Skip for now</a>
         <p>You can connect at the last step. We can't send you anything until you do.</p>
         {%- endif %}
       </div>

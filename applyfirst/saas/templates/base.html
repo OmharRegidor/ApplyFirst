@@ -4,8 +4,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
-  <meta name="theme-color" content="{% block theme_color %}#F3F6FA{% endblock %}">
+  <meta name="color-scheme" content="{% block color_scheme %}light{% endblock %}">
+  {% block theme_color_meta %}<meta name="theme-color" content="{% block theme_color %}#F3F6FA{% endblock %}">{% endblock %}
   <title>{% block title %}Agad{% endblock %}</title>
   {% block meta %}{% endblock %}
   {% block head_extra %}{% endblock %}

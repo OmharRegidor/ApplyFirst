@@ -7,3 +7,7 @@
 # The vendored library is pinned by sha256, so a CRLF checkout would change its bytes
 # and break the pin. Leave it exactly as committed.
 applyfirst/saas/static/vendor/** -text
+
+# The pinned upstream Basecoat file is hashed byte for byte as well (tools/basecoat/trim.py
+# re-creates static/vendor/basecoat-1.0.2-agad.css from it). Keep it exactly as committed.
+tools/basecoat/*.css -text

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui %}
+{% from "_icons.html" import icon %}
+{#- D8 (spec 6.4): every /auth/callback failure renders this page, status 400. The route passes an
+    empty context and the page reads no query value and no session, so it is the same bytes
+    whatever went wrong (no oracle). The reason is in the server log only. -#}
+{% block title %}Sign-in didn't finish · Agad{% endblock %}
+{% block color_scheme %}light dark{% endblock %}
+{% block theme_color_meta %}<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111B2B" media="(prefers-color-scheme: dark)">{% endblock %}
+{% block head_extra %}
+  <link rel="preload" href="/static/fonts/google-sans-button-500.woff2" as="font" type="font/woff2" crossorigin>
+{% endblock %}
+{% block page_css %}
+  <link rel="stylesheet" href="{{ static_url('vendor/basecoat-1.0.2-agad.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/journey.css') }}">
+{% endblock %}
+{% block body_class %}is-auth{% endblock %}
+{% block header_action %}{% endblock %}
+{% block content %}
+<div class="auth">
+  <div class="auth__sheet">
+    <div class="auth__head">
+      <span class="auth__icon" aria-hidden="true">{{ icon('info') }}</span>
+      <h1>Sign-in didn't finish</h1>
+      <p class="lead">You can try again, it only takes a moment.</p>
+    </div>
+    <div class="auth__action">
+      {{ ui.google_button(block=true) }}
+    </div>
+  </div>
+  <p class="auth__foot"><a class="text-link" href="/">Back to the homepage</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+MIT License
+
+Copyright (c) 2025 Ronan Berder
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Modified by Agad (2026-09-25): static/vendor/basecoat-1.0.2-agad.css is a trimmed copy of
+dist/basecoat.cdn.min.css from basecoat-css 1.0.2. tools/basecoat/trim.py keeps only the parts
+the sign-up pages use, wraps them in @layer basecoat and moves dark mode to
+prefers-color-scheme. Upstream sha256 8123677adb9bba43be3298e1543bcc5fc763e8cda3d32dc74c806046a3537ca0.

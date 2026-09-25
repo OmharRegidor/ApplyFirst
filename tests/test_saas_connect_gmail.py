@@ -35,7 +35,8 @@ def test_connect_gmail_url_requests_send_scope_offline(saas_cfg):
 def test_connect_gmail_requires_auth(saas_cfg):
     db.init_db(saas_cfg.db_path).close()
     c = TestClient(create_app(saas_cfg), follow_redirects=False)
-    assert c.get("/auth/connect-gmail").status_code == 401
+    r = c.get("/auth/connect-gmail")                # D9: to /login, no longer a 401 JSON reply
+    assert r.status_code == 302 and r.headers["location"] == "/login"
 
 
 def test_connect_gmail_redirects_and_sets_txn_cookie(saas_cfg):

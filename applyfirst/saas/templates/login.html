@@ -2,8 +2,15 @@
 {% import "_ui.html" as ui %}
 {% from "_icons.html" import icon %}
 {% block title %}Sign in · Agad{% endblock %}
+{% block color_scheme %}light dark{% endblock %}
+{% block theme_color_meta %}<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111B2B" media="(prefers-color-scheme: dark)">{% endblock %}
 {% block head_extra %}
   <link rel="preload" href="/static/fonts/google-sans-button-500.woff2" as="font" type="font/woff2" crossorigin>
+{% endblock %}
+{% block page_css %}
+  <link rel="stylesheet" href="{{ static_url('vendor/basecoat-1.0.2-agad.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/journey.css') }}">
 {% endblock %}
 {% block body_class %}is-auth{% endblock %}
 {% block header_action %}{% endblock %}
@@ -11,7 +18,6 @@
 <div class="auth">
   <div class="auth__sheet">
     <div class="auth__head">
-      {{ ui.mark() }}
       <h1>Sign in to Agad</h1>
       <p class="lead">New here? The same button sets up your account.</p>
     </div>

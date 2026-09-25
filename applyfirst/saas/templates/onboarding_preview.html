@@ -2,9 +2,16 @@
 {% import "_ui.html" as ui %}
 {% from "_icons.html" import icon %}
 {% block title %}Preview · Agad{% endblock %}
+{% block color_scheme %}light dark{% endblock %}
+{% block theme_color_meta %}<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111B2B" media="(prefers-color-scheme: dark)">{% endblock %}
 {% block body_class %}is-onboarding{% endblock %}
 {% block html_attrs %} data-step="4"{% endblock %}
 {% block motion_head %}{{ ui.motion_head() }}{% endblock %}
+{% block page_css %}
+  <link rel="stylesheet" href="{{ static_url('vendor/basecoat-1.0.2-agad.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/journey.css') }}">
+{% endblock %}
 {% block content %}
 {%- set initial = (user.display_name or user.email)[:1] | upper %}
 {%- set editing = activated | default(false) %}

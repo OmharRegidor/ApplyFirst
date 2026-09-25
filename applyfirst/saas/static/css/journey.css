@@ -1,0 +1,199 @@
+/* Agad sign-up journey. Loaded after app.css by the journey templates only. All but
+   @font-face sits in @layer journey. Terse on purpose: the gzip cap is 8,000 B. */
+
+/* ---- 1 fonts */
+/* Inter 4.1 (OFL, licenses/OFL-inter.txt), built by tools/fonts/build_inter.py, which also
+   prints the fallback numbers. No ?v on the url: the file name carries the version. */
+@font-face{font-family:"Inter Agad";font-style:normal;font-weight:400 600;font-display:swap;
+  src:url("../fonts/inter-4.1-latin-wght.woff2") format("woff2");
+  unicode-range:U+0020-007E,U+00A0-00FF,U+2000-206F,U+20B1}
+@font-face{font-family:"Inter Agad Fallback";src:local("Segoe UI"),local("SegoeUI"),
+  local("Roboto"),local("Roboto Regular"),local("Roboto-Regular");size-adjust:107.03%;
+  ascent-override:90.6%;descent-override:22.54%;line-gap-override:0%}
+
+@layer journey{
+/* ---- 2 tokens */
+/* Spec 5.3. Light by default, dark follows the phone. --j-primary is the frozen #0B6BC7 in both
+   schemes (motion.css's af-fill starts from it). The second rule points app.css's own tokens at
+   ours, so every app.css rule that reads them follows dark mode without being restated. */
+:root{color-scheme:light dark;--j-ground:#F3F6FA;--j-surface:#FFFFFF;--j-text:#0B2545;--j-muted:#4E5E76;--j-edge:#74859D;--j-link:#0B6BC7;--j-primary:#0B6BC7;--j-primary-hover:#0A5AA8;--j-hairline:rgba(11,37,69,.1);--j-attn-fg:#7A4400;--j-attn-bg:#FFF6E6;--j-ok-fg:#11663A;--j-ok-bg:#EAF7EF;--j-danger-fg:#B3261E;--j-shadow:0 1px 2px rgba(11,37,69,.06)}
+:root,.mailcard,.gsi-btn{--ground:var(--j-ground);--surface:var(--j-surface);--sunk:var(--j-ground);--line:var(--j-hairline);--line-strong:var(--j-edge);--text-strong:var(--j-text);--text:var(--j-text);--text-muted:var(--j-muted)}
+/* The sample email and Google's button stay light in both schemes. var() resolves where it is
+   declared, so the island redefines the --j-* values and sits on both mapping rules. */
+.mailcard,.gsi-btn{color-scheme:light}
+.mailcard{color:var(--j-text)}
+@media (prefers-color-scheme:dark){
+:root{--j-ground:#0A111C;--j-surface:#111B2B;--j-text:#E6EDF5;--j-muted:#9DACC0;--j-edge:#6A7B93;--j-link:#5CB8F0;--j-hairline:rgba(255,255,255,.12);--j-attn-fg:#F5C66B;--j-attn-bg:#2A2110;--j-ok-fg:#6FD39A;--j-ok-bg:#10281C;--j-danger-fg:#FF8A80;--j-shadow:0 1px 2px rgba(0,0,0,.5)}
+.mailcard,.gsi-btn{--j-ground:#F3F6FA;--j-surface:#FFFFFF;--j-text:#0B2545;--j-muted:#4E5E76;--j-edge:#74859D;--j-link:#0B6BC7;--j-hairline:rgba(11,37,69,.1);--j-attn-fg:#7A4400;--j-attn-bg:#FFF6E6;--j-ok-fg:#11663A;--j-ok-bg:#EAF7EF;--j-danger-fg:#B3261E;--j-shadow:0 1px 2px rgba(11,37,69,.06)}
+}
+/* ---- 3 basecoat-map */
+/* Spec 4.4: Basecoat's names on our palette, then the --color-* aliases its trimmed rules read. */
+:root,.mailcard,.gsi-btn{--background:var(--j-ground);--foreground:var(--j-text);--card:var(--j-surface);--card-foreground:var(--j-text);--primary:#0B6BC7;--primary-foreground:#FFFFFF;--secondary:var(--j-surface);--muted:var(--j-ground);--muted-foreground:var(--j-muted);--border:var(--j-hairline);--input:var(--j-edge);--ring:var(--j-link);--destructive:var(--j-danger-fg);--radius:12px;--color-background:var(--background);--color-foreground:var(--foreground);--color-card:var(--card);--color-card-foreground:var(--card-foreground);--color-primary:var(--primary);--color-primary-foreground:var(--primary-foreground);--color-secondary:var(--secondary);--color-muted:var(--muted);--color-muted-foreground:var(--muted-foreground);--color-border:var(--border);--color-input:var(--input);--color-ring:var(--ring);--color-destructive:var(--destructive)}
+/* ---- 4 base */
+/* Spec 5.1. Phone sizes by default, computer sizes on (hover:hover) and (pointer:fine), never on
+   width. Type goes through app.css's own tokens (body, h1, h2, .lead, captions, small notes), so
+   no element rule here outranks an app.css class. font-size-adjust none: Inter at its nominal
+   size, and the fallback face's size-adjust keeps working (measured in Task 2). */
+:root{--fs-body:1rem;--fs-lead:var(--fs-body);--fs-small:.9375rem;--fs-caption:.75rem;--fs-h1:1.75rem;--fs-h3:1.25rem}
+body{font-family:-apple-system,BlinkMacSystemFont,"Inter Agad","Inter Agad Fallback",system-ui,"Segoe UI",Roboto,sans-serif;font-size-adjust:none;line-height:1.5;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+h1,h2,h3{font-weight:600}
+:where(a:not(.btn,.gsi-btn,.skip-link)){color:var(--j-link)}
+:focus-visible{outline-color:var(--j-link)}
+.caption{font-weight:500}
+@media (hover:hover) and (pointer:fine){:root{--fs-body:.9375rem;--fs-small:.875rem;--fs-h1:1.875rem}h3{font-size:1rem}}
+/* ---- 5 components */
+/* Every Basecoat leak spec 5.2 lists is switched off here by name (tests/test_saas_journey.py). */
+.btn{height:auto;min-height:44px;padding:0 16px;gap:8px;border-radius:var(--r-md);background-clip:border-box;font-size:1rem;font-weight:500;box-shadow:none;transition:none}
+.btn:active{transform:none;translate:none}
+.btn:disabled{opacity:1}
+.btn:focus-visible,.input:focus-visible{outline-style:solid}
+.btn svg,.alert>svg{width:20px;height:20px}
+.btn svg[width="16"]{width:16px;height:16px}
+.btn--primary{background-color:var(--j-primary);background-image:none;color:#FFFFFF}
+.btn--secondary{background:var(--j-surface);color:var(--j-text);border-color:var(--j-edge)}
+@media (hover:hover){.btn--primary:hover{background-color:var(--j-primary-hover)}.btn--secondary:hover{background:var(--j-ground)}}
+/* Frozen (spec 5.2, 9): disabled and busy stay the af-fill start, and win over hover. */
+.btn--primary:is([disabled],[data-state=busy]){background-color:var(--j-primary);opacity:1;border-radius:var(--r-md)}
+@media (hover:hover) and (pointer:fine){.btn{min-height:40px;font-size:.9375rem}}
+/* Quiet actions: link colour, and a 44px tap band from ::after (never on a .btn). */
+.text-link,.back-link{position:relative;min-height:0;font-weight:500;text-decoration:none}
+.text-link::after,.back-link::after{content:"";position:absolute;inset:50% -8px auto;height:44px;margin-top:-22px}
+.text-link:hover,.back-link:hover{text-decoration:underline}
+/* Fields: label above, control, hint below. The hint keeps its id and aria-describedby. */
+.field>*{order:2}
+.field>:is(.field__label,.input,.add-row){order:0}
+.field>.field__hint{order:1}
+.field__label{display:block;font-size:var(--fs-caption);font-weight:500;line-height:1.4}
+.field__hint{font-size:var(--fs-small);color:var(--j-muted)}
+.input{height:auto;min-height:44px;padding:9px 12px;border:1px solid var(--j-edge);border-radius:var(--r-sm);background:var(--j-surface);color:var(--j-text);font-size:max(16px,1rem);line-height:1.5;box-shadow:none;transition:none}
+textarea.input{field-sizing:fixed}
+@media (hover:hover){.input:hover{border-color:var(--j-muted)}}
+.input:focus{border-color:var(--j-link)}
+.input[aria-invalid=true]{border-color:var(--amber-600);box-shadow:inset 0 0 0 1px var(--amber-600)}
+/* Groups never clip: overflow:hidden would cut focus rings. */
+.sheet,.card{background:var(--j-surface);border:1px solid var(--j-hairline);border-radius:var(--r-md);box-shadow:var(--j-shadow);overflow:visible}
+.alert{background:var(--j-ground);border:1px solid var(--j-hairline);border-radius:var(--r-md);color:var(--j-text);line-height:1.5}
+.alert>svg{grid-row:auto;translate:none}
+.alert>.icon{color:var(--j-link)}
+.alert--attention{background:var(--j-attn-bg);color:var(--j-attn-fg)}
+.alert--success{background:var(--j-ok-bg);color:var(--j-ok-fg)}
+.alert--danger{color:var(--j-danger-fg)}
+.alert:is(.alert--attention,.alert--success,.alert--danger)>.icon,.alert strong{color:inherit}
+.badge{height:auto;overflow:visible;padding:2px 10px 2px 8px;border:0;font-size:var(--fs-caption);font-weight:500;transition:none}
+.badge--ok{background:var(--j-ok-bg);color:var(--j-ok-fg)}
+.badge--attention{background:var(--j-attn-bg);color:var(--j-attn-fg)}
+/* High contrast keeps the shapes app.css gave them (a hairline would fade to nothing). */
+@media (forced-colors:active){.btn,.input,.sheet,.card,.alert,.badge{border:1px solid CanvasText}:focus-visible{outline-color:Highlight}}
+/* ---- 6 chrome */
+/* One header, one height on every page, hairline bottom, not sticky, no blur (spec 5.2). */
+.site-header{padding-block:0;background:var(--j-surface);border-bottom:1px solid var(--j-hairline)}
+.site-header__in{min-height:56px}
+.brand{color:var(--j-text);font-weight:600}
+/* A light, short footer: the legal links, the contact line and "not affiliated" stay. */
+.site-footer{background:none;box-shadow:none;border-top:1px solid var(--j-hairline);color:var(--j-muted);padding-block:8px 24px}
+.site-footer a{color:var(--j-muted)}
+.site-footer a:hover{color:var(--j-text)}
+.footer__grid{display:flex;flex-wrap:wrap;align-items:center;gap:0 24px}
+.footer__grid>:first-child{display:none}
+.footer__grid>div{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px}
+.footer__small{margin-top:0;padding-top:0;border-top:0}
+/* Too short to cross reveal.js's 90% line on a wide screen: shown outright, and never faded in. */
+.footer__grid>*{opacity:1;transform:none;animation:none}
+/* The mark's navy tile melts into the dark header, so dark mode draws its edge. */
+@media (prefers-color-scheme:dark){.site-header .mark{border-radius:8px;box-shadow:0 0 0 1px var(--j-edge)}}
+/* ---- 7 login */
+.is-auth main{display:flex;flex-direction:column;justify-content:center}
+.auth{padding-block:24px 48px}
+.auth__sheet{gap:20px;border-color:var(--j-hairline);border-radius:var(--r-md);box-shadow:var(--j-shadow);padding:28px 20px}
+.auth__head{gap:8px}
+.auth__head .lead{font-size:inherit;line-height:1.5;color:var(--j-muted)}
+.auth .note .icon{color:var(--j-link)}
+.auth__foot{margin-top:16px;text-align:center}
+@media (min-width:640px){.auth{padding-block:64px}.auth__sheet{padding:32px}}
+/* ---- 8 onboarding */
+/* Spec 6.2. Colours, type and corners only, plus Step 4's row gap: every size, place and animation
+   the frozen motion files read (spec 9) stays app.css's, and the layout still switches at 960 and
+   1100px. app.css
+   paints these pages with fixed light blues, so three local tokens carry the dark versions. */
+:root{--ob-tint:#EEF7FD;--ob-rule:#C9D6E6;--ob-alarm:#FDEEEC}
+@media (prefers-color-scheme:dark){:root{--ob-tint:#15283D;--ob-rule:#2E4057;--ob-alarm:#3A1E1B}}
+.ob-main .lead{color:var(--j-muted)}
+.h-mini,.sample__label{font-size:var(--fs-caption);font-weight:500}
+/* Stepper: passed bars and nodes, the rail's current row and line. */
+.stepper__item.is-passed::before{background:var(--j-text)}
+@media (min-width:960px){
+.ob-main{border-radius:var(--r-md);box-shadow:var(--j-shadow)}
+.stepper__marker,.rail__edit{background:var(--ob-tint)}
+.stepper__item:not(:last-child)::after{background:var(--ob-rule)}
+.is-passed .stepper__node{background:var(--j-text);border-color:var(--j-text);color:var(--j-surface)}
+}
+@media (forced-colors:active) and (min-width:960px){.stepper__marker{background:Highlight}.stepper__item[aria-current=step] .stepper__full{forced-color-adjust:none}}
+/* Step 1 and 2: the route, the sealed-and-sent row, the permission rows. */
+.fromto,.gconf,.kw{background:var(--ob-tint);border-color:var(--j-hairline)}
+.fromto,.gconf,.ledger,.empty,.sample,.mailcard{border-radius:var(--r-md)}
+.fromto .addr{border-color:var(--j-hairline)}
+.fromto__note{color:var(--j-text)}
+.fromto__path i,.gconf__line,.preview__link::before{background:var(--ob-rule)}
+.fromto__node{border-color:var(--j-link);color:var(--j-link)}
+.avatar,.ob-main .numbered>li::before{background:var(--j-text);color:var(--j-surface)}
+.ledger__icon,.tag--sky{background:var(--ob-tint);color:var(--j-link)}
+.control .icon,.ob-main .disclose>summary .icon,.empty__icon{color:var(--j-muted)}
+.ob-main .disclose{border-block:1px solid var(--j-hairline)}
+.form .paste{background:var(--j-ground);border-color:var(--j-hairline)}
+/* Step 3: chips and quick-add pills. No overflow and no box-shadow on .kw: motion.css rings it. */
+.kw,.quick{color:var(--j-text);font-size:var(--fs-small);font-weight:500}
+.kw__remove:is(:hover,:focus-visible){background:var(--ob-alarm);color:var(--j-danger-fg)}
+.quick .icon{color:var(--j-link)}
+.quick:hover{background:var(--ob-tint);border-color:var(--j-link)}
+/* Step 4: below about 370px the two links stack, and rows this far apart keep each 44px tap band
+   whole (band minus line, computer text included). */
+.link-row{row-gap:22px}
+@media (forced-colors:active){.fromto,.gconf,.kw,.ob-main .disclose{border-color:CanvasText}}
+/* ---- 9 dashboard */
+/* Spec 6.3. The status panel, then one 40rem column of three groups of rows, then a plain help
+   note. Every selector names a class only dashboard.html prints. The panel frame is motion's
+   (navy, 24px): only its edge colour is set here, the hairline, which vanishes on navy in light
+   and is white at 12% in dark. The dark block redraws the fixed light tints of the panels. */
+.dash__stack{max-width:40rem}
+.dash__grid{grid-template-columns:minmax(0,1fr);gap:16px}
+.dash__group{padding:14px 20px 4px}
+.dash__group>.card-title{margin:0;font-size:var(--fs-caption);font-weight:500;letter-spacing:0;color:var(--j-muted)}
+.dash__row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 16px;padding-block:12px}
+.dash__row+.dash__row,.dash__group>.disconnect{border-top:1px solid var(--j-hairline)}
+.dash__group>.disconnect{margin:0;padding:0}
+.dash__label{font-weight:500}
+.dash__value{color:var(--j-muted)}
+.dash__row>:is(.dash__value,.meter,.bar){grid-column:1/-1;margin:0}
+.dash__end{grid-area:1/2}
+.dash__row>.btn{justify-self:start}
+.usage{font-size:inherit;font-weight:600;line-height:inherit;letter-spacing:0}
+.dash__group>.usage-note{padding-bottom:12px}
+.usage-note .icon{color:inherit}
+.usage-note--near{color:var(--j-attn-fg)}
+.usage-note--cap,.chip{color:var(--j-text)}
+.chip .icon,.dash .disclose>summary .icon{color:var(--j-muted)}
+.meter--full li.on,.bar__fill--100,.dash .numbered>li::before{background:var(--j-text)}
+.dash .numbered>li::before{color:var(--j-surface)}
+.dash__help{padding-inline:4px;font-size:var(--fs-small);color:var(--j-muted)}
+.dash__help h2{font-size:inherit;color:var(--j-text)}
+.dash__help ol{margin:6px 0;padding-left:20px}
+.status--live{border-color:var(--j-hairline)}
+@media (prefers-color-scheme:dark){
+.status--gmail{background:var(--j-surface)}
+.status--gmail,.status--gmail details{border-color:rgba(245,198,107,.35)}
+.status--gmail .status__icon{background:rgba(245,198,107,.14);color:var(--j-attn-fg)}
+.status--paused{background:#0F2436;border-color:rgba(92,184,240,.3)}
+.status__icon,.status--paused .status__kw .icon{color:var(--j-link)}
+.status--empty .status__icon,.status--paused .status__icon{background:rgba(92,184,240,.12)}
+}
+/* ---- 10 signin-failed */
+.auth__icon{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;background:var(--j-attn-bg);color:var(--j-attn-fg)}
+/* ---- 11 motion */
+/* Everything that moves waits for no-preference: 100 to 300ms on --ease-land (spec 5.4). */
+@media (prefers-reduced-motion:no-preference){
+.btn{transition:transform .2s var(--ease-land),background-color .2s var(--ease-land),border-color .2s var(--ease-land)}
+.btn:active{transform:scale(.97)}
+.input{transition:border-color .2s var(--ease-land)}
+}
+@media (prefers-reduced-motion:reduce){::details-content{transition:none!important}}
+}

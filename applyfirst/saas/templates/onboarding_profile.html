@@ -1,9 +1,16 @@
 {% extends "base.html" %}
 {% import "_ui.html" as ui %}
 {% block title %}Your details · Agad{% endblock %}
+{% block color_scheme %}light dark{% endblock %}
+{% block theme_color_meta %}<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111B2B" media="(prefers-color-scheme: dark)">{% endblock %}
 {% block body_class %}is-onboarding{% endblock %}
 {% block html_attrs %} data-step="2"{% endblock %}
 {% block motion_head %}{{ ui.motion_head() }}{% endblock %}
+{% block page_css %}
+  <link rel="stylesheet" href="{{ static_url('vendor/basecoat-1.0.2-agad.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/journey.css') }}">
+{% endblock %}
 {% block content %}
 {#- form_error is None, {"kind": "blank"} or {"kind": "too_long", "field": ..., "limit": ...}. The server builds
     it from a whitelist, so no query value ever reaches this page. over_cap_fields names every SAVED field that is
@@ -34,7 +41,7 @@
       {{ ui.gmail_confirm(user.email, initial) }}
       {%- endif %}
       {# maxlength mirrors the server caps in app.py (80, 80, 150, 5000). #}
-      <form class="form" method="post" action="/onboarding/profile">
+      <form class="form sheet" method="post" action="/onboarding/profile">
         {{ ui.csrf_field(csrf_token) }}
         {#- Blank: every field is tied to the alert. Too long: each flagged field is, and its line links to the field.
             role, id and focus sit on the lines. The "weren't saved" sentence after them is read as their description. -#}

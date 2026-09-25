@@ -94,19 +94,21 @@ def test_retry_page_logout_form_carries_a_valid_csrf(saas_cfg, master_key):
     assert tokens and session.verify_csrf(saas_cfg.session_secret, tokens[0], user.id)
 
 
-# --- T24: surfaces that must NOT change --------------------------------------------------
+# --- T24: sign-in and signed-out visits never get this page (D8, D9) ----------------------
 
-def test_login_callback_failures_stay_generic_json(saas_cfg):
+def test_login_callback_failures_get_their_own_page_not_this_one(saas_cfg):
     db.init_db(saas_cfg.db_path).close()
     r = client_for(saas_cfg).get("/auth/callback", params={"error": "access_denied"})
     assert r.status_code == 400
-    assert r.json() == {"error": "sign-in failed; please try again"}
+    assert r.headers["content-type"].startswith("text/html")
+    assert by_id(r.text, "gmail-retry") is None
+    assert [clean(e.text) for e in elements(r.text) if e.tag == "h1"] == ["Sign-in didn't finish"]
 
 
-def test_anonymous_gmail_callback_is_still_401(saas_cfg):
+def test_anonymous_gmail_callback_goes_to_login(saas_cfg):
     db.init_db(saas_cfg.db_path).close()
     r = client_for(saas_cfg).get("/auth/gmail-callback", params={"error": "access_denied"})
-    assert r.status_code == 401
+    assert r.status_code == 302 and r.headers["location"] == "/login"
 
 
 # --- T21 to T23: the page (needs Jazelei's Step 1 retry note) ----------------------------

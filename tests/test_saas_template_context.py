@@ -80,6 +80,7 @@ def test_processor_keys_never_collide_with_route_context(saas_cfg, master_key, m
     anon = client_for(saas_cfg)
     for path in ("/", "/login", "/privacy", "/terms"):
         anon.get(path)
+    anon.get("/auth/callback", params={"error": "access_denied"})       # D8: signin_failed.html
     fresh = client_for(saas_cfg, seed_user(saas_cfg, sub="a", email="a@x.com"))
     fresh.get("/onboarding/connect_gmail")
     fresh.get("/onboarding/profile")
@@ -91,7 +92,7 @@ def test_processor_keys_never_collide_with_route_context(saas_cfg, master_key, m
     assert {name for name, _ in seen} == {
         "home.html", "login.html", "privacy.html", "terms.html", "onboarding_connect_gmail.html",
         "onboarding_profile.html", "onboarding_keywords.html", "onboarding_preview.html",
-        "dashboard.html"}
+        "dashboard.html", "signin_failed.html"}
     for name, context in seen:
         keys = set(context)
         assert not keys & PROCESSOR_KEYS, f"{name} route context sets {keys & PROCESSOR_KEYS}"

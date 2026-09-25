@@ -29,7 +29,8 @@ def _fill_profile(c):
 def test_onboarding_requires_auth(saas_cfg):
     db.init_db(saas_cfg.db_path).close()
     c = TestClient(create_app(saas_cfg), follow_redirects=False)
-    assert c.get("/onboarding").status_code == 401
+    r = c.get("/onboarding")                        # D9: to /login, no longer a 401 JSON reply
+    assert r.status_code == 302 and r.headers["location"] == "/login"
 
 
 def test_state_machine_progresses_with_data(saas_cfg):

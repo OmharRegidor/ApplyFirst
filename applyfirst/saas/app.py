@@ -38,6 +38,10 @@ from applyfirst.saas.tenant import tenant_scope
 _LOG = log.get_logger("saas.app")
 
 
+class _SignedOut(Exception):
+    """Raised by require_user_or_login. create_app turns it into a 302 to /login (D9)."""
+
+
 def check_every_min(worker_interval: int) -> int:
     """The poll interval (seconds) as the whole minutes pages quote, half up, at least 1."""
     return max(1, (int(worker_interval) + 30) // 60)
@@ -249,6 +253,12 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
                                          status_code=429)
         return await call_next(request)
 
+    @app.exception_handler(_SignedOut)
+    async def _signed_out_to_login(request: Request, exc: _SignedOut) -> RedirectResponse:
+        # D9: no next= parameter, because /onboarding already sends a signed-in user to the
+        # right step. The security headers middleware still stamps this response.
+        return RedirectResponse("/login", status_code=302)
+
     # --- dependencies --------------------------------------------------------
 
     def get_cfg(request: Request) -> SaaSConfig:
@@ -269,6 +279,14 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
     def require_user(user: db.User | None = Depends(current_user)) -> db.User:
         if user is None:
             raise HTTPException(status_code=401, detail="authentication required")
+        return user
+
+    def require_user_or_login(user: db.User | None = Depends(current_user)) -> db.User:
+        """require_user for the signed-in GET pages of spec 6.5 (D9): a visitor with no valid
+        session is sent to /login instead of getting a 401 JSON reply. POST routes and the
+        JSON API keep require_user, so their 401 and 403 replies do not change."""
+        if user is None:
+            raise _SignedOut()
         return user
 
     async def require_csrf(request: Request, user: db.User = Depends(require_user)) -> None:
@@ -356,24 +374,24 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
                       conn=Depends(get_conn)):
         params = request.query_params
         if params.get("error"):
-            return _fail(cfg_)
+            return _fail(request, cfg_, "google_error")
 
         txn = session.read_oauth_txn(request, cfg_.session_secret, cfg_.secure_cookies)
         returned_state = params.get("state", "")
         # Validate state BEFORE touching the code (defeats login-CSRF / token replay).
         if not txn or not returned_state or returned_state != txn.get("state"):
-            return _fail(cfg_)
+            return _fail(request, cfg_, "state")
 
         code = params.get("code")
         if not code:
-            return _fail(cfg_)
+            return _fail(request, cfg_, "no_code")
 
         try:
             identity = google_oauth.fetch_identity(
                 cfg_, code=code, code_verifier=txn["verifier"], expected_nonce=txn["nonce"],
             )
         except google_oauth.OAuthError:
-            return _fail(cfg_)
+            return _fail(request, cfg_, "exchange")
 
         user = db.upsert_user_by_google(conn, **identity)
         resp = RedirectResponse("/dashboard", status_code=302)
@@ -471,7 +489,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
     # --- onboarding wizard ---------------------------------------------------
 
     @app.get("/onboarding")
-    def onboarding_root(user: db.User = Depends(require_user), conn=Depends(get_conn)):
+    def onboarding_root(user: db.User = Depends(require_user_or_login), conn=Depends(get_conn)):
         step = onboarding.next_step(conn, user.id)
         if step == "done":
             return RedirectResponse("/dashboard", status_code=302)
@@ -487,14 +505,14 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         }
 
     @app.get("/onboarding/connect_gmail", response_class=HTMLResponse)
-    def onboarding_connect_gmail(request: Request, user: db.User = Depends(require_user),
+    def onboarding_connect_gmail(request: Request, user: db.User = Depends(require_user_or_login),
                                  conn=Depends(get_conn)):
         return _TEMPLATES.TemplateResponse(request, "onboarding_connect_gmail.html",
                                            _connect_gmail_ctx(user, conn,
                                                               _gmail_error_flag(request)))
 
     @app.get("/onboarding/profile", response_class=HTMLResponse)
-    def onboarding_profile_form(request: Request, user: db.User = Depends(require_user),
+    def onboarding_profile_form(request: Request, user: db.User = Depends(require_user_or_login),
                                 conn=Depends(get_conn)):
         profile = db.get_profile(conn, user.id)
         return _TEMPLATES.TemplateResponse(request, "onboarding_profile.html", {
@@ -527,7 +545,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         return RedirectResponse(where, status_code=302)
 
     @app.get("/onboarding/keywords", response_class=HTMLResponse)
-    def onboarding_keywords_page(request: Request, user: db.User = Depends(require_user),
+    def onboarding_keywords_page(request: Request, user: db.User = Depends(require_user_or_login),
                                  conn=Depends(get_conn)):
         profile = db.get_profile(conn, user.id)
         if profile is None or not profile.is_complete:
@@ -554,7 +572,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         return RedirectResponse("/onboarding/keywords", status_code=302)
 
     @app.get("/onboarding/preview", response_class=HTMLResponse)
-    def onboarding_preview_page(request: Request, user: db.User = Depends(require_user),
+    def onboarding_preview_page(request: Request, user: db.User = Depends(require_user_or_login),
                                 conn=Depends(get_conn)):
         profile = db.get_profile(conn, user.id)
         if profile is None or not profile.is_complete:
@@ -585,7 +603,8 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
     # --- connect / disconnect Gmail (incremental gmail.send authorization) ----
 
     @app.get("/auth/connect-gmail")
-    def connect_gmail(cfg_: SaaSConfig = Depends(get_cfg), user: db.User = Depends(require_user)):
+    def connect_gmail(cfg_: SaaSConfig = Depends(get_cfg),
+                      user: db.User = Depends(require_user_or_login)):
         if not cfg_.google_client_id:
             raise HTTPException(status_code=503, detail="Google is not configured")
         state = google_oauth.make_state()
@@ -598,7 +617,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
 
     @app.get("/auth/gmail-callback")
     def gmail_callback(request: Request, cfg_: SaaSConfig = Depends(get_cfg),
-                       user: db.User = Depends(require_user), conn=Depends(get_conn)):
+                       user: db.User = Depends(require_user_or_login), conn=Depends(get_conn)):
         params = request.query_params
         if params.get("error"):
             return _gmail_retry(request, cfg_, user, conn, "google_error")
@@ -667,10 +686,13 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         db.clear_gmail_credential(conn, user.id)
         return RedirectResponse("/dashboard", status_code=302)
 
-    def _fail(cfg_: SaaSConfig) -> JSONResponse:
-        # One generic message for every failure mode — no oracle that distinguishes
-        # bad-state vs missing-code vs verify-failure. Always clears the oauth txn.
-        resp = JSONResponse({"error": "sign-in failed; please try again"}, status_code=400)
+    def _fail(request: Request, cfg_: SaaSConfig, reason: str) -> HTMLResponse:
+        # D8: every failure mode shows the SAME "Sign-in didn't finish" page (still 400, now
+        # HTML), so the page is no oracle that tells bad-state from missing-code from
+        # verify-failure. The page never reads the session or the query, so it is the same
+        # bytes for everyone. The reason is logged server-side only. Always clears the txn.
+        log.event(_LOG, "signin_failed", level=logging.WARNING, reason=reason)
+        resp = _TEMPLATES.TemplateResponse(request, "signin_failed.html", {}, status_code=400)
         session.clear_oauth_txn(resp, cfg_.secure_cookies)
         return resp
 
