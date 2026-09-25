@@ -9,6 +9,8 @@ from __future__ import annotations
 import dataclasses
 from urllib.parse import parse_qs, urlparse
 
+import pytest
+from fastapi import Response
 from fastapi.testclient import TestClient
 
 from applyfirst.saas import db, google_oauth, session
@@ -121,6 +123,70 @@ def test_secure_cookies_use_host_prefix_and_secure_flag(saas_cfg):
     set_cookies = "; ".join(r.headers.get_list("set-cookie"))
     assert "__Host-applyfirst_oauth" in set_cookies
     assert "Secure" in set_cookies
+
+
+# A browser replaces a cookie, and so deletes it, only when the delete carries the same rules
+# the cookie was set with: a __Host- cookie is dropped on the floor without Secure and Path=/.
+# Starlette's delete_cookie defaults to secure=False and httponly=False, and the httpx cookie jar
+# in TestClient does not enforce the __Host- rules, so only the raw header shows a bad delete.
+
+_HOST_RULES = {"path": "/", "secure": "", "httponly": "", "samesite": "lax"}
+
+
+def _cookie_rules(header: str) -> dict[str, str]:
+    """A Set-Cookie header's attributes, names lower-cased, without the two that say when."""
+    rules = {}
+    for part in header.split(";")[1:]:
+        name, _, value = part.strip().partition("=")
+        rules[name.lower()] = value
+    return {k: v for k, v in rules.items() if k not in ("max-age", "expires")}
+
+
+def _deletes(headers: list[str], name: str) -> list[str]:
+    return [h for h in headers if h.startswith(name + "=") and "Max-Age=0" in h]
+
+
+@pytest.mark.parametrize("secure", [True, False], ids=["secure", "http"])
+@pytest.mark.parametrize("which", ["session", "oauth"])
+def test_a_cookie_is_deleted_with_the_rules_it_was_set_with(secure, which):
+    made, gone = Response(), Response()
+    if which == "session":
+        session.set_session(made, b"s" * 32, secure, "u1")
+        session.clear_session(gone, secure)
+        name = session.session_cookie_name(secure)
+    else:
+        session.set_oauth_txn(made, b"s" * 32, secure, state="s", nonce="n", verifier="v")
+        session.clear_oauth_txn(gone, secure)
+        name = session.oauth_cookie_name(secure)
+    [set_header] = made.headers.getlist("set-cookie")
+    [delete] = _deletes(gone.headers.getlist("set-cookie"), name)
+    assert set_header.startswith(name + "=")
+    assert _cookie_rules(delete) == _cookie_rules(set_header)
+    if secure:
+        assert name.startswith("__Host-") and _cookie_rules(delete) == _HOST_RULES
+
+
+def test_logout_and_a_failed_callback_delete_the_host_cookies_a_browser_holds(saas_cfg):
+    """Production: Log out must really sign out, and the D8 page must really clear the OAuth
+    transaction (spec 6.4). Both deletes carry Secure, HttpOnly, Path=/ and SameSite."""
+    cfg = dataclasses.replace(saas_cfg, secure_cookies=True)
+    conn = db.init_db(cfg.db_path)
+    user = db.upsert_user_by_google(conn, google_sub="s", email="e@x.com", display_name="N")
+    conn.close()
+    c = TestClient(create_app(cfg), base_url="https://testserver", follow_redirects=False)
+    c.cookies.set("__Host-applyfirst_session", session.sign(cfg.session_secret, {"uid": user.id}))
+    _start_login(c)
+
+    out = c.post("/auth/logout",
+                 headers={"X-CSRF-Token": session.issue_csrf(cfg.session_secret, user.id)})
+    failed = c.get("/auth/callback", params={"error": "access_denied"})
+
+    assert (out.status_code, out.headers["location"]) == (302, "/login")
+    assert failed.status_code == 400
+    for resp, name in ((out, "__Host-applyfirst_session"), (failed, "__Host-applyfirst_oauth")):
+        deletes = _deletes(resp.headers.get_list("set-cookie"), name)
+        assert len(deletes) == 1, (name, resp.headers.get_list("set-cookie"))
+        assert _cookie_rules(deletes[0]) == _HOST_RULES, deletes[0]
 
 
 def test_security_headers_present(saas_cfg):

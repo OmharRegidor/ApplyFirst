@@ -97,13 +97,19 @@ def _set(response: Response, name: str, value: str, secure: bool, max_age: int) 
     )
 
 
+def _delete(response: Response, name: str, secure: bool) -> None:
+    # Exactly _set's attributes: a browser ignores a __Host- delete that lacks Secure, and
+    # Starlette's delete_cookie defaults to secure=False, httponly=False.
+    response.delete_cookie(key=name, path="/", secure=secure, httponly=True, samesite="lax")
+
+
 def set_session(response: Response, secret: bytes, secure: bool, user_id: str) -> None:
     _set(response, session_cookie_name(secure), sign(secret, {"uid": user_id}),
          secure, _SESSION_MAX_AGE)
 
 
 def clear_session(response: Response, secure: bool) -> None:
-    response.delete_cookie(session_cookie_name(secure), path="/")
+    _delete(response, session_cookie_name(secure), secure)
 
 
 def read_session(request: Request, secret: bytes, secure: bool) -> str | None:
@@ -127,4 +133,4 @@ def read_oauth_txn(request: Request, secret: bytes, secure: bool) -> dict | None
 
 
 def clear_oauth_txn(response: Response, secure: bool) -> None:
-    response.delete_cookie(oauth_cookie_name(secure), path="/")
+    _delete(response, oauth_cookie_name(secure), secure)
