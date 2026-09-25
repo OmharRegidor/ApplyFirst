@@ -4,25 +4,34 @@
   emails it to me. Plus a private read-only dashboard over Tailscale. **Unchanged — still running.**
 - **V2 — multi-tenant SaaS** (`applyfirst/saas/`): other onlinejobs.ph applicants sign in with Google,
   onboard, and the worker delivers tailored applications **to their own Gmail inbox**. **M1–M5, the UI
-  redesign, the animated onboarding and the premium design pass are all committed.** Deploy targets:
+  redesign, the animated onboarding and the premium design pass are all committed.** The sign-up
+  journey redesign is built and verified but **not yet committed**. Deploy targets:
   **Fly.io beta** (`Dockerfile`/`fly.toml`/`entrypoint.sh`) and the **Oracle VM production runbook**
   (`deploy/oracle/`).
 
-# Current State — Where it stands (2026-09-24)
+# Current State — Where it stands (2026-09-25)
 ✅ **Launch blockers B1–B6 are all fixed, committed and pushed** (B1–B5 `c32ca48`, B6 `8c65928`),
-along with the redesign spec (`ba60723`). Everything is on `origin/main`. Tests: **887 passing** with B6
-(`.venv/Scripts/python.exe -m pytest -q`) — 845 before B6, 779 before the launch fixes, 745 on 2026-09-23
-morning, 692 before that day, 546 before the animated onboarding, 211 before the redesign. Smoke:
-**558 checks, 0 failed** (`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
+along with the redesign spec (`ba60723`). Tests: **1,283 passing** with the sign-up redesign and
+the Log out fix (neither committed yet), **887** with B6 (`.venv/Scripts/python.exe -m pytest -q`),
+845 before B6, 779 before the launch fixes, 745 on 2026-09-23 morning, 692 before that day, 546
+before the animated onboarding, 211 before the redesign. Smoke: **607 checks, 0 failed**, 558 before
+the sign-up redesign (`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
 🟡 **B1–B6 need four things from the owner at deploy time**, because code cannot pick them:
 the Gemini credential with billing on, an alert webhook, the SMTP settings (for B6), and an
 uptime monitor on `/health`. See "Launch blockers" below.
 ✅ **B6 is fixed and committed (2026-09-24, `8c65928`).** A user whose Gmail connection Google
 ends is now emailed once to reconnect. See "What shipped in B6" below.
-🟡 **Sign-up journey redesign: design approved, spec written, build NOT started.** The owner
-chose a Supabase-plus-Apple look built on a trimmed copy of Basecoat. The spec is
-`docs/superpowers/specs/2026-09-24-signup-redesign-design.md` and is waiting for the owner's
-review. Next step is the implementation plan. See "Sign-up journey redesign (in progress)" below.
+🟢 **Sign-up journey redesign: built and verified, waiting for the owner's look and commit.**
+Login, the four onboarding steps, the dashboard and a new "Sign-in didn't finish" page share one
+light and dark look on a trimmed Basecoat and self-hosted Inter, built from
+`docs/superpowers/plans/2026-09-25-signup-redesign.md`. **None of it is committed yet.** See
+"Sign-up journey redesign (built)" below.
+✅ **Found and fixed during the review, not yet committed: Log out did not sign anyone out in
+production.** It is an old bug, not one the redesign made. In production the sign-in cookie has the
+`__Host-` prefix, and a browser only deletes such a cookie when the delete also says `Secure`. Ours
+did not, so Log out answered normally but the browser kept the cookie and the person stayed signed
+in, for up to 7 days. The same bug left the 10-minute Google sign-in cookie behind.
+`applyfirst/saas/session.py` now deletes both cookies with exactly the rules it set them with.
 🔴 **Still not deployed.** The owner was mid Google Cloud OAuth setup on 2026-09-22 (see the gotcha
 about "Authorized JavaScript origins"). No Fly app, no test users. V2 has never run outside localhost.
 ⚠️ **The homepage has still never been looked at by a human.** Two design passes have landed on it,
@@ -48,11 +57,114 @@ f5c6f86  docs: design brief for taking the homepage further
 597d0ab  refactor: rename the product from ApplyFirst to Agad   (the previous day's HEAD)
 ```
 
-# Sign-up journey redesign (in progress, 2026-09-24)
-**Where it stands.** Brainstormed with the owner, approved section by section, written up and
-committed as `docs/superpowers/specs/2026-09-24-signup-redesign-design.md` (`ba60723`). **The owner
-has not yet reviewed the written spec.** No code has been written. The next step, once the owner
-approves the spec, is the implementation plan (superpowers writing-plans), then the build.
+# Sign-up journey redesign (built)
+**Where it stands.** Spec `docs/superpowers/specs/2026-09-24-signup-redesign-design.md` (`ba60723`),
+plan `docs/superpowers/plans/2026-09-25-signup-redesign.md`, built task by task with both gates green
+after every task. Final numbers, after the review fixes: pytest **1,283 passed** (1,266 before the
+fixes), smoke **607 checks, 0 failed**. The plan's Task 8 browser pass covered every journey state
+at 360, 390, 768 and 1280 wide, light and dark, JavaScript off, reduced motion, forced colours, text
+at 200 percent and a throttled first visit on Android: **707 PASS, 0 failed**, run again after the
+fixes with the same result. The font swap moves the page by 0.0001 on `/login`, 0.0011 on the
+dashboard and 0.0000 on Step 2 (the limit is 0.02). The mutation pass broke every guard on purpose
+and every break was caught: Task 1's planted rule failed the 4 tests it should, Task 3 44 of 44,
+Task 5 29 of 29, Task 6 26 of 26, Task 7 28 of 28, the review-focus checks 13 of 13, and the
+review fixes' new tests 18 of 18. **Not yet committed:** the owner commits the files listed under
+"What to commit" below.
+
+**The review.** Six lenses (spec, motion, accessibility, security, CSS, tests) raised **22
+findings**. Each was then checked on its own: **8 confirmed, 14 refuted.** All 8 were fixed test-first
+and none was declined. Three of the 8 were the same bug seen by three lenses, so there were 6 real
+problems:
+- **The footer's Privacy Policy, Terms of Service and support email never appeared on a computer.**
+  On any journey page in a window about 740px tall or more they stayed invisible, even scrolled to
+  the bottom. The browser pass's screenshots showed it too.
+- **Log out did not sign anyone out in production** (old bug, see Current State above).
+- **On Step 4 at 320 to 360px wide, tapping the bottom of "Change my message" opened "Change
+  keywords".** The two links' tap areas overlapped when they stacked.
+- **In Windows high contrast, the current step's label on the desktop rail was a blank box.** Old
+  bug, now fixed too.
+- **Two tests were weaker than they looked.** The phone dark-mode dashboard test would have
+  accepted a colour fix that only works on wide screens or on hover, and the touch-laptop guard
+  missed the normal spaced spelling `(hover: hover)`. Both now fail on those cases.
+
+**The dark header mark is fixed too.** The plan had left it for the owner (departure 16): in dark
+mode the navy tile of the header logo nearly vanished on the dark header, about 1.1 to 1. It now has
+a thin 1px ring in the dark edge colour (`journey.css` section 6), 4.0 to 1 against the header and
+3.57 to 1 against the tile, and light mode is unchanged.
+
+**The plan's 19 departures from the spec** are listed, with reasons, near the top of the plan under
+"Where this plan departs from the spec (owner, please confirm)". None of them harms a user. Two are
+real choices the owner may want to undo: the paused Gmail panel keeps its own "Edit keywords"
+button, so that state has two ways to the keywords page (departure 13), and hover colours ease over
+200ms although spec 5.4 says transform and opacity only (departure 6).
+
+**As built, where it differs from the spec.** The plan has the reasons.
+- The upstream Basecoat file is `package/dist/basecoat.cdn.min.css`, copied to the spec's name.
+- `trim.py` also drops selectors for markup we never write, the one `!important` rule and
+  `@layer properties`, so the file is 3,363 B gzip, not about 6 KB.
+- Inter is 28,132 B, not about 47 KB, and `font-size-adjust` is `none`.
+- `.btn--primary` sets `background-image: none`, and hover colours ease.
+- The theme-color metas are the header surface, `#FFFFFF` and `#111B2B`, in a `theme_color_meta`
+  block.
+- "Start watching without Gmail" stays secondary, and the dark Gmail panel sits on the surface.
+- The sign-in failed page has a small amber icon, and `_fail` logs `signin_failed`.
+- app.css keeps the now unused dashboard rules (`.kv`, `.card-actions`, `.usage-label`,
+  `.span-5/7/12`, `.arrives*`).
+- The review fixes added four small rules to `journey.css`. The footer items never wait for the
+  scroll reveal (section 6), the dark mark has its ring (section 6), Step 4's stacked links have a
+  22px gap (section 8), and the rail label shows in high contrast (section 8).
+
+**Still to check on a real Apple device:** that iPhones and Macs never download Inter. It cannot be
+proven on Windows, because the check depends on the browser finding the Apple system font first.
+
+**What to commit.** Explicit paths only, never `git add -A`, never `REMOTE.md`, nothing under
+`.noxa/`, no `Co-Authored-By` line, and no ".env", "key" or "credentials" in a message. The privacy
+hook also blocks a Claude Bash command that names `onboarding_keywords.html` (its name contains
+"key"), so from Claude write `applyfirst/saas/templates/onboarding_*.html`, which matches exactly
+the four onboarding templates, all of which belong in commit 3. In this order (the first commit was
+tested alone on top of `64fc606`: 892 passed):
+```
+1. fix(saas): log out now really deletes the secure sign-in cookies
+   applyfirst/saas/session.py
+   tests/test_saas_auth_flow.py
+2. docs: implementation plan for the sign-up journey redesign
+   docs/superpowers/plans/2026-09-25-signup-redesign.md
+3. feat(saas): sign-up journey redesign with trimmed Basecoat, Inter and dark mode
+   .gitattributes
+   requirements-dev.txt
+   applyfirst/saas/app.py
+   applyfirst/saas/static/css/app.css
+   applyfirst/saas/static/css/journey.css
+   applyfirst/saas/static/fonts/inter-4.1-latin-wght.woff2
+   applyfirst/saas/static/licenses/OFL-inter.txt
+   applyfirst/saas/static/licenses/basecoat-MIT.txt
+   applyfirst/saas/static/licenses/tailwindcss-MIT.txt
+   applyfirst/saas/static/vendor/basecoat-1.0.2-agad.css
+   applyfirst/saas/templates/base.html
+   applyfirst/saas/templates/dashboard.html
+   applyfirst/saas/templates/login.html
+   applyfirst/saas/templates/onboarding_connect_gmail.html
+   applyfirst/saas/templates/onboarding_keywords.html
+   applyfirst/saas/templates/onboarding_preview.html
+   applyfirst/saas/templates/onboarding_profile.html
+   applyfirst/saas/templates/signin_failed.html
+   tools/basecoat/basecoat-1.0.2.cdn.min.css
+   tools/basecoat/trim.py
+   tools/fonts/build_inter.py
+   tests/_journey_css.py
+   tests/test_saas_basecoat.py
+   tests/test_saas_journey.py
+   tests/test_saas_signin_failed.py
+   tests/test_saas_connect_gmail.py
+   tests/test_saas_gmail_retry.py
+   tests/test_saas_hero.py
+   tests/test_saas_onboarding.py
+   tests/test_saas_palette.py
+   tests/test_saas_template_context.py
+4. docs: handoff records the sign-up redesign build
+   Handoff.md
+   DESIGN-HANDOFF.md
+```
 
 **What the owner asked for.** Make the pages a new user touches when signing up feel premium, like
 Apple products and Supabase's dashboard: clean, minimal, easy to navigate, small type on computers,
@@ -89,7 +201,7 @@ tightening the selector filter.
 `static/vendor/basecoat-1.0.2-agad.css`, rebuilt by `tools/basecoat/trim.py` from the pinned
 upstream copy in `tools/basecoat/`, wrapped in `@layer basecoat`, with dark variants rewritten to
 `prefers-color-scheme`. Our look is `static/css/journey.css` in `@layer journey`. The layer order at
-`app.css:6` becomes `basecoat, reset, tokens, base, components, screens, journey`, so Basecoat is
+`app.css:6` is now `basecoat, reset, tokens, base, components, screens, journey`, so Basecoat is
 lowest and `journey` sits below the frozen `motion` layer, which motion.css adds after it. Both
 files are linked with `static_url()` from the `page_css` block of the seven journey templates only,
 so they get the one-year cache and there is no `@import` chain. Light and dark palettes are
@@ -102,7 +214,8 @@ contrast-checked in spec 5.3. Spec 9 lists every frozen hook the motion files re
 - Apple sets 17px body on iPhone and 13pt on Mac, blue `#0071E3` (hue 210, ours is 209), and serves
   SF Pro as a webfont to every platform. SF Pro's licence forbids us doing that.
 - Inter from google/fonts is 72 KB with both axes, **46.9 KB with opsz pinned at 14** (Latin plus
-  the peso sign, tabular figures kept). Writing WOFF2 needs `pip install brotli` (dev only).
+  the peso sign, tabular figures kept), and **28.1 KB as built**, with the weight axis limited to
+  400 to 600. Writing WOFF2 needs `pip install brotli` (dev only, now in `requirements-dev.txt`).
   Geist was the runner-up at 28 KB. Figtree, Onest and Instrument Sans lack the peso sign.
 - Skipped on purpose: three.js (187.5 KB for r185 minified, r186 ships 417 KB unminified; its core
   runs under our CSP but it is six times the whole homepage), React Three Fiber (needs React and a
@@ -112,7 +225,8 @@ contrast-checked in spec 5.3. Spec 9 lists every frozen hook the motion files re
 - A React rewrite was estimated at 6 to 10 weeks, 68 KB for React alone, and about 400 of the tests
   rewritten. Next.js would also need a loosened CSP.
 
-**What the build must not forget** (from the map and its critic, all in the spec).
+**What any later change must not forget** (from the map and its critic, all in the spec, all kept
+by the build).
 - The Activate button must stay solid `#0B6BC7`, 12px corners and opacity 1 even when disabled and
   busy, and the live panel navy `#0B2545` with 24px corners, because the frozen `af-fill` morph
   runs between those values.
@@ -123,7 +237,7 @@ contrast-checked in spec 5.3. Spec 9 lists every frozen hook the motion files re
   rings and the frozen new-chip ring.
 - Switch "small type on computers" on `(hover:hover) and (pointer:fine)`, never on width alone, and
   keep every input at 16px or more.
-- Tests to change on purpose: the font tests and the gradient test in `tests/test_saas_hero.py`, the
+- Tests changed on purpose: the font tests and the gradient test in `tests/test_saas_hero.py`, the
   palette guard (scan the vendor folder, read zero-chroma `oklch()` and three `color-mix()` forms),
   the callback-failure and signed-out 401 tests, and the rendered-template count.
 
@@ -279,6 +393,16 @@ The rows below are the older layers, unchanged.
 The whole new public layer is **8,142 B gzipped**, and the site now downloads **one** 2 KB font
 instead of three fonts totalling 51 KB, so a first visit got *lighter*, not heavier.
 
+The sign-up journey (2026-09-25) loads only on its seven templates. Measured after the review fixes
+(gzip 9, LF):
+
+| file | raw | gzip | cap |
+|---|---|---|---|
+| `vendor/basecoat-1.0.2-agad.css` | 36,345 | 3,363 | 7,000 |
+| `css/journey.css` | 15,290 | 5,224 | 8,000 |
+| `fonts/inter-4.1-latin-wght.woff2` | 28,132 | (WOFF2) | 50,000 raw |
+| render-blocking CSS on `/login` (app.css + both) | | 24,475 | 30,000 |
+
 # Where the new work lives
 ```
 applyfirst/saas/static/css/hero.css   the light animated hero, homepage only, final `hero` layer
@@ -288,16 +412,25 @@ applyfirst/saas/static/css/story.css  the three scroll moments, homepage only, f
 tests/test_saas_hero.py               hero, scene, gradient and font guards (25)
 tests/test_saas_reveal.py             reveal layer and slots surprise guards (15)
 tests/test_saas_story.py              scroll story, arrivals, glows, focus reveal guards (31)
+applyfirst/saas/static/css/journey.css  the sign-up journey look, seven templates only, `journey` layer
+applyfirst/saas/static/vendor/basecoat-1.0.2-agad.css  trimmed Basecoat, built by tools/basecoat/trim.py
+applyfirst/saas/static/fonts/inter-4.1-latin-wght.woff2  Inter subset, built by tools/fonts/build_inter.py
+applyfirst/saas/templates/signin_failed.html  the D8 "Sign-in didn't finish" page
+tests/test_saas_journey.py, tests/_journey_css.py  journey layer, scope, frozen values, review focus, pages
+tests/test_saas_basecoat.py           vendored Basecoat pins and trimmed-content checks
+tests/test_saas_signin_failed.py      the D8 page and the D9 redirects
 DESIGN-HANDOFF.md                     a pasteable brief for the NEXT design session
 ```
 **`DESIGN-HANDOFF.md` is the thing to hand a fresh design session**, not this file. It carries the
 constraints, the ranked opportunities, the anti-goals and the measuring traps. It was rewritten
 after `8be4f45` to match the real page (light looping hero with a pause control, the four scroll
 moments, the byte table, the new traps), and its §8 now marks which ideas are done, open or cut.
+On 2026-09-25 it was brought up to date for the sign-up journey (the flat button, Inter, the
+vendored files, the palette scan).
 
 # Constraints any future UI work must respect
 These are each enforced by a passing test. `DESIGN-HANDOFF.md` §4 has them in full.
-- **The CSP is frozen** (`applyfirst/saas/app.py:223`). No CDN, no inline `<script>`, no `on*`, no
+- **The CSP is frozen** (`applyfirst/saas/app.py:229`). No CDN, no inline `<script>`, no `on*`, no
   eval, no WASM, no `blob:`. Canvas 2D and `data:` backgrounds are fine.
 - **No build step, no Node.** Hand-written CSS and classic JS from `applyfirst/saas/static/`.
 - **Public pages must not name `motion.css`, `vt.js`, `motion.js` or `canvas-confetti`** (test M-2).
@@ -305,7 +438,8 @@ These are each enforced by a passing test. `DESIGN-HANDOFF.md` §4 has them in f
 - **The app-page head order is locked** (test M-1): `app.css` → `motion.css` → `vt.js` → `motion.js`,
   and no `<script>` before `motion.css`. `base.html` now has `{% block page_css %}` and the
   parser-blocking `reveal.js` **after** `motion_head`, plus `{% block page_js %}` after `app.js`, and
-  `{% block theme_color %}` / `{% block brand_mark %}` overrides. That ordering is what keeps M-1 true.
+  `{% block theme_color %}` / `{% block brand_mark %}` overrides, and since the sign-up redesign
+  `{% block color_scheme %}` and `{% block theme_color_meta %}`. That ordering is what keeps M-1 true.
 - **`motion.css`, `vt.js` and `motion.js` are full** (32, 32 and 471 bytes of headroom). Do not edit
   them; build in new files.
 - **`reveal.js` is nearly full too** (1,377 of 1,400 B). Trim before adding.
@@ -314,10 +448,20 @@ These are each enforced by a passing test. `DESIGN-HANDOFF.md` §4 has them in f
   do). The settle curve in `app.css` is `--ease-land` for that reason.
 - **Anything in the hero may move but must never fade.** The letter's lift is transform only and is
   declared without the reveal gate, so losing `data-rv` changes only its timing.
-- **No purple** — hue 230–345 at ≥8% saturation is rejected in any CSS or JS file.
+- **No purple** — hue 230–345 at ≥8% saturation is rejected in any CSS, JS or template file,
+  the vendored Basecoat included.
 - **`app.js` must not contain** `pagereveal`, `view-transition` or `confetti`.
 - **Never `url_for`** in a template. Use `static_url()` and literal paths.
 - **Content must never need JavaScript to be visible.**
+- **The journey layer outranks every app.css rule** (`@layer basecoat, reset, tokens, base,
+  components, screens, journey;` at `app.css:6`, with `motion` above it). Scope every journey rule
+  with a page class, never a bare element, and give back the forced-colours value of anything
+  app.css keeps in high contrast. `tests/test_saas_journey.py` enforces both.
+- **The journey look loads only on the templates in `tests/_journey_css.py` `JOURNEY_TEMPLATES`**,
+  never on the homepage, privacy or terms.
+- **Never hand-edit the trimmed Basecoat file or the Inter subset.** Change
+  `tools/basecoat/trim.py` or `tools/fonts/build_inter.py` and run it again. Both outputs are
+  pinned by sha256.
 
 # Locked owner decisions (do not relitigate)
 - Colour: **sky blue / dark blue only, zero purple.**
@@ -326,8 +470,8 @@ These are each enforced by a passing test. `DESIGN-HANDOFF.md` §4 has them in f
   the web. **Changed 2026-09-24 for the sign-up journey only:** login, onboarding and the dashboard
   get self-hosted Inter on Android and Windows, never preloaded, and Apple devices keep SF.
 - **The primary button keeps its gradient on the homepage.** **Changed 2026-09-24 for the sign-up
-  journey only:** a flat solid `#0B6BC7` button. Both changes are decided, not yet built.
-- **Signed-in pages follow the phone's dark mode** (decided 2026-09-24, not yet built). The homepage
+  journey only:** a flat solid `#0B6BC7` button. Both are built (2026-09-25).
+- **Signed-in pages follow the phone's dark mode** (decided 2026-09-24, built 2026-09-25 by CSS alone). The homepage
   hero stays light.
 - **The animated background is drawn in the browser, not a video file.** The audience is on mobile
   data; a video was explicitly rejected on weight.
@@ -438,7 +582,8 @@ cleared the credential, and the user silently stopped getting applications.
   "connecting or logging in failed" (server-wide) from "this message was refused". Errors after the
   message was handed over (a bad QUIT) are ignored.
 - The email links to `/dashboard` (signed-out users go through `/login` first), not
-  `/auth/connect-gmail`, which answers a signed-out click with a raw 401.
+  `/auth/connect-gmail`, which then answered a signed-out click with a raw 401. Since the sign-up
+  redesign (D9) that route sends a signed-out visitor to `/login` too.
 
 **Failure handling, each pinned by a test.** Server-wide failures (connect, login, any 421, a
 dropped line, the same refusal twice running) pause sending 15 min, 1 h, then 6 h, and a restart
@@ -471,9 +616,10 @@ equivalent mutant (`>` vs `>=` once every attempt has its own instant).
 
 # Open follow-ups (ordered)
 Before the numbered list:
-- **Sign-up journey redesign.** The owner reviews the spec, then write the implementation plan,
-  then build it in the spec's five stages (foundation, login, onboarding, dashboard, the two fixes),
-  with both gates green at every stage, then a multi-agent review and a mutation pass.
+- **Sign-up journey redesign.** Built and verified. The owner looks at it in the preview in light
+  and dark, decides the two open points in "Sign-up journey redesign (built)" (the paused panel's
+  second "Edit keywords" and hover colours easing), commits the files listed under "What to commit"
+  there, then checks on a real iPhone that Inter is never downloaded.
 
 1. **Look at the new homepage.** It has never been seen by a person. Start the
    preview (below), scroll slowly on a phone and a computer, and check the ruler drawing, the How it
@@ -489,7 +635,8 @@ Before the numbered list:
    worker runs every ~6.
 6. Smaller deferred items in `findings.json`: hyphenated email line breaks (F-033), case-duplicate
    watch words (F-023), `Cache-Control: no-store` on authenticated pages (F-028), HTML error pages for
-   401/403/429, worker-kill double-charge (F-047, needs a `charged` column in the protected `db.py`),
+   401/403/429 (the sign-up redesign covers two: a failed Google sign-in and a signed-out visit to
+   an onboarding page), worker-kill double-charge (F-047, needs a `charged` column in the protected `db.py`),
    GZip for static.
 7. **Owner check:** after deploying, read one of your own V1 letters end-to-end to confirm the prompt
    rewrite reads the way you want.
@@ -533,7 +680,7 @@ public launch.
 - **NEW (2026-09-23): run the preview in the OWNER'S OWN PowerShell window, not as a background task.**
   Claude Code reaps background shells when the machine is low on memory, and it killed the preview
   twice in one session. A window the owner opened is never reaped.
-- **Before/after any template or CSS change, run the smoke** (`inputs/preserve_smoke.py`, 555 checks).
+- **Before/after any template or CSS change, run the smoke** (`inputs/preserve_smoke.py`, 607 checks).
   Unit tests alone do NOT catch a missing CSRF field, a reworded asserted string, or a CSP violation.
 - **A "privacy guard" hook blocks any Bash/Read command whose TEXT contains `.env`, `key`, or
   `credentials`** — including `onboarding_keywords.html` and any test with "keyword" in its path.
@@ -551,6 +698,35 @@ public launch.
   in `.noxa/memory/` — git-ignored, local only.
 
 # Failed attempts / gotchas worth keeping
+## New in the sign-up redesign (2026-09-25)
+- **A short footer can sit where the scroll reveal never looks.** `reveal.js` ignores the bottom
+  10% of the screen and `app.css` hides `.footer__grid > *` until revealed. The journey footer is
+  so short that on a window 740px tall or more its links sat inside that ignored strip, so Privacy,
+  Terms and the support email stayed invisible forever (spec, motion and accessibility lenses all
+  found it). The browser pass missed it because its contrast check ignores opacity. Pinned by
+  `test_the_short_footer_never_waits_for_a_reveal_it_cannot_get`.
+- **A `__Host-` cookie is only deleted when the delete also says `Secure`.** Starlette's
+  `delete_cookie` defaults to `secure=False`, so in production Log out and the failed-sign-in
+  cleanup did nothing and people stayed signed in. Delete with exactly the attributes you set with.
+  Pinned by `test_a_cookie_is_deleted_with_the_rules_it_was_set_with` and
+  `test_logout_and_a_failed_callback_delete_the_host_cookies_a_browser_holds`.
+- **Two quiet links with 44px tap bands overlap when they wrap.** On Step 4 at 320 to 360px the
+  bottom of "Change my message" opened "Change keywords". The row gap is now 22px, worked out from
+  the tap band and the line height, for phone text and for computer text at 400 percent zoom.
+  Pinned by `test_step_4_links_keep_their_whole_tap_band_when_they_stack`.
+- **In forced colours, text on a system-coloured fill needs `forced-color-adjust:none`.** The
+  current step's label on the desktop rail drew as a blank box. Pinned by
+  `test_high_contrast_shows_the_current_rail_label`.
+- **A cascade test must count only rules that apply at rest on a phone.** The dark-mode dashboard
+  test accepted a colour redraw hidden behind a wide-screen query or `:hover`. Pinned by
+  `test_only_a_redraw_a_phone_at_rest_gets_counts_on_the_dashboard`, which the main
+  `test_no_light_page_colour_survives_on_the_dashboard_in_dark_mode` now relies on.
+- **Media query text has more than one spelling.** The touch-laptop guard matched only
+  `(hover:hover)` and let `(hover: hover)` and a bare `(hover)` through. Pinned by
+  `test_the_touch_guard_reads_every_spelling_of_hover`.
+- **Check screenshots by eye, not only the script.** Every scripted check was green while the
+  footer links were missing on every computer screenshot.
+
 ## New in B6 (2026-09-24)
 - **Never classify an SMTP failure by its exception type or reply code alone.** smtplib raises
   `SMTPRecipientsRefused` for a 421 "try again later" and for a 450 greylist, not only for a bad
@@ -663,10 +839,11 @@ public launch.
   the viewport mid-measurement. Re-navigate and re-check the page identity before trusting a reading.
 
 # Next Step — The single next thing to try
-**If this is the redesign session:** read "Sign-up journey redesign (in progress)" above and the
-spec at `docs/superpowers/specs/2026-09-24-signup-redesign-design.md`. If the owner has approved the
-spec, write the implementation plan with superpowers writing-plans. If not, ask for their review
-first. Do not start building before both the spec and the plan are approved.
+**If this is the redesign session:** the sign-up journey is built (see "Sign-up journey redesign
+(built)" above). Ask the owner to look at it in the preview in light and dark (the command is
+below; `/__dev/` lists every login, onboarding and dashboard state), then to commit the files
+listed under "What to commit" in that section, in that order. The Log out fix goes first. After
+that, check on a real iPhone or Mac that Inter is never downloaded.
 
 **Otherwise, start the preview in your own PowerShell window and look at the new homepage.**
 Nobody has seen it.
