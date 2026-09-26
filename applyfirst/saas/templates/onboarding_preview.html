@@ -17,6 +17,9 @@
 {%- set editing = activated | default(false) %}
 {%- set retry = gmail_error | default(none) %}
 {% call ui.onboarding_shell(4, editing, wide=true) %}
+      {%- if flash | default(none) %}
+      {{ ui.flash_banner(flash, user.email) }}
+      {%- endif %}
       <div>
         <h1>Here's what we'll send you</h1>
         <p class="lead">When a new job matches, an email like this lands in your Gmail. You check it, copy it, and apply on onlinejobs.ph yourself. We don't apply for you.</p>

@@ -47,6 +47,14 @@ def test_garbage_token_rejected():
     assert session.unsign(_SECRET, "a.b.c", 3600) is None
 
 
+def test_a_non_ascii_token_is_rejected_not_raised():
+    """Starlette reads cookie and header bytes as latin-1, so any byte above 0x7F arrives here as
+    a non-ASCII str. The session, OAuth, flash and CSRF checks all share unsign."""
+    for token in ("é.x", "abc.é", "Ã©.Ã©"):
+        assert session.unsign(_SECRET, token, 3600) is None
+        assert session.verify_csrf(_SECRET, token, "u") is False
+
+
 def test_cookie_name_prefix_depends_on_secure():
     assert session.session_cookie_name(True).startswith("__Host-")
     assert not session.session_cookie_name(False).startswith("__Host-")

@@ -124,6 +124,7 @@
   .lead { font-size: var(--fs-lead); line-height: 1.55; color: var(--text); }
   .muted { color: var(--text-muted); }
   .addr-inline { overflow-wrap: break-word; }
+  .addr-seg { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
 
   /* brand */
   .brand { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; color: var(--navy-900); text-decoration: none; font-weight: 700; font-size: 1.125rem; letter-spacing: -.02em; }

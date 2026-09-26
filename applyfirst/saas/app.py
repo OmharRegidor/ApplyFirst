@@ -307,6 +307,33 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
     def csrf_for(user: db.User) -> str:
         return session.issue_csrf(cfg.session_secret, user.id)
 
+    # --- the one-shot confirmation (flash) --------------------------------------
+    # auth_callback and gmail_callback set it on success only. Redirects never read it, so it
+    # rides the whole /dashboard -> /onboarding -> /onboarding/<step> chain, and the first of
+    # the five journey pages to render shows it and deletes it in that same response.
+
+    def _journey_page(request: Request, name: str, context: dict, conn, user: db.User,
+                      *, own_gmail_alert: bool = False) -> HTMLResponse:
+        """Render one of the five journey pages with its flash banner, spending the flash.
+
+        own_gmail_alert=True is a page that prints its own green "Gmail connected" box
+        near its top whenever Gmail is connected (Step 1), so it never gets a second one.
+        Step 4 prints one too, but at its foot past the whole letter, below the first
+        screen, so it keeps the banner and the two are never side by side. A retry
+        note (?gmail_error=) wins over any success line, and "Gmail connected" is only said
+        while the grant is really there."""
+        flash = session.read_flash(request, cfg.session_secret, cfg.secure_cookies)
+        if _gmail_error_flag(request) or (flash == "gmail_connected" and (
+                own_gmail_alert or not db.gmail_connected(conn, user.id))):
+            flash = None
+        resp = _TEMPLATES.TemplateResponse(request, name, {**context, "flash": flash})
+        if session.flash_cookie_name(cfg.secure_cookies) in request.cookies:
+            # Spent even when not shown (suppressed, forged, stale). no-store makes Back and a
+            # refresh ask the server again, which no longer has a flash to show.
+            session.clear_flash(resp, cfg.secure_cookies)
+            resp.headers["Cache-Control"] = "no-store"
+        return resp
+
     # --- pages ---------------------------------------------------------------
 
     @app.get("/", response_class=HTMLResponse)
@@ -340,7 +367,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         if not _is_activated(profile):
             return RedirectResponse("/onboarding", status_code=302)
         now = _utcnow()
-        return _TEMPLATES.TemplateResponse(request, "dashboard.html", {
+        return _journey_page(request, "dashboard.html", {
             "user": user,
             "profile": profile,
             "gmail_connected": db.gmail_connected(conn, user.id),
@@ -352,7 +379,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             "activated_fresh": _activated_fresh(profile.activated_at, now),
             "watching_since": watching_since_text(
                 profile.activated_at, db.gmail_connected_at(conn, user.id), now),
-        })
+        }, conn, user)
 
     # --- auth ----------------------------------------------------------------
 
@@ -396,6 +423,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         user = db.upsert_user_by_google(conn, **identity)
         resp = RedirectResponse("/dashboard", status_code=302)
         session.set_session(resp, cfg_.session_secret, cfg_.secure_cookies, user.id)
+        session.set_flash(resp, cfg_.session_secret, cfg_.secure_cookies, "signed_in")
         session.clear_oauth_txn(resp, cfg_.secure_cookies)
         return resp
 
@@ -507,15 +535,15 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
     @app.get("/onboarding/connect_gmail", response_class=HTMLResponse)
     def onboarding_connect_gmail(request: Request, user: db.User = Depends(require_user_or_login),
                                  conn=Depends(get_conn)):
-        return _TEMPLATES.TemplateResponse(request, "onboarding_connect_gmail.html",
-                                           _connect_gmail_ctx(user, conn,
-                                                              _gmail_error_flag(request)))
+        return _journey_page(request, "onboarding_connect_gmail.html",
+                             _connect_gmail_ctx(user, conn, _gmail_error_flag(request)),
+                             conn, user, own_gmail_alert=True)
 
     @app.get("/onboarding/profile", response_class=HTMLResponse)
     def onboarding_profile_form(request: Request, user: db.User = Depends(require_user_or_login),
                                 conn=Depends(get_conn)):
         profile = db.get_profile(conn, user.id)
-        return _TEMPLATES.TemplateResponse(request, "onboarding_profile.html", {
+        return _journey_page(request, "onboarding_profile.html", {
             "user": user, "profile": profile,
             "default_name": (profile.full_name if profile else "") or _prefill_name(
                 user.display_name),
@@ -524,7 +552,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             "over_cap_fields": _over_cap_fields(profile),
             "gmail_connected": db.gmail_connected(conn, user.id),
             "gmail_error": _gmail_error_flag(request),
-        })
+        }, conn, user)
 
     @app.post("/onboarding/profile", dependencies=[Depends(require_csrf)])
     def onboarding_profile_save(
@@ -550,10 +578,10 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
         profile = db.get_profile(conn, user.id)
         if profile is None or not profile.is_complete:
             return RedirectResponse("/onboarding/profile", status_code=302)
-        return _TEMPLATES.TemplateResponse(request, "onboarding_keywords.html", {
+        return _journey_page(request, "onboarding_keywords.html", {
             "user": user, "keywords": db.list_keywords(conn, user.id),
             "csrf_token": csrf_for(user), "activated": _is_activated(profile),
-        })
+        }, conn, user)
 
     @app.post("/onboarding/keywords", dependencies=[Depends(require_csrf)])
     def onboarding_keywords_add(user: db.User = Depends(require_user), conn=Depends(get_conn),
@@ -583,14 +611,14 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             full_name=profile.full_name, job_type=profile.job_type,
             standard_subject=profile.standard_subject, standard_message=profile.standard_message,
         )
-        return _TEMPLATES.TemplateResponse(request, "onboarding_preview.html", {
+        return _journey_page(request, "onboarding_preview.html", {
             "user": user, "preview": pv,
             "gmail_connected": db.gmail_connected(conn, user.id),
             "csrf_token": csrf_for(user), "activated": _is_activated(profile),
             # Step 4's success alert drops data-arrive-gmail on ?gmail_error=scope (M-11),
             # which the template can only know if the route passes the flag.
             "gmail_error": _gmail_error_flag(request),
-        })
+        }, conn, user)
 
     @app.post("/onboarding/activate", dependencies=[Depends(require_csrf)])
     def onboarding_activate(user: db.User = Depends(require_user), conn=Depends(get_conn)):
@@ -642,6 +670,7 @@ def create_app(config: SaaSConfig | None = None) -> FastAPI:
             return _gmail_retry(request, cfg_, user, conn, "crypto")
         reconnect.forget(conn, user.id)   # back on Gmail: the next expiry is news again (B6)
         resp = RedirectResponse("/onboarding", status_code=302)
+        session.set_flash(resp, cfg_.session_secret, cfg_.secure_cookies, "gmail_connected")
         session.clear_oauth_txn(resp, cfg_.secure_cookies)
         return resp
 

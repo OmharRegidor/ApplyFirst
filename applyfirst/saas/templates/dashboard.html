@@ -21,6 +21,9 @@
   <div class="container--app dash__stack">
     {%- if retry %}
     {{ ui.gmail_retry_note(retry, gmail_connected) }}
+    {%- elif flash | default(none) %}
+    {#- Above the panel and outside .dash__grid, which the reveal layer hides until scrolled to. #}
+    {{ ui.flash_banner(flash, user.email) }}
     {%- endif %}
 
     {#- Exactly one status panel, by priority: Gmail, then keywords, then today's limit, else live. #}

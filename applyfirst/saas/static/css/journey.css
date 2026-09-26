@@ -79,6 +79,12 @@ textarea.input{field-sizing:fixed}
 .alert--success{background:var(--j-ok-bg);color:var(--j-ok-fg)}
 .alert--danger{color:var(--j-danger-fg)}
 .alert:is(.alert--attention,.alert--success,.alert--danger)>.icon,.alert strong{color:inherit}
+/* The one-shot banner (_ui.html flash_banner). Static, no motion. The text always keeps clear
+   of the close button app.js shows, so showing it never rewraps a line. */
+.flash{position:relative}
+.flash>.alert{padding-right:52px}
+.flash__close{position:absolute;top:4px;right:4px;display:grid;place-items:center;min-width:44px;min-height:44px;padding:0;border:0;border-radius:var(--r-md);background:none;color:var(--j-ok-fg)}
+@media (hover:hover){.flash__close:hover{background:var(--j-surface)}}
 .badge{height:auto;overflow:visible;padding:2px 10px 2px 8px;border:0;font-size:var(--fs-caption);font-weight:500;transition:none}
 .badge--ok{background:var(--j-ok-bg);color:var(--j-ok-fg)}
 .badge--attention{background:var(--j-attn-bg);color:var(--j-attn-fg)}

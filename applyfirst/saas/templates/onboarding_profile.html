@@ -31,6 +31,9 @@
 {%- set flagged = too_long_copy | select('in', ([fe.field] if failed_long else []) + (over_cap_fields | default([]))) | list %}
 {%- set initial = (user.display_name or user.email)[:1] | upper %}
 {% call ui.onboarding_shell(2, activated | default(false)) %}
+      {%- if flash | default(none) %}
+      {{ ui.flash_banner(flash, user.email) }}
+      {%- endif %}
       <div>
         <h1>Your details</h1>
         <p class="lead">We use these to write each application. You do this once and can change it any time.</p>

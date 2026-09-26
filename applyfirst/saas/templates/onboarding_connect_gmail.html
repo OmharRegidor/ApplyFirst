@@ -19,6 +19,8 @@
 {% call ui.onboarding_shell(1, editing) %}
       {%- if retry %}
       {{ ui.gmail_retry_note(retry, gmail_connected) }}
+      {%- elif flash | default(none) %}
+      {{ ui.flash_banner(flash, user.email) }}
       {%- endif %}
       {%- if gmail_connected %}
       <div>

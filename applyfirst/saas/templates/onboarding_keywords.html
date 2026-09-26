@@ -20,6 +20,9 @@
 {%- set kw_max = 20 %}
 {%- set at_cap = keywords | length >= kw_max %}
 {% call ui.onboarding_shell(3, activated | default(false)) %}
+      {%- if flash | default(none) %}
+      {{ ui.flash_banner(flash, user.email) }}
+      {%- endif %}
       <div>
         <h1>What jobs should we watch for?</h1>
         <p class="lead">Type what you'd type in the onlinejobs.ph search box. We look for new posts with these words about every {{ N }} minutes.</p>
@@ -35,7 +38,9 @@
       </form>
       {%- endif %}
       {# The saved list sits right under the add form, newest chip first, so after an add (the page reloads at the top) the new chip shows without scrolling on a phone however many there are. The quick adds follow it, then the next step (spec 6.2).
-         While the list is empty its heading is for screen readers only, which keeps the first quick add in a 360 x 740 first view. #}
+         While the list is empty its heading is for screen readers only, which keeps the first quick add in a 360 x 740 first view.
+         The one-shot "Signed in as" banner (lines 23-24) is the one exception. On that single visit it adds about 100px and pushes
+         the chip just below the fold, while the h1 and the Add field stay in view, and it can be closed. #}
       <div>
         <h2 class="h-mini{% if not keywords %} visually-hidden{% endif %}">Your keywords</h2>
         {%- if keywords %}

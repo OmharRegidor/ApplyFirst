@@ -1,11 +1,14 @@
 """Signed cookies + the session helpers — stdlib hmac, no external dependency.
 
-Two signed cookies:
+Three signed cookies:
 - the **session** cookie: ``{"uid": <user_id>, "iat": <epoch>}`` — who is logged in.
 - the **oauth** cookie: ``{"state", "nonce", "verifier", "iat"}`` — the in-flight
   OAuth transaction, set at /auth/login and cleared at /auth/callback. Signed +
   HttpOnly so it is tamper-proof and not reachable from JS; chosen over server-side
   storage so it survives across the multiple uvicorn workers in prod.
+- the **flash** cookie: ``{"flash": <code>, "iat"}`` — the one-shot "Signed in as ..." or
+  "Gmail connected." line, set by a callback's success path only and deleted by the first
+  journey page that renders. It carries one whitelisted code, never an email or user text.
 
 Cookie naming: with secure cookies on (prod) we use the ``__Host-`` prefix, which the
 browser only honors for Secure, Path=/, host-only cookies — a strong binding. Over
@@ -24,6 +27,10 @@ from fastapi import Request, Response
 
 _SESSION_MAX_AGE = 7 * 24 * 3600     # 7 days
 _OAUTH_MAX_AGE = 10 * 60             # 10 minutes — an OAuth round-trip is seconds
+_FLASH_MAX_AGE = 2 * 60              # 2 minutes — it is read by the very next page
+
+# The only flash codes set or honoured. Anything else reads as no flash at all.
+FLASH_CODES = frozenset({"signed_in", "gmail_connected"})
 
 
 def _b64e(raw: bytes) -> str:
@@ -46,7 +53,7 @@ def sign(secret: bytes, payload: dict) -> str:
 
 def unsign(secret: bytes, token: str | None, max_age: int) -> dict | None:
     """Verify signature + freshness. Returns the payload, or None if invalid."""
-    if not token or "." not in token:
+    if not token or "." not in token or not token.isascii():
         return None
     body, _, sig = token.partition(".")
     expected = _b64e(hmac.new(secret, body.encode("ascii"), hashlib.sha256).digest())
@@ -134,3 +141,26 @@ def read_oauth_txn(request: Request, secret: bytes, secure: bool) -> dict | None
 
 def clear_oauth_txn(response: Response, secure: bool) -> None:
     _delete(response, oauth_cookie_name(secure), secure)
+
+
+def flash_cookie_name(secure: bool) -> str:
+    return _name("applyfirst_flash", secure)
+
+
+def set_flash(response: Response, secret: bytes, secure: bool, code: str) -> None:
+    """Replace any pending flash with ``code``, one of FLASH_CODES."""
+    if code not in FLASH_CODES:
+        raise ValueError(f"unknown flash code {code!r}")
+    _set(response, flash_cookie_name(secure), sign(secret, {"flash": code}), secure,
+         _FLASH_MAX_AGE)
+
+
+def read_flash(request: Request, secret: bytes, secure: bool) -> str | None:
+    """The pending flash code, or None when there is none, it is forged, stale or unknown."""
+    payload = unsign(secret, request.cookies.get(flash_cookie_name(secure)), _FLASH_MAX_AGE)
+    code = payload.get("flash") if payload else None
+    return code if isinstance(code, str) and code in FLASH_CODES else None
+
+
+def clear_flash(response: Response, secure: bool) -> None:
+    _delete(response, flash_cookie_name(secure), secure)

@@ -122,9 +122,11 @@
     btn.insertBefore(svg, btn.firstChild);
   });
 
-  // Re-enable buttons when the page comes back from the back/forward cache.
+  // Re-enable buttons when the page comes back from the back/forward cache, and drop the
+  // one-shot banner, which only the first visit may show.
   window.addEventListener("pageshow", (e) => {
     if (!e.persisted) return;
+    document.querySelectorAll(".flash").forEach((f) => f.remove());
     document.querySelectorAll("button[data-state=busy]").forEach((btn) => {
       btn.disabled = false;
       delete btn.dataset.state;
@@ -137,6 +139,16 @@
 
   // Copy buttons ship hidden, so they only appear when copying can work.
   if (canCopy) document.querySelectorAll("[hidden][data-copy], [hidden][data-copy-url]").forEach((b) => { b.hidden = false; });
+
+  // The one-shot banner's close button ships hidden and only appears here. Closing it removes
+  // the banner and puts focus at the start of the page, never on nothing.
+  document.querySelectorAll("[data-dismiss]").forEach((x) => {
+    x.hidden = false;
+    x.addEventListener("click", () => {
+      x.closest(".flash").remove();
+      document.getElementById("main").focus({ preventScroll: true });
+    });
+  });
 
   // Move focus to a page-level message (profile error, Gmail retry note) so keyboard and screen reader users land on it.
   const note = document.querySelector("[role=alert][tabindex='-1']");

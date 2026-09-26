@@ -41,11 +41,12 @@
 <svg class="mark" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="8.5" fill="{{ '#FFFFFF' if inverse else '#0B2545' }}"/><path d="M9.5 23.5 16 11l6.5 12.5" fill="none" stroke="{{ '#0B2545' if inverse else '#FFFFFF' }}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="16" cy="9.6" r="3.9" fill="#38AEEA" stroke="{{ '#FFFFFF' if inverse else '#0B2545' }}" stroke-width="1.6"/></svg>
 {%- endmacro %}
 
-{# An email address that may only break after the @ or a dot of the name, never mid-word. #}
+{# An email address that may only break after the @ or a dot of the name, never mid-word. Each piece is an
+   inline-block (.addr-seg), so a hyphen inside it is no break point, and only a piece wider than the line wraps. #}
 {% macro email_text(addr) -%}
 {%- set parts = (addr or '').partition('@') -%}
-{%- for bit in parts[0].split('.') -%}{{ bit }}{% if not loop.last %}.<wbr>{% endif %}{%- endfor -%}
-{%- if parts[1] %}@<wbr>{{ parts[2] }}{% endif -%}
+{%- for bit in parts[0].split('.') -%}<span class="addr-seg">{{ bit }}{% if not loop.last %}.{% elif parts[1] %}@{% endif %}</span>{% if not loop.last or parts[1] %}<wbr>{% endif %}{%- endfor -%}
+{%- if parts[1] %}<span class="addr-seg">{{ parts[2] }}</span>{% endif -%}
 {%- endmacro %}
 
 {#- ===== Buttons and links ================================================================================= -#}
@@ -142,6 +143,22 @@
     <p>Your earlier Gmail connection still works.</p>
 {%- endif %}
 {%- endcall %}
+{%- endmacro %}
+
+{# The one-shot line after "Continue with Google" (code "signed_in") or "Connect Gmail" ("gmail_connected"). app.py
+   passes the code only to the first page after the return, so it never shows twice. The green box is the status
+   message. The close button sits beside it, not in it, so showing it is never read out as news. It ships hidden and
+   only app.js shows it. Never data-arrive-gmail here, and never inside .dash__grid. #}
+{% macro flash_banner(code, addr) -%}
+{%- if code in ("signed_in", "gmail_connected") %}
+<div class="flash">
+  {% call alert('success', 'circle-check', role='status') %}
+  {%- if code == "gmail_connected" %}<p>Gmail connected. Applications will go to <strong class="addr-inline">{{ email_text(addr) }}</strong>.</p>
+  {%- else %}<p>Signed in as <strong class="addr-inline">{{ email_text(addr) }}</strong>.</p>{% endif %}
+  {%- endcall %}
+  <button class="flash__close" type="button" data-dismiss hidden>{{ icon('x', 18) }}<span class="visually-hidden">Dismiss this message</span></button>
+</div>
+{%- endif %}
 {%- endmacro %}
 
 {# Google blocks sign-in inside the Facebook, Messenger and Instagram apps. Presentation only, never a gate. #}
