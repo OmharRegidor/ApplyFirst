@@ -4,36 +4,43 @@
   emails it to me. Plus a private read-only dashboard over Tailscale. **Unchanged — still running.**
 - **V2 — multi-tenant SaaS** (`applyfirst/saas/`): other onlinejobs.ph applicants sign in with Google,
   onboard, and the worker delivers tailored applications **to their own Gmail inbox**. **M1–M5, the UI
-  redesign, the animated onboarding and the premium design pass are all committed.** The sign-up
-  journey redesign is built and verified but **not yet committed**. Deploy targets:
+  redesign, the animated onboarding, the premium design pass, the sign-up journey redesign and the
+  sign-in confirmation note are all committed and pushed.** Deploy targets:
   **Fly.io beta** (`Dockerfile`/`fly.toml`/`entrypoint.sh`) and the **Oracle VM production runbook**
   (`deploy/oracle/`).
 
-# Current State — Where it stands (2026-09-25)
+# Current State — Where it stands (2026-09-26)
 ✅ **Launch blockers B1–B6 are all fixed, committed and pushed** (B1–B5 `c32ca48`, B6 `8c65928`),
-along with the redesign spec (`ba60723`). Tests: **1,283 passing** with the sign-up redesign and
-the Log out fix (neither committed yet), **887** with B6 (`.venv/Scripts/python.exe -m pytest -q`),
-845 before B6, 779 before the launch fixes, 745 on 2026-09-23 morning, 692 before that day, 546
-before the animated onboarding, 211 before the redesign. Smoke: **607 checks, 0 failed**, 558 before
-the sign-up redesign (`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
+along with the redesign spec (`ba60723`). Tests: **1,380 passing** with the confirmation note,
+1,283 with the sign-up redesign and the Log out fix, **887** with B6
+(`.venv/Scripts/python.exe -m pytest -q`), 845 before B6, 779 before the launch fixes, 745 on
+2026-09-23 morning, 692 before that day, 546 before the animated onboarding, 211 before the
+redesign. Smoke: **607 checks, 0 failed**, 558 before the sign-up redesign
+(`.venv/Scripts/python.exe .noxa/redesign-saas-ui/inputs/preserve_smoke.py`).
 🟡 **B1–B6 need four things from the owner at deploy time**, because code cannot pick them:
 the Gemini credential with billing on, an alert webhook, the SMTP settings (for B6), and an
 uptime monitor on `/health`. See "Launch blockers" below.
 ✅ **B6 is fixed and committed (2026-09-24, `8c65928`).** A user whose Gmail connection Google
 ends is now emailed once to reconnect. See "What shipped in B6" below.
-🟢 **Sign-up journey redesign: built and verified, waiting for the owner's look and commit.**
+✅ **Sign-up journey redesign: committed and pushed (2026-09-25, `53d811a`, plan `21f8788`).**
 Login, the four onboarding steps, the dashboard and a new "Sign-in didn't finish" page share one
 light and dark look on a trimmed Basecoat and self-hosted Inter, built from
-`docs/superpowers/plans/2026-09-25-signup-redesign.md`. **None of it is committed yet.** See
-"Sign-up journey redesign (built)" below.
-✅ **Found and fixed during the review, not yet committed: Log out did not sign anyone out in
-production.** It is an old bug, not one the redesign made. In production the sign-in cookie has the
-`__Host-` prefix, and a browser only deletes such a cookie when the delete also says `Secure`. Ours
-did not, so Log out answered normally but the browser kept the cookie and the person stayed signed
-in, for up to 7 days. The same bug left the 10-minute Google sign-in cookie behind.
-`applyfirst/saas/session.py` now deletes both cookies with exactly the rules it set them with.
-🔴 **Still not deployed.** The owner was mid Google Cloud OAuth setup on 2026-09-22 (see the gotcha
-about "Authorized JavaScript origins"). No Fly app, no test users. V2 has never run outside localhost.
+`docs/superpowers/plans/2026-09-25-signup-redesign.md`. See "Sign-up journey redesign (built)" below.
+✅ **Log out now really signs people out in production (`3b1bdc5`).** It was an old bug. In
+production the sign-in cookie has the `__Host-` prefix, and a browser only deletes such a cookie
+when the delete also says `Secure`. Ours did not, so Log out answered normally but the person stayed
+signed in, for up to 7 days, and the 10-minute Google sign-in cookie was left behind too.
+`applyfirst/saas/session.py` now deletes every cookie with exactly the rules it set it with.
+✅ **Sign-in confirmation note (2026-09-26).** The owner signed in locally with a real Google
+account and saw no sign that it worked. Now the page after "Continue with Google" shows a green
+"Signed in as <email>." note at the top, and the page after "Connect Gmail" shows "Gmail connected.
+Applications will go to <email>." See "Sign-in confirmation note" below.
+🟡 **Real Google sign-in works on localhost (2026-09-26).** The owner finished the `Agad-local`
+OAuth client and ran the real app on `http://localhost:8000` (docs/LOCAL-TEST.md Part C). The
+preview runner (`run_local.py`) still uses a fake client id, so its Google buttons always fail with
+`invalid_client`; that is expected. **The client secret was shown in a screenshot during setup:
+make a new secret in Google Cloud and delete the old one before any deploy.**
+🔴 **Still not deployed.** No Fly app yet. V2 has never run outside localhost.
 ⚠️ **The homepage has still never been looked at by a human.** Two design passes have landed on it,
 both verified by tests, computed contrast and headless-browser measurement, but nobody has scrolled
 it on a real phone. Do that first.
@@ -57,6 +64,42 @@ f5c6f86  docs: design brief for taking the homepage further
 597d0ab  refactor: rename the product from ApplyFirst to Agad   (the previous day's HEAD)
 ```
 
+# Sign-in confirmation note (2026-09-26)
+**What the owner asked for.** After signing in with Google, and after Gmail connected, nothing on
+the page said it had worked. The owner chose a quiet banner (the existing green success note) over a
+pop-up or a fading toast, after a research pass tested eight libraries (Basecoat's own alert,
+Notyf, Toastify, daisyUI, Web Awesome, Franken UI, the GOV.UK banner, toastkit). None beat what was
+already in the app: the toast libraries only show once JavaScript runs, several break the CSP or the
+no-purple rule, and daisyUI's `.alert` clashes with ours.
+
+**How it works, hop by hop.**
+- `auth_callback` success sets a one-shot flash cookie with the code `signed_in`, and
+  `gmail_callback` success sets `gmail_connected` (`applyfirst/saas/app.py`).
+- `applyfirst/saas/session.py` owns it: `FLASH_CODES` is the whitelist, `set_flash` / `read_flash`
+  / `clear_flash` sign it with the session secret, give it a 2-minute life, and set and delete it
+  with identical rules (`__Host-applyfirst_flash` with Secure in production). It carries only the
+  code, never the email.
+- Redirects never touch it, so it survives `/dashboard` → `/onboarding` → `/onboarding/<step>`.
+  `_journey_page()` in `app.py` is the one place that reads it: the first of the five journey pages
+  (four onboarding steps and the dashboard) renders the note and deletes the cookie in the same
+  response, with `Cache-Control: no-store`, so refresh and Back never show it again.
+- `ui.flash_banner(code, addr)` in `_ui.html` renders it with role="status" in the slot above the
+  page heading (on the dashboard above the status panel, outside `.dash__grid`). It never carries
+  `data-arrive-gmail`, so the frozen counts are unchanged. It is held back on `?gmail_error=` and on
+  Step 1's connected state, which has its own green note.
+- The ✕ button is `hidden` in the HTML and shown by `app.js`, so with JavaScript off the note shows
+  without a dead button. Closing it moves focus to `#main`.
+- Along the way `session.unsign` now rejects a non-ASCII cookie instead of crashing with a 500, and
+  `ui.email_text` wraps each part of an address so long emails break only after the @ or a dot.
+- Guards: `tests/test_saas_flash.py`. The preview shows it with
+  `/__dev/login?state=<s>&flash=signed_in|gmail_connected` (links on `/__dev/`).
+
+**Verification.** Built by the Jazelei persona, walked twice as a Filipino job seeker on a phone by
+the Franco persona (round 1 found the Step 4 landing missing its note, fixed; round 2 clean), then
+three review lenses with a skeptic per finding (3 confirmed and fixed: the non-ASCII 500, a
+hyphen break in long emails, a stale comment on Step 3). On Step 2 the note sits just above the
+"Gmail connected" route card, so the words show twice; judged clear, left as is.
+
 # Sign-up journey redesign (built)
 **Where it stands.** Spec `docs/superpowers/specs/2026-09-24-signup-redesign-design.md` (`ba60723`),
 plan `docs/superpowers/plans/2026-09-25-signup-redesign.md`, built task by task with both gates green
@@ -68,8 +111,8 @@ fixes with the same result. The font swap moves the page by 0.0001 on `/login`, 
 dashboard and 0.0000 on Step 2 (the limit is 0.02). The mutation pass broke every guard on purpose
 and every break was caught: Task 1's planted rule failed the 4 tests it should, Task 3 44 of 44,
 Task 5 29 of 29, Task 6 26 of 26, Task 7 28 of 28, the review-focus checks 13 of 13, and the
-review fixes' new tests 18 of 18. **Not yet committed:** the owner commits the files listed under
-"What to commit" below.
+review fixes' new tests 18 of 18. **Committed and pushed on 2026-09-25** as `3b1bdc5` (Log out),
+`21f8788` (plan), `53d811a` (redesign) and `da293dc` (docs).
 
 **The review.** Six lenses (spec, motion, accessibility, security, CSS, tests) raised **22
 findings**. Each was then checked on its own: **8 confirmed, 14 refuted.** All 8 were fixed test-first
@@ -616,16 +659,17 @@ equivalent mutant (`>` vs `>=` once every attempt has its own instant).
 
 # Open follow-ups (ordered)
 Before the numbered list:
-- **Sign-up journey redesign.** Built and verified. The owner looks at it in the preview in light
-  and dark, decides the two open points in "Sign-up journey redesign (built)" (the paused panel's
-  second "Edit keywords" and hover colours easing), commits the files listed under "What to commit"
-  there, then checks on a real iPhone that Inter is never downloaded.
+- **Sign-up journey redesign.** Committed and pushed. Still open: the owner decides the two
+  points in "Sign-up journey redesign (built)" (the paused panel's second "Edit keywords" and hover
+  colours easing), and someone checks on a real iPhone that Inter is never downloaded.
+- **Rotate the Google client secret** before any deploy (it was shown in a screenshot on 2026-09-26).
 
 1. **Look at the new homepage.** It has never been seen by a person. Start the
    preview (below), scroll slowly on a phone and a computer, and check the ruler drawing, the How it
    works line, the email spotlight and the slots surprise.
-2. **Finish the Google Cloud OAuth client**, then walk `docs/LOCAL-TEST.md` end to end on localhost
-   with a real Google account. This is the actual blocker to everything else.
+2. **Walk `docs/LOCAL-TEST.md` end to end on localhost** with a real Google account. The OAuth
+   client works as of 2026-09-26 (sign-in and Connect Gmail both reached the app); the worker half
+   (Part E) and a real application email have not been tried yet.
 3. **Deploy (Path A, Fly.io beta)** with the four owner settings from "Launch blockers" (Gemini
    credential with billing on, alert webhook then `notify --test`, the SMTP settings then
    `reconnect --test`, UptimeRobot on `/health`).
@@ -839,11 +883,9 @@ public launch.
   the viewport mid-measurement. Re-navigate and re-check the page identity before trusting a reading.
 
 # Next Step — The single next thing to try
-**If this is the redesign session:** the sign-up journey is built (see "Sign-up journey redesign
-(built)" above). Ask the owner to look at it in the preview in light and dark (the command is
-below; `/__dev/` lists every login, onboarding and dashboard state), then to commit the files
-listed under "What to commit" in that section, in that order. The Log out fix goes first. After
-that, check on a real iPhone or Mac that Inter is never downloaded.
+**The sign-up redesign and the sign-in confirmation note are committed and pushed.** The next
+real step is finishing `docs/LOCAL-TEST.md` on localhost (the worker in Part E and one real
+application email), then rotating the Google client secret, then deploying.
 
 **Otherwise, start the preview in your own PowerShell window and look at the new homepage.**
 Nobody has seen it.
@@ -857,8 +899,8 @@ Check the hero at a phone width and watch the timing line draw, scroll slowly th
 the example email and the "15 applications" section, and confirm the pause control in the hero's
 bottom corner stops the background.
 
-**Then finish the Google Cloud OAuth client** and walk `docs/LOCAL-TEST.md` end to end on localhost
-with a real Google account. That is the real blocker and it has not moved since 2026-09-22.
+**Then walk `docs/LOCAL-TEST.md` end to end on localhost** with a real Google account. Sign-in and
+Connect Gmail already work there (2026-09-26); run the worker (Part E) and wait for one real email.
 
 **Then deploy to Fly** with the four owner settings (Gemini credential with billing on, alert
 webhook plus `notify --test`, the SMTP settings plus `reconnect --test`, UptimeRobot on `/health`).
