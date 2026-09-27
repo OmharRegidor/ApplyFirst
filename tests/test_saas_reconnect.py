@@ -107,10 +107,12 @@ def _cycle(conn, cfg, master_key, sender=_revoked, jobs=("1",)):
                            engine_factory=_engine_factory, sender=sender, polite=False)
 
 
-def _baselined(conn, cfg, master_key, **seed):
-    """A connected, activated user whose keyword has been polled once, so the next job alerts."""
+def _baselined(conn, cfg, master_key, clock, **seed):
+    """A connected, activated user whose keyword has been polled once, then the clock moves on a
+    tick. The worker sends only jobs first found after the baseline, so the next job alerts."""
     u = _seed(conn, master_key, **seed)
     _cycle(conn, cfg, master_key, sender=lambda *a, **k: "m", jobs=("0",))
+    clock.tick()
     return u
 
 
@@ -139,10 +141,10 @@ def _due_three(conn, master_key):
 # --- the email itself ---------------------------------------------------------------------------
 
 def test_an_ended_connection_emails_the_user_once_at_their_own_address(
-        saas_cfg, master_key, mailbox, owner):
+        saas_cfg, master_key, mailbox, owner, clock):
     cfg = _smtp(saas_cfg)
     conn = db.init_db(cfg.db_path)
-    u = _baselined(conn, cfg, master_key, email="maria@inbox.test")
+    u = _baselined(conn, cfg, master_key, clock, email="maria@inbox.test")
     connected_at = db.gmail_connected_at(conn, u.id)
 
     r = _cycle(conn, cfg, master_key)
@@ -166,11 +168,11 @@ def test_an_ended_connection_emails_the_user_once_at_their_own_address(
 
 
 def test_two_auth_errors_on_the_same_connection_send_one_email(
-        saas_cfg, master_key, mailbox, monkeypatch):
+        saas_cfg, master_key, mailbox, monkeypatch, clock):
     """If clearing the credential fails, the next alert meets the same dead grant again."""
     cfg = _smtp(saas_cfg)
     conn = db.init_db(cfg.db_path)
-    u = _baselined(conn, cfg, master_key)
+    u = _baselined(conn, cfg, master_key, clock)
     real, calls = reconnect.clear_dead_grant, []
 
     def locked_twice(*a):
@@ -188,12 +190,12 @@ def test_two_auth_errors_on_the_same_connection_send_one_email(
 
 
 def test_the_email_waits_until_the_dead_grant_is_cleared(saas_cfg, master_key, mailbox,
-                                                        monkeypatch):
+                                                        monkeypatch, clock):
     """While the dead grant is still stored the dashboard says Connected and hides the button
     the email points at, so the email waits for a cycle where clearing works."""
     cfg = _smtp(saas_cfg)
     conn = db.init_db(cfg.db_path)
-    u = _baselined(conn, cfg, master_key)
+    u = _baselined(conn, cfg, master_key, clock)
     real = reconnect.clear_dead_grant
 
     def locked(*a):
@@ -209,12 +211,13 @@ def test_the_email_waits_until_the_dead_grant_is_cleared(saas_cfg, master_key, m
     conn.close()
 
 
-def test_a_failure_while_queueing_never_drops_the_user(saas_cfg, master_key, mailbox, monkeypatch):
+def test_a_failure_while_queueing_never_drops_the_user(saas_cfg, master_key, mailbox, monkeypatch,
+                                                      clock):
     """The email is queued before the dead grant is cleared. If queueing fails, the grant is still
     there, so the next alert meets it again instead of the user being skipped untold forever."""
     cfg = _smtp(saas_cfg)
     conn = db.init_db(cfg.db_path)
-    u = _baselined(conn, cfg, master_key)
+    u = _baselined(conn, cfg, master_key, clock)
     real, calls = reconnect.expired, []
 
     def locked_once(*a):
@@ -233,10 +236,10 @@ def test_a_failure_while_queueing_never_drops_the_user(saas_cfg, master_key, mai
 
 
 def test_a_reconnect_between_the_check_and_the_clear_keeps_the_new_grant(
-        saas_cfg, master_key, mailbox, monkeypatch):
+        saas_cfg, master_key, mailbox, monkeypatch, clock):
     cfg = _smtp(saas_cfg)
     conn = db.init_db(cfg.db_path)
-    u = _baselined(conn, cfg, master_key)
+    u = _baselined(conn, cfg, master_key, clock)
     real = reconnect.expired
 
     def reconnect_lands_now(conn_, user_id, connected_at):
@@ -295,10 +298,11 @@ def test_the_copy_is_plain_true_and_short(saas_cfg):
 
 # --- never for the wrong reason -----------------------------------------------------------------
 
-def test_a_user_who_disconnects_on_purpose_gets_nothing(saas_cfg, master_key, mailbox, monkeypatch):
+def test_a_user_who_disconnects_on_purpose_gets_nothing(saas_cfg, master_key, mailbox, monkeypatch,
+                                                       clock):
     cfg = _smtp(saas_cfg)
     conn = db.init_db(cfg.db_path)
-    u = _baselined(conn, cfg, master_key)
+    u = _baselined(conn, cfg, master_key, clock)
     connected_at = db.gmail_connected_at(conn, u.id)
     c = TestClient(app_module.create_app(cfg), follow_redirects=False)
     c.cookies.set("applyfirst_session", session.sign(cfg.session_secret, {"uid": u.id}))
@@ -314,12 +318,12 @@ def test_a_user_who_disconnects_on_purpose_gets_nothing(saas_cfg, master_key, ma
 
 
 def test_a_send_that_dies_on_the_users_own_disconnect_is_not_called_an_expiry(
-        saas_cfg, master_key, mailbox):
+        saas_cfg, master_key, mailbox, clock):
     """The web app revokes the grant while the worker is sending with it. Google answers
     invalid_grant, exactly as for an expiry, before or after the row is deleted."""
     cfg = _smtp(saas_cfg)
     conn = db.init_db(cfg.db_path)
-    u = _baselined(conn, cfg, master_key)
+    u = _baselined(conn, cfg, master_key, clock)
     u_at = db.gmail_connected_at(conn, u.id)
 
     def revoked_mid_send(cfg_, refresh, **kw):      # marked and revoked, row not yet deleted
@@ -331,6 +335,7 @@ def test_a_send_that_dies_on_the_users_own_disconnect_is_not_called_an_expiry(
 
     u2 = _seed(conn, master_key, sub="g2", email="b@x")
     u2_at = db.gmail_connected_at(conn, u2.id)
+    clock.tick()                                    # job 2 goes up after u2 started
 
     def removed_mid_send(cfg_, refresh, **kw):      # and the row already gone
         reconnect.disconnected_on_purpose(conn, u2.id, u2_at)
@@ -344,10 +349,10 @@ def test_a_send_that_dies_on_the_users_own_disconnect_is_not_called_an_expiry(
 
 
 def test_a_reconnect_during_the_send_keeps_the_new_grant(saas_cfg, master_key, mailbox,
-                                                         monkeypatch):
+                                                         monkeypatch, clock):
     cfg = _smtp(saas_cfg)
     conn = db.init_db(cfg.db_path)
-    u = _baselined(conn, cfg, master_key)
+    u = _baselined(conn, cfg, master_key, clock)
 
     def reconnected_mid_send(cfg_, refresh, **kw):
         monkeypatch.setattr(db, "_now_iso", lambda: "2099-01-01T00:00:00Z")
@@ -379,10 +384,10 @@ def test_reconnecting_through_google_clears_what_is_owed(saas_cfg, master_key, m
 
 
 def test_a_user_back_on_gmail_before_the_mail_goes_is_not_mailed(
-        saas_cfg, master_key, mailbox, owner, monkeypatch):
+        saas_cfg, master_key, mailbox, owner, monkeypatch, clock):
     """No mail server at the expiry. By the time there is one, the user has reconnected."""
     conn = db.init_db(saas_cfg.db_path)
-    u = _baselined(conn, saas_cfg, master_key)
+    u = _baselined(conn, saas_cfg, master_key, clock)
     _cycle(conn, saas_cfg, master_key)
     assert _state(conn, u.id).startswith("due ")
     monkeypatch.setattr(db, "_now_iso", lambda: "2099-01-01T00:00:00Z")   # days later
@@ -396,9 +401,9 @@ def test_a_user_back_on_gmail_before_the_mail_goes_is_not_mailed(
 # --- no mail server, or a broken one --------------------------------------------------------------
 
 def test_no_smtp_logs_pages_the_owner_once_and_mails_once_it_is_set(
-        saas_cfg, master_key, mailbox, owner, caplog):
+        saas_cfg, master_key, mailbox, owner, caplog, clock):
     conn = db.init_db(saas_cfg.db_path)
-    u = _baselined(conn, saas_cfg, master_key)
+    u = _baselined(conn, saas_cfg, master_key, clock)
     with caplog.at_level(logging.INFO, logger="applyfirst"):
         r = _cycle(conn, saas_cfg, master_key)
         _cycle(conn, saas_cfg, master_key, jobs=("2",))
@@ -414,10 +419,10 @@ def test_no_smtp_logs_pages_the_owner_once_and_mails_once_it_is_set(
 
 
 def test_a_bad_login_pauses_alerts_and_never_logs_the_password(
-        saas_cfg, master_key, mailbox, owner, caplog):
+        saas_cfg, master_key, mailbox, owner, caplog, clock):
     cfg = _smtp(saas_cfg)
     conn = db.init_db(cfg.db_path)
-    u = _baselined(conn, cfg, master_key)
+    u = _baselined(conn, cfg, master_key, clock)
     mailbox.fail_at["login"] = smtplib.SMTPAuthenticationError(
         535, f"bad login agad@mail.test/{PW}".encode())
     with caplog.at_level(logging.INFO, logger="applyfirst"):
@@ -440,12 +445,12 @@ def test_a_bad_login_pauses_alerts_and_never_logs_the_password(
 
 
 def test_a_broken_smtp_account_is_not_reported_through_itself(
-        saas_cfg, master_key, mailbox, owner, caplog):
+        saas_cfg, master_key, mailbox, owner, caplog, clock):
     """With SMTP as the owner's alert channel, the alert would ride the same failing login."""
     cfg = _smtp(saas_cfg, owner_alert_email="owner@x.test")
     assert cfg.alert_channel == "smtp"
     conn = db.init_db(cfg.db_path)
-    _baselined(conn, cfg, master_key)
+    _baselined(conn, cfg, master_key, clock)
     mailbox.fail_at["login"] = smtplib.SMTPAuthenticationError(535, b"bad login")
     with caplog.at_level(logging.INFO, logger="applyfirst"):
         _cycle(conn, cfg, master_key)
@@ -652,9 +657,10 @@ def test_a_message_accepted_before_the_refusal_proves_nothing(saas_cfg, master_k
     conn.close()
 
 
-def test_a_crash_in_the_notice_never_costs_the_cycle(saas_cfg, master_key, monkeypatch, caplog):
+def test_a_crash_in_the_notice_never_costs_the_cycle(saas_cfg, master_key, monkeypatch, caplog,
+                                                     clock):
     conn = db.init_db(saas_cfg.db_path)
-    _baselined(conn, saas_cfg, master_key)
+    _baselined(conn, saas_cfg, master_key, clock)
 
     def boom(*a, **k):
         raise RuntimeError("database is locked")

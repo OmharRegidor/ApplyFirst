@@ -90,6 +90,36 @@ def test_connection_pragmas_are_set(tmp_path):
         conn.close()
 
 
+def test_watcher_lookup_uses_term_index(tmp_path):
+    """The worker looks up a term's watchers once per job found, so it must not read the whole
+    watch list each time."""
+    conn = db.init_db(str(tmp_path / "x.db"))
+    try:
+        plan = [r[3] for r in conn.execute(
+            "EXPLAIN QUERY PLAN SELECT k.user_id FROM user_keywords k "
+            "JOIN user_profiles p ON p.user_id = k.user_id "
+            "WHERE k.is_active = 1 AND k.keyword = ? AND p.activated_at IS NOT NULL", ("x",))]
+        assert not any(p.startswith("SCAN k") for p in plan), plan
+    finally:
+        conn.close()
+
+
+def test_a_v4_db_gains_the_term_index(tmp_path):
+    path = str(tmp_path / "x.db")
+    conn = db.init_db(path)
+    conn.execute("DROP INDEX IF EXISTS ix_user_keywords_keyword")
+    conn.execute("PRAGMA user_version=4;")
+    conn.commit()
+    conn.close()
+    conn2 = db.init_db(path)
+    try:
+        names = [r[1] for r in conn2.execute("PRAGMA index_list(user_keywords)")]
+        assert "ix_user_keywords_keyword" in names
+        assert conn2.execute("PRAGMA user_version").fetchone()[0] == db._SCHEMA_VERSION
+    finally:
+        conn2.close()
+
+
 def test_tenant_scope_rejects_non_tenant_table(tmp_path):
     """The TENANT_TABLES allow-list IS the SQL-injection guard — prove it bites."""
     conn = db.init_db(str(tmp_path / "x.db"))

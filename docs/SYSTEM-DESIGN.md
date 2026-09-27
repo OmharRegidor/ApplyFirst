@@ -202,7 +202,7 @@ erDiagram
 
 **Constraints & indexes worth calling out:**
 - `users.google_sub` — UNIQUE, the login key (never email).
-- `user_keywords` — UNIQUE `(user_id, keyword)`; partial index on `is_active = true` for the worker scan.
+- `user_keywords` — UNIQUE `(user_id, keyword)`; partial index on `is_active = true` for the worker scan; index on `keyword` (schema v5) for the per-job watcher lookup.
 - `jobs.onlinejobs_id` — UNIQUE; INSERT … ON CONFLICT DO NOTHING for cross-tenant dedupe.
 - `user_job_alerts` — UNIQUE `(user_id, job_id)`; this is the per-user dedupe guard.
 - `tailoring_cache` — UNIQUE `(job_id, profile_hash)`; rows older than 30 days purged nightly.
@@ -325,10 +325,17 @@ every 4–7 min (jittered):
   for kw in unique_keywords:
       sleep 1.0–2.5s        # politeness between keyword fetches
       listings = scrape(kw)
+      first = kw never searched before          # its baseline: what is already posted
+              or nobody watching kw now was watching at its last search   # back after a gap
       for L in listings:
-          INSERT INTO jobs (onlinejobs_id, ...) ON CONFLICT DO NOTHING
-      for user in users subscribed to kw:
-          INSERT INTO user_job_alerts (user_id, job_id) ON CONFLICT DO NOTHING
+          INSERT INTO jobs (onlinejobs_id, ..., scraped_at=now) ON CONFLICT DO NOTHING
+          if first: continue                     # stored silently, never alerted later
+          for user in users subscribed to kw
+                  whose start < L.scraped_at      # start = latest of activated_at,
+                                                  #   this keyword's created_at, kw baseline
+                  and who have no alert for L yet:
+              INSERT INTO user_job_alerts (user_id, job_id) ON CONFLICT DO NOTHING
+      mark kw searched (a baseline also moves its baseline stamp to now)
 
   pending = SELECT FROM user_job_alerts WHERE status='pending'
   for alert in pending:
@@ -339,6 +346,11 @@ every 4–7 min (jittered):
           gmail_api_send(to=user.email, subject, body, attachments=[resume_pdf])
           mark 'sent', increment ai_usage
 ```
+
+**Only jobs that appear after a user starts are theirs.** A search page mostly repeats jobs an
+earlier poll already stored. Before 2026-09-27 every poll after the baseline alerted the whole page
+to every subscriber, so a new user got the baseline's backlog on their second cycle (59 alerts in
+one go). Stamps are to the second, and a job stored in the same second as the start is left out.
 
 **Dead-man's switch (Manny):** if shared poll returns 0 listings for 3 consecutive cycles, the worker emits a `worker_blind` alert to the owner — not to users. (Likely an IP ban or onlinejobs.ph layout change.)
 

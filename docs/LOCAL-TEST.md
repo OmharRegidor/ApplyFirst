@@ -109,11 +109,16 @@ $env:GEMINI_API_KEY = "PASTE-GEMINI-KEY"
 
 ### The first cycle sends nothing, on purpose
 
-The first time the worker sees a new keyword it only records what is already posted, so you are
-not flooded with a backlog of old jobs. Only a job posted **after** that first cycle emails you.
+Only jobs that appear **after you start** are sent to you. The first time the worker searches a
+keyword it only records what is already posted, so you are not flooded with a backlog of old
+jobs, and it never sends you those later either. After that, a job emails you only if the worker
+first finds it after you tapped "Start watching for jobs" and after you added that keyword. Remove
+a keyword and add it back, and it starts again from the moment you add it. If nobody else was
+watching it meanwhile, the first cycle after you add it back is silent again, because nothing
+searched it while it was gone.
 
-So expect silence for the first five minutes. To test without waiting for a real new post, run a
-single cycle at a time instead.
+So expect silence until onlinejobs.ph gets a new matching post. To check on your own schedule
+instead of the worker's timer, run a single cycle at a time.
 
 ```powershell
 .venv\Scripts\python.exe -m applyfirst.saas.worker --once

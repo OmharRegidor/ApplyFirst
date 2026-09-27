@@ -70,6 +70,13 @@ def _alert(conn, external_id="1"):
         "JOIN jobs j ON j.id = a.job_id WHERE j.onlinejobs_id=?", (external_id,)).fetchone()
 
 
+def _new_job_later(src, clock, external_id="1"):
+    """A post nobody has seen goes up on top of the page, a tick after the baseline. The worker
+    only sends jobs first found after that, so the baseline's own job 0 is never sent."""
+    src.ids.insert(0, external_id)
+    clock.tick()
+
+
 def _wipe_by_prompt_change(conn, user):
     db.set_worker_meta(conn, "prompt_fingerprint", "old-release")    # next cycle wipes the cache
 
@@ -82,12 +89,14 @@ def _wipe_by_profile_edit(conn, user):
 
 @pytest.mark.parametrize("lose_cache", [_wipe_by_prompt_change, _wipe_by_profile_edit],
                          ids=["prompt-change-wipe", "profile-edit"])
-def test_a_retry_at_the_cap_is_sent_and_not_charged_again(saas_cfg, master_key, lose_cache):
+def test_a_retry_at_the_cap_is_sent_and_not_charged_again(saas_cfg, master_key, lose_cache,
+                                                          clock):
     cfg = dataclasses.replace(saas_cfg, daily_tailor_cap=1)
     conn = db.init_db(cfg.db_path)
     user = _seed(conn, master_key)
-    src, rec, sent = _Source("1"), RecordingProvider(REPLY), []
-    _cycle(conn, cfg, master_key, src, rec, sent)                      # baseline
+    src, rec, sent = _Source("0"), RecordingProvider(REPLY), []
+    _cycle(conn, cfg, master_key, src, rec, sent)                      # baseline: job 0
+    _new_job_later(src, clock)                                         # job 1 goes up
     _cycle(conn, cfg, master_key, src, rec, sent, fail=True)           # first attempt, send fails
     assert tuple(_alert(conn))[:2] == ("pending", 1)
     assert _usage(conn, user) == 1 == cfg.daily_tailor_cap            # charged once, now AT cap
@@ -103,13 +112,14 @@ def test_a_retry_at_the_cap_is_sent_and_not_charged_again(saas_cfg, master_key, 
     conn.close()
 
 
-def test_retries_stay_free_up_to_the_attempt_limit(saas_cfg, master_key):
+def test_retries_stay_free_up_to_the_attempt_limit(saas_cfg, master_key, clock):
     """Every retry misses the cache here, and still none of them is charged."""
     cfg = dataclasses.replace(saas_cfg, daily_tailor_cap=1)
     conn = db.init_db(cfg.db_path)
     user = _seed(conn, master_key)
-    src, rec, sent = _Source("1"), RecordingProvider(REPLY), []
-    _cycle(conn, cfg, master_key, src, rec, sent)                      # baseline
+    src, rec, sent = _Source("0"), RecordingProvider(REPLY), []
+    _cycle(conn, cfg, master_key, src, rec, sent)                      # baseline: job 0
+    _new_job_later(src, clock)                                         # job 1 goes up
     for _ in range(worker._MAX_ATTEMPTS):
         conn.execute("DELETE FROM tailoring_cache")
         conn.commit()
@@ -120,18 +130,19 @@ def test_retries_stay_free_up_to_the_attempt_limit(saas_cfg, master_key):
     conn.close()
 
 
-def test_a_first_attempt_still_charges_and_still_caps(saas_cfg, master_key):
+def test_a_first_attempt_still_charges_and_still_caps(saas_cfg, master_key, clock):
     cfg = dataclasses.replace(saas_cfg, daily_tailor_cap=1)
     conn = db.init_db(cfg.db_path)
     user = _seed(conn, master_key)
-    src, rec, sent = _Source("1"), RecordingProvider(REPLY), []
-    _cycle(conn, cfg, master_key, src, rec, sent)                      # baseline
+    src, rec, sent = _Source("0"), RecordingProvider(REPLY), []
+    _cycle(conn, cfg, master_key, src, rec, sent)                      # baseline: job 0
+    _new_job_later(src, clock)                                         # job 1 goes up
 
     r = _cycle(conn, cfg, master_key, src, rec, sent)                  # first attempt, job 1
     assert r.sent == 1 and len(rec.calls) == 1
     assert _usage(conn, user) == 1                                     # it charged
 
-    src.ids.append("2")                                                # a new job, first attempt
+    _new_job_later(src, clock, "2")                                    # a new job, first attempt
     r = _cycle(conn, cfg, master_key, src, rec, sent)
     assert (r.sent, r.capped) == (0, 1)
     status, attempts, last_error = _alert(conn, "2")
@@ -141,13 +152,14 @@ def test_a_first_attempt_still_charges_and_still_caps(saas_cfg, master_key):
     conn.close()
 
 
-def test_a_first_attempt_after_the_prompt_wipe_still_caps(saas_cfg, master_key):
+def test_a_first_attempt_after_the_prompt_wipe_still_caps(saas_cfg, master_key, clock):
     """The free pass is for retries only: a fresh alert at the cap is capped, wipe or not."""
     cfg = dataclasses.replace(saas_cfg, daily_tailor_cap=1)
     conn = db.init_db(cfg.db_path)
     user = _seed(conn, master_key)
-    src, rec, sent = _Source("1"), RecordingProvider(REPLY), []
-    _cycle(conn, cfg, master_key, src, rec, sent)                      # baseline
+    src, rec, sent = _Source("0"), RecordingProvider(REPLY), []
+    _cycle(conn, cfg, master_key, src, rec, sent)                      # baseline: job 0
+    _new_job_later(src, clock)                                         # job 1 goes up
     db.try_increment_ai_usage(conn, user.id, cfg.daily_tailor_cap)     # already at the cap
     _wipe_by_prompt_change(conn, user)
     r = _cycle(conn, cfg, master_key, src, rec, sent)
@@ -157,14 +169,15 @@ def test_a_first_attempt_after_the_prompt_wipe_still_caps(saas_cfg, master_key):
     conn.close()
 
 
-def test_a_cap_of_zero_stops_retries_too(saas_cfg, master_key):
+def test_a_cap_of_zero_stops_retries_too(saas_cfg, master_key, clock):
     """APPLYFIRST_DAILY_TAILOR_CAP=0 switches the AI off for every attempt: a retry whose cached
     letter is gone is capped with no AI call and no charge, as before retries became free."""
     cfg = dataclasses.replace(saas_cfg, daily_tailor_cap=1)
     conn = db.init_db(cfg.db_path)
     user = _seed(conn, master_key)
-    src, rec, sent = _Source("1"), RecordingProvider(REPLY), []
-    _cycle(conn, cfg, master_key, src, rec, sent)                      # baseline
+    src, rec, sent = _Source("0"), RecordingProvider(REPLY), []
+    _cycle(conn, cfg, master_key, src, rec, sent)                      # baseline: job 0
+    _new_job_later(src, clock)                                         # job 1 goes up
     _cycle(conn, cfg, master_key, src, rec, sent, fail=True)           # first attempt, send fails
     assert tuple(_alert(conn))[:2] == ("pending", 1) and len(rec.calls) == 1
 

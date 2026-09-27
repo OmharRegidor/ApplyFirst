@@ -458,8 +458,8 @@ class _FlakyProvider:
                 '"resume_overrides": {"emphasize_skills": []}}')
 
 
-def _ai_cycles(saas_cfg, master_key, monkeypatch, sent, provider, cycles, *, cfg=None):
-    """A baseline, then ``cycles`` polls that each bring one new job to tailor."""
+def _ai_cycles(saas_cfg, master_key, monkeypatch, clock, sent, provider, cycles, *, cfg=None):
+    """A baseline, then ``cycles`` polls a tick apart that each bring one new job to tailor."""
     monkeypatch.setattr(notify, "send_owner_alert", lambda c, s, b: sent.append(s) or True)
     cfg = cfg or dataclasses.replace(saas_cfg, gemini_api_key="set-but-wrong")
     conn = db.init_db(cfg.db_path)
@@ -467,58 +467,64 @@ def _ai_cycles(saas_cfg, master_key, monkeypatch, sent, provider, cycles, *, cfg
     kw = dict(engine_factory=lambda: TailoringEngine(provider=provider),
               sender=lambda *a, **k: "m", polite=False)
     worker.run_once(conn, FakeSource([_raw("0")]), cfg, master_key, **kw)       # baseline
-    results = [worker.run_once(conn, FakeSource([_raw(str(n))]), cfg, master_key, **kw)
-               for n in range(1, cycles + 1)]
+    results = []
+    for n in range(1, cycles + 1):
+        clock.tick()                    # found after the baseline, so it is the user's to send
+        results.append(worker.run_once(conn, FakeSource([_raw(str(n))]), cfg, master_key, **kw))
     return conn, results
 
 
-def _second_poll_with_failing_ai(saas_cfg, master_key, monkeypatch, sent):
-    conn, results = _ai_cycles(saas_cfg, master_key, monkeypatch, sent, _FailingProvider(), 1)
+def _second_poll_with_failing_ai(saas_cfg, master_key, monkeypatch, clock, sent):
+    conn, results = _ai_cycles(saas_cfg, master_key, monkeypatch, clock, sent,
+                               _FailingProvider(), 1)
     return conn, results[-1]
 
 
 def test_one_failed_ai_cycle_is_logged_but_does_not_page(saas_cfg, master_key, monkeypatch,
-                                                         caplog):
+                                                         clock, caplog):
     """A single unlucky cycle can be a passing Gemini overload."""
     sent = []
     with caplog.at_level(logging.WARNING):
-        conn, r = _second_poll_with_failing_ai(saas_cfg, master_key, monkeypatch, sent)
+        conn, r = _second_poll_with_failing_ai(saas_cfg, master_key, monkeypatch, clock, sent)
     assert r.ai_calls == 1 and r.ai_fallbacks == 1
     assert _events(caplog, "ai_all_failed", logging.ERROR)
     assert sent == [] and db.get_worker_meta(conn, "ai_failed_cycles") == "1"
     conn.close()
 
 
-def test_a_failing_ai_streak_pages_the_owner_once(saas_cfg, master_key, monkeypatch):
+def test_a_failing_ai_streak_pages_the_owner_once(saas_cfg, master_key, monkeypatch, clock):
     sent = []
-    conn, _ = _ai_cycles(saas_cfg, master_key, monkeypatch, sent, _FailingProvider(),
+    conn, _ = _ai_cycles(saas_cfg, master_key, monkeypatch, clock, sent, _FailingProvider(),
                          worker._AI_FAIL_STREAK + 2)
     assert sent == ["Agad's AI calls are failing"], "paged at the streak, then debounced"
     conn.close()
 
 
-def test_a_working_ai_call_resets_the_streak(saas_cfg, master_key, monkeypatch, caplog):
+def test_a_working_ai_call_resets_the_streak(saas_cfg, master_key, monkeypatch, clock, caplog):
     sent = []
     with caplog.at_level(logging.ERROR, logger="applyfirst.saas.worker"):
-        conn, results = _ai_cycles(saas_cfg, master_key, monkeypatch, sent, _FlakyProvider(), 3)
+        conn, results = _ai_cycles(saas_cfg, master_key, monkeypatch, clock, sent,
+                                   _FlakyProvider(), 3)
     assert results[0].ai_fallbacks == 1 and results[1].ai_fallbacks == 0
     assert db.get_worker_meta(conn, "ai_failed_cycles") == "0" and sent == []
     conn.close()
 
 
-def test_no_ai_credential_means_nothing_to_count(saas_cfg, master_key, monkeypatch, caplog):
+def test_no_ai_credential_means_nothing_to_count(saas_cfg, master_key, monkeypatch, clock,
+                                                 caplog):
     sent = []
     with caplog.at_level(logging.ERROR, logger="applyfirst.saas.worker"):
-        conn, results = _ai_cycles(saas_cfg, master_key, monkeypatch, sent, None, 3, cfg=saas_cfg)
+        conn, results = _ai_cycles(saas_cfg, master_key, monkeypatch, clock, sent, None, 3,
+                                   cfg=saas_cfg)
     assert all(r.ai_calls == 0 for r in results)
     assert _events(caplog, "ai_all_failed") == [] and sent == []
     conn.close()
 
 
 def test_a_failed_ai_call_logs_its_status_and_never_its_url(saas_cfg, master_key, monkeypatch,
-                                                            caplog):
+                                                            clock, caplog):
     with caplog.at_level(logging.WARNING):
-        conn, _ = _second_poll_with_failing_ai(saas_cfg, master_key, monkeypatch, [])
+        conn, _ = _second_poll_with_failing_ai(saas_cfg, master_key, monkeypatch, clock, [])
     with pytest.raises(httpx.HTTPStatusError, match="LEAKME"):   # so the check below can fail
         _FailingProvider().generate("s", "u")
     failed = _events(caplog, "ai_call_failed", logging.WARNING)
@@ -599,7 +605,7 @@ def test_the_real_watchdog_thread_fires_on_a_stall_and_not_before():
     assert fired.wait(2) and codes[0] == worker._STALL_EXIT_CODE
 
 
-def test_a_cycle_beats_for_every_term_job_and_alert(saas_cfg, master_key):
+def test_a_cycle_beats_for_every_term_job_and_alert(saas_cfg, master_key, clock):
     conn = db.init_db(saas_cfg.db_path)
     _seed(conn, master_key)
     beats = []
@@ -608,9 +614,11 @@ def test_a_cycle_beats_for_every_term_job_and_alert(saas_cfg, master_key):
     worker.run_once(conn, FakeSource([_raw("1")]), saas_cfg, master_key, **kw)   # baseline
     assert len(beats) == 1 + 1                                       # one job + the term
     beats.clear()
-    r = worker.run_once(conn, FakeSource([_raw("1"), _raw("2")]), saas_cfg, master_key, **kw)
+    clock.tick()                                                     # jobs 2 and 3 go up later
+    r = worker.run_once(conn, FakeSource([_raw("3"), _raw("2"), _raw("1")]), saas_cfg,
+                        master_key, **kw)
     handled = r.sent + r.failed + r.capped + r.skipped
-    assert handled >= 1 and len(beats) == 2 + 1 + handled            # jobs + term + each alert
+    assert handled == 2 and len(beats) == 3 + 1 + handled            # jobs + term + each alert
     conn.close()
 
 

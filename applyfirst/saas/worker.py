@@ -3,8 +3,13 @@
 One cycle (``run_once``):
   1. POLL — for each unique keyword that an activated tenant watches, fetch onlinejobs.ph
      ONCE (politely), store new jobs in the shared ``jobs`` table (detail fetched only for
-     globally-new jobs). The first poll of a keyword silently *baselines* (no alerts).
-  2. FAN OUT — insert a ``user_job_alerts`` row per (activated subscriber, job).
+     globally-new jobs). The first poll of a keyword silently *baselines*: what it stores is
+     never alerted, then or later. So does the first poll of a keyword that nobody watching it
+     now was watching at its last search (it went unsearched while posts piled up).
+  2. FAN OUT — insert a ``user_job_alerts`` row per (activated subscriber, job), but only for a
+     job first stored after that subscriber started: after they activated, after they added the
+     keyword, and after the keyword's baseline (``db.alert_watchers``). A page mostly repeats
+     jobs an earlier poll stored, and those are nobody's news.
   3. PROCESS — for each pending alert: enforce the per-user daily cap, tailor (reusing the
      ``(job_id, profile_hash)`` cache), and SEND the application via the Gmail API to the
      user's OWN inbox.
@@ -261,18 +266,16 @@ def run_once(conn, source, cfg, master_key, *,
                           error=str(exc)[:200])
                 continue
             result.jobs_seen += len(raw_jobs)
-            first_poll = not db.is_keyword_baselined(conn, kw)
+            first_poll = not db.is_keyword_baselined(conn, kw)   # new, or back after a gap
             for raw in raw_jobs:
                 job_id = _get_or_create_job(conn, raw, source,
                                             fetch_detail=fetch_detail, polite=polite)
                 beat()        # a first poll fetches ~30 detail pages; each one is progress
                 if first_poll:
                     continue  # baseline: store jobs, no alerts (no backlog flood)
-                for user_id in db.users_for_keyword(conn, kw):
-                    before = conn.total_changes
-                    db.insert_alert(conn, user_id, job_id, kw)
-                    if conn.total_changes > before:
-                        result.alerts_created += 1
+                # Only for watchers who started before this job was first stored. Most of the
+                # page is jobs an earlier poll already stored, and those are nobody's news.
+                result.alerts_created += db.alert_watchers(conn, job_id, kw)
             db.mark_keyword_polled(conn, kw, baselined=first_poll)
         finally:
             beat()

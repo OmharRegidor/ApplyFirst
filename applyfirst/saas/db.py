@@ -30,7 +30,7 @@ TENANT_TABLES = frozenset({
     "user_job_alerts", "ai_usage",
 })
 
-_SCHEMA_VERSION = 4
+_SCHEMA_VERSION = 5
 
 
 def _now_iso() -> str:
@@ -135,6 +135,9 @@ def migrate(conn: sqlite3.Connection) -> None:
     if version < 4:
         _migrate_v4(conn)
         conn.execute("PRAGMA user_version=4;")
+    if version < 5:
+        _migrate_v5(conn)
+        conn.execute("PRAGMA user_version=5;")
     conn.commit()
 
 
@@ -509,6 +512,13 @@ def _migrate_v4(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_v5(conn: sqlite3.Connection) -> None:
+    """The worker looks up a term's watchers once per job found, so index user_keywords by term."""
+    conn.executescript(
+        "CREATE INDEX IF NOT EXISTS ix_user_keywords_keyword ON user_keywords(keyword);"
+    )
+
+
 @dataclass(slots=True)
 class Job:
     id: str
@@ -600,6 +610,8 @@ def active_keywords_all(conn: sqlite3.Connection) -> list[str]:
 
 
 def users_for_keyword(conn: sqlite3.Connection, keyword: str) -> list[str]:
+    """Every activated watcher of ``keyword``, whenever they started. Not for alerts: a job is
+    only for the watchers who started before it was found, which ``alert_watchers`` decides."""
     rows = conn.execute(
         """
         SELECT k.user_id
@@ -619,6 +631,38 @@ def insert_alert(conn: sqlite3.Connection, user_id: str, job_id: str, keyword: s
         (_new_id(), user_id, job_id, keyword, _now_iso()),
     )
     conn.commit()
+
+
+def alert_watchers(conn: sqlite3.Connection, job_id: str, keyword: str) -> int:
+    """Queue a job found under ``keyword`` for each activated watcher it is new to. Returns how
+    many alerts were made (0 for a job a user already has).
+
+    A job is new to a user only if it was first stored strictly after the latest of: when they
+    activated, when they added this keyword (removing it and adding it back starts again), and
+    the keyword's latest baseline (a search that only stores what was already there, see
+    ``is_keyword_baselined``). Stamps are to the second, so a job stored in the same second is
+    left out. Without this, every poll after the baseline queued the whole page for every
+    watcher (the 2026-09-26 flood). A user who already has the job is skipped here, so a quiet
+    poll writes nothing (``insert_alert``'s ON CONFLICT stays as the backstop).
+    """
+    rows = conn.execute(
+        """
+        SELECT k.user_id
+        FROM user_keywords k
+        JOIN user_profiles p ON p.user_id = k.user_id
+        JOIN worker_keyword_state s ON s.keyword = k.keyword
+        JOIN jobs j ON j.id = ?
+        WHERE k.is_active = 1 AND k.keyword = ? AND p.activated_at IS NOT NULL
+          AND j.scraped_at > MAX(p.activated_at, k.created_at, s.baselined_at)
+          AND NOT EXISTS (SELECT 1 FROM user_job_alerts a
+                          WHERE a.user_id = k.user_id AND a.job_id = j.id)
+        """,
+        (job_id, keyword),
+    ).fetchall()
+    before = conn.total_changes
+    for r in rows:
+        insert_alert(conn, r["user_id"], job_id, keyword)
+    return conn.total_changes - before
 
 
 def pending_alerts(conn: sqlite3.Connection) -> list[Alert]:
@@ -738,13 +782,31 @@ def purge_tailoring_cache(conn: sqlite3.Connection, *, keep_days: int = 30) -> N
 # --- keyword baseline state + worker heartbeat -------------------------------
 
 def is_keyword_baselined(conn: sqlite3.Connection, keyword: str) -> bool:
+    """Whether the next search of ``keyword`` may alert, instead of only recording what is
+    posted (a baseline). False for a term never searched, and for a term that nobody watching it
+    now was watching at its last search. Nobody searches a term nobody watches, so the next
+    search stores everything posted in that gap after its watchers started, and without a new
+    baseline all of it would be queued at once (the same user adding it back, or a newcomer)."""
     row = conn.execute(
-        "SELECT baselined_at FROM worker_keyword_state WHERE keyword=?", (keyword,)
+        """
+        SELECT s.baselined_at, s.last_polled,
+               (SELECT MIN(MAX(p.activated_at, k.created_at))
+                  FROM user_keywords k JOIN user_profiles p ON p.user_id = k.user_id
+                 WHERE k.is_active = 1 AND k.keyword = s.keyword
+                   AND p.activated_at IS NOT NULL) AS first_start
+        FROM worker_keyword_state s WHERE s.keyword = ?
+        """,
+        (keyword,),
     ).fetchone()
-    return row is not None and row["baselined_at"] is not None
+    if row is None or row["baselined_at"] is None:
+        return False
+    first_start = row["first_start"]
+    return first_start is None or (row["last_polled"] or "") >= first_start
 
 
 def mark_keyword_polled(conn: sqlite3.Connection, keyword: str, *, baselined: bool) -> None:
+    """Stamp a successful search. A baseline also moves ``baselined_at`` to now, so the jobs a
+    new baseline stores are never alerted on the next poll."""
     now = _now_iso()
     conn.execute(
         """
@@ -752,7 +814,7 @@ def mark_keyword_polled(conn: sqlite3.Connection, keyword: str, *, baselined: bo
         VALUES (?, ?, ?)
         ON CONFLICT(keyword) DO UPDATE SET
             last_polled = excluded.last_polled,
-            baselined_at = COALESCE(worker_keyword_state.baselined_at, excluded.baselined_at)
+            baselined_at = COALESCE(excluded.baselined_at, worker_keyword_state.baselined_at)
         """,
         (keyword, now if baselined else None, now),
     )

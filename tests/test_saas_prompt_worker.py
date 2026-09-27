@@ -25,13 +25,18 @@ POST = "VA needed. TO APPLY: send your resume and your availability."
 
 
 class _Source:
+    """A job board whose page is whatever ``ids`` holds when it is searched."""
+
     name = "onlinejobs.ph"
 
+    def __init__(self, *ids: str) -> None:
+        self.ids = list(ids)
+
     def search_latest(self, keyword):
-        return [RawJob(source="onlinejobs.ph", external_id="1", url="http://oj/job-1",
+        return [RawJob(source="onlinejobs.ph", external_id=i, url=f"http://oj/job-{i}",
                        title="VA needed", employment_type="Full time", salary_text=None,
                        posted_at=datetime(2026, 9, 1, tzinfo=timezone.utc), preview="p",
-                       matched_keyword=None)]
+                       matched_keyword=None) for i in self.ids]
 
     def fetch_detail(self, job):
         return JobDetail(raw=job, description=POST, skills=[])
@@ -52,24 +57,34 @@ def _seed(conn, master_key):
     return u
 
 
-def _cycle(conn, cfg, master_key, rec, sent, *, sender=None):
+def _cycle(conn, cfg, master_key, src, rec, sent, *, sender=None):
     def ok_sender(cfg_, refresh, *, to, subject, text, html):
         sent.append(subject + text + html)
         return "m"
 
-    return worker.run_once(conn, _Source(), cfg, master_key,
+    return worker.run_once(conn, src, cfg, master_key,
                            engine_factory=lambda: TailoringEngine(provider=rec),
                            sender=sender or ok_sender, polite=False)
 
 
+def _baselined(conn, cfg, master_key, rec, sent, clock) -> _Source:
+    """Baseline a page holding job 0, then put job 1 up a tick later. The worker only sends jobs
+    first found after the baseline, so job 1 is the one the user gets."""
+    src = _Source("0")
+    _cycle(conn, cfg, master_key, src, rec, sent)
+    src.ids.insert(0, "1")
+    clock.tick()
+    return src
+
+
 # --- T9 -------------------------------------------------------------------------------
 
-def test_worker_prompt_and_email_are_candidate_driven(saas_cfg, master_key):
+def test_worker_prompt_and_email_are_candidate_driven(saas_cfg, master_key, clock):
     conn = db.init_db(saas_cfg.db_path)
     u = _seed(conn, master_key)
     rec, sent = _recorder(), []
-    for _ in range(2):                       # baseline, then the real cycle
-        _cycle(conn, saas_cfg, master_key, rec, sent)
+    src = _baselined(conn, saas_cfg, master_key, rec, sent, clock)
+    _cycle(conn, saas_cfg, master_key, src, rec, sent)      # the real cycle
     assert len(rec.calls) == 1 and len(sent) == 1
     prompt_text = "\n".join(rec.calls[0])
     assert "Maria Santos" in prompt_text
@@ -81,13 +96,13 @@ def test_worker_prompt_and_email_are_candidate_driven(saas_cfg, master_key):
     conn.close()
 
 
-def test_worker_fallback_letter_offers_the_resume_on_request(saas_cfg, master_key):
+def test_worker_fallback_letter_offers_the_resume_on_request(saas_cfg, master_key, clock):
     """No AI key: the email still honours the owner's resume rule and invents nothing."""
     conn = db.init_db(saas_cfg.db_path)
     _seed(conn, master_key)
     sent: list[str] = []
-    for _ in range(2):
-        _cycle(conn, saas_cfg, master_key, None, sent)
+    src = _baselined(conn, saas_cfg, master_key, None, sent, clock)
+    _cycle(conn, saas_cfg, master_key, src, None, sent)
     assert len(sent) == 1
     assert RESUME_ON_REQUEST in sent[0]
     assert hits(sent[0], OWNER_MARKERS + RESUME_CLAIMS + INVENTED_AVAILABILITY) == []
@@ -125,23 +140,29 @@ def test_stale_cache_check_is_the_first_statement_of_run_once():
 
 # --- T11 ------------------------------------------------------------------------------
 
-def test_a_letter_cached_by_an_older_prompt_is_never_reused(saas_cfg, master_key, caplog):
+def test_a_letter_cached_by_an_older_prompt_is_never_reused(saas_cfg, master_key, clock, caplog):
     conn = db.init_db(saas_cfg.db_path)
     u = _seed(conn, master_key)
     rec, sent = _recorder(), []
-    _cycle(conn, saas_cfg, master_key, rec, sent)              # baseline: the job is stored
+    src = _Source("0")
+    _cycle(conn, saas_cfg, master_key, src, rec, sent)         # baseline
     assert db.get_worker_meta(conn, "prompt_fingerprint") == PROMPT_FINGERPRINT
 
-    # An older release wrote an owner-flavoured package for exactly the coming (job, profile).
+    # Job 1 goes up after the baseline and is already stored (another term found it first). An
+    # older release wrote an owner-flavoured package for exactly the coming (job, profile).
+    clock.tick()
+    job_id = db.insert_job(conn, onlinejobs_id="1", title="VA needed", url="http://oj/job-1",
+                           employment_type="Full time", salary_text=None, posted_at=None,
+                           raw_description=POST)
+    src.ids.insert(0, "1")
     db.set_worker_meta(conn, "prompt_fingerprint", "old-release")
-    job_id = db.get_job_id(conn, "1")
     profile_hash = db.get_profile(conn, u.id).profile_hash
     db.cache_put(conn, job_id, profile_hash,
                  '{"application_subject":"Full-Stack Developer – Omhar Regidor",'
                  '"cover_letter":"Live projects I\'ve built. Tailored resume attached."}', "gemini")
 
     with caplog.at_level(logging.INFO, logger="applyfirst.saas.worker"):
-        _cycle(conn, saas_cfg, master_key, rec, sent)
+        _cycle(conn, saas_cfg, master_key, src, rec, sent)
     assert len(rec.calls) == 1                                  # tailored fresh
     assert len(sent) == 1
     assert hits(sent[0], OWNER_MARKERS + RESUME_CLAIMS) == []
@@ -168,7 +189,7 @@ def test_invalidate_returns_rows_removed_and_runs_once_per_fingerprint(saas_cfg)
 
 # --- T12 ------------------------------------------------------------------------------
 
-def test_a_retry_after_a_transient_failure_reuses_the_fresh_cache(saas_cfg, master_key):
+def test_a_retry_after_a_transient_failure_reuses_the_fresh_cache(saas_cfg, master_key, clock):
     conn = db.init_db(saas_cfg.db_path)
     _seed(conn, master_key)
     rec, sent = _recorder(), []
@@ -176,9 +197,9 @@ def test_a_retry_after_a_transient_failure_reuses_the_fresh_cache(saas_cfg, mast
     def flaky(cfg_, refresh, **kw):
         raise gmail_send.GmailSendError("temporary glitch")
 
-    _cycle(conn, saas_cfg, master_key, rec, sent)                        # baseline
-    _cycle(conn, saas_cfg, master_key, rec, sent, sender=flaky)          # tailor, send fails
-    r = _cycle(conn, saas_cfg, master_key, rec, sent)                    # retry
+    src = _baselined(conn, saas_cfg, master_key, rec, sent, clock)       # baseline
+    _cycle(conn, saas_cfg, master_key, src, rec, sent, sender=flaky)     # tailor, send fails
+    r = _cycle(conn, saas_cfg, master_key, src, rec, sent)               # retry
     assert r.sent == 1 and len(sent) == 1
     assert len(rec.calls) == 1                                           # provider called once
     assert conn.execute("SELECT tailoring_calls FROM ai_usage").fetchone()[0] == 1
