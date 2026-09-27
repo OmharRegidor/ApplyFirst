@@ -9,9 +9,9 @@
   **Fly.io beta** (`Dockerfile`/`fly.toml`/`entrypoint.sh`) and the **Oracle VM production runbook**
   (`deploy/oracle/`).
 
-# Current State — Where it stands (2026-09-26)
+# Current State — Where it stands (2026-09-27)
 ✅ **Launch blockers B1–B6 are all fixed, committed and pushed** (B1–B5 `c32ca48`, B6 `8c65928`),
-along with the redesign spec (`ba60723`). Tests: **1,380 passing** with the confirmation note,
+along with the redesign spec (`ba60723`). Tests: **1,391 passing** with the old-jobs fix, 1,380 with the confirmation note,
 1,283 with the sign-up redesign and the Log out fix, **887** with B6
 (`.venv/Scripts/python.exe -m pytest -q`), 845 before B6, 779 before the launch fixes, 745 on
 2026-09-23 morning, 692 before that day, 546 before the animated onboarding, 211 before the
@@ -35,6 +35,22 @@ signed in, for up to 7 days, and the 10-minute Google sign-in cookie was left be
 account and saw no sign that it worked. Now the page after "Continue with Google" shows a green
 "Signed in as <email>." note at the top, and the page after "Connect Gmail" shows "Gmail connected.
 Applications will go to <email>." See "Sign-in confirmation note" below.
+✅ **Old-jobs flood fixed (2026-09-27).** The owner's first real run sent 10 emails in 11 minutes,
+most for jobs posted days before they pressed Start, and queued 49 more (held back by the daily cap).
+Cause: the baseline guard only covered a watch word's FIRST search; every later search queued the
+whole results page for every watcher (`worker.py` fan-out loop), and the M3 tests even expected it.
+Now `db.alert_watchers` alerts a user only for a job first stored strictly after the latest of their
+activation, when they added that word, and the word's latest baseline; `is_keyword_baselined`
+re-baselines a word nobody watched at its last search. **Schema is now v5** (an index on
+`user_keywords.keyword`): stop the web app and the worker together before starting the new code,
+because an older build refuses a v5 database. Tests: **1,391 passing**, smoke 607, 0 failed.
+📘 **Owner's project guide (2026-09-27):** `docs/PROJECT-GUIDE.md` (every sector of the project in
+plain words, with file:line proof and diagrams) and a private visual page at
+https://claude.ai/artifact/TnFz2jYasH1ZcoyPjYH4S3 . Its research (payments, scaling, launch rules)
+was fact-checked against official pages on 2026-09-27. Headline findings: onlinejobs.ph terms
+clause 7.4 forbids automated use without permission (ask them); PayMongo with ₱199 30-day passes
+(no provider can auto-charge GCash monthly); the 5-second crawl delay, not servers, is the scaling
+ceiling; Gemini 2.5 is limited to past users since 2026-09-18, so test 3.5 Flash-Lite.
 🟡 **Real Google sign-in works on localhost (2026-09-26).** The owner finished the `Agad-local`
 OAuth client and ran the real app on `http://localhost:8000` (docs/LOCAL-TEST.md Part C). The
 preview runner (`run_local.py`) still uses a fake client id, so its Google buttons always fail with
