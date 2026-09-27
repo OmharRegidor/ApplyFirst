@@ -4,8 +4,9 @@
   emails it to me. Plus a private read-only dashboard over Tailscale. **Unchanged — still running.**
 - **V2 — multi-tenant SaaS** (`applyfirst/saas/`): other onlinejobs.ph applicants sign in with Google,
   onboard, and the worker delivers tailored applications **to their own Gmail inbox**. **M1–M5, the UI
-  redesign, the animated onboarding, the premium design pass, the sign-up journey redesign and the
-  sign-in confirmation note are all committed and pushed.** Deploy targets:
+  redesign, the animated onboarding, the premium design pass, the sign-up journey redesign, the
+  sign-in confirmation note, the old-jobs fix and the owner's project guide are all committed and
+  pushed (HEAD `7873656` on 2026-09-27).** Deploy targets:
   **Fly.io beta** (`Dockerfile`/`fly.toml`/`entrypoint.sh`) and the **Oracle VM production runbook**
   (`deploy/oracle/`).
 
@@ -51,15 +52,45 @@ was fact-checked against official pages on 2026-09-27. Headline findings: online
 clause 7.4 forbids automated use without permission (ask them); PayMongo with ₱199 30-day passes
 (no provider can auto-charge GCash monthly); the 5-second crawl delay, not servers, is the scaling
 ceiling; Gemini 2.5 is limited to past users since 2026-09-18, so test 3.5 Flash-Lite.
-🟡 **Real Google sign-in works on localhost (2026-09-26).** The owner finished the `Agad-local`
-OAuth client and ran the real app on `http://localhost:8000` (docs/LOCAL-TEST.md Part C). The
-preview runner (`run_local.py`) still uses a fake client id, so its Google buttons always fail with
-`invalid_client`; that is expected. **The client secret was shown in a screenshot during setup:
+Section 12 "Every bill to expect" (`7873656`, fact-checked against 29 official pages) prices every
+bill: about ₱4,900 to 15,000 once before launch, about ₱330 (cheapest) to ₱5,420 (with a paid
+mailbox, monitor and accountant) a month, ₱15 to 37 per active user a month in Gemini letters, and
+break-even at about 3 to 40 paying users. Tick the BIR 8% option in the FIRST quarterly return, file
+the sworn declaration so PayMongo does not withhold from the first peso, and set PayMongo payouts to
+monthly. The tax parts are research, not tax advice.
+✅ **The whole V2 loop has worked for real on localhost (2026-09-26/27).** The owner finished the
+`Agad-local` OAuth client, ran the real web app on `http://localhost:8000` and the worker in a second
+PowerShell window (docs/LOCAL-TEST.md Parts C and E), signed in, connected Gmail, activated with the
+watch words "web developer" and "Software Developer", and received real application emails in
+`regidorcristianomhar@gmail.com` from 7.53 to 8.04 AM on 27 Sep. Of the 10 letters, 7 were written
+by Gemini and 3 fell back to the rules letter. The worker picked up a Gemini credential most likely
+from the project `.env` (V1's), which is probably on the free tier, so no real user's data may go
+through it until billing is on. Every Google account used must be listed under Google Auth Platform,
+Audience, Test users (omharregidor@gmail.com got `403 access_denied` until it was added). The
+preview runner (`run_local.py`) uses a fake client id, so its Google buttons always fail with
+`invalid_client`, which is expected. **The client secret was shown in a screenshot during setup:
 make a new secret in Google Cloud and delete the old one before any deploy.**
+🟡 **The owner's two local windows still run the OLD code** (started before `cc145cd`), and the
+local database is still at schema v4. Press Ctrl+C in BOTH, then start both again, so the v5
+migration runs once with nothing old attached. The local database keeps the flood's rows (10 sent,
+49 capped, 4 skipped); `capped` and `skipped` are final, so nothing old will be sent later.
 🔴 **Still not deployed.** No Fly app yet. V2 has never run outside localhost.
 ⚠️ **The homepage has still never been looked at by a human.** Two design passes have landed on it,
 both verified by tests, computed contrast and headless-browser measurement, but nobody has scrolled
 it on a real phone. Do that first.
+
+## The commits from 2026-09-25 to 2026-09-27
+```
+7873656  docs: project guide adds every bill to expect
+dad2d0a  docs: owner's project guide, and the handoff records the old-jobs fix
+cc145cd  fix(saas): only send jobs that appear after a user starts watching
+c1ae204  docs: handoff records the sign-in confirmation note and local Google sign-in
+a9f2ffb  feat(saas): confirm sign-in and Gmail connection with a one-shot note
+da293dc  docs: handoff records the sign-up redesign build
+53d811a  feat(saas): sign-up journey redesign with trimmed Basecoat, Inter and dark mode
+21f8788  docs: implementation plan for the sign-up journey redesign
+3b1bdc5  fix(saas): log out now really deletes the secure sign-in cookies
+```
 
 ## The commits from 2026-09-23 and 2026-09-24
 ```
@@ -679,13 +710,25 @@ Before the numbered list:
   points in "Sign-up journey redesign (built)" (the paused panel's second "Edit keywords" and hover
   colours easing), and someone checks on a real iPhone that Inter is never downloaded.
 - **Rotate the Google client secret** before any deploy (it was shown in a screenshot on 2026-09-26).
+- **Restart both local windows together** so the local database moves to schema v5 (see Current State).
+- **Before any real user, follow `docs/PROJECT-GUIDE.md` section 13's ordered checklist.** The first
+  items are: email onlinejobs.ph for written permission (terms clause 7.4) and slow the worker to one
+  request every 5 seconds with an honest browser name; turn Gemini billing on, turn thinking down
+  (`applyfirst/tailor/llm.py` sets no thinking budget) and test `gemini-3.5-flash-lite`; buy a domain
+  and verify it in Search Console; register the business (DTI, barangay, Mayor's permit, BIR with the
+  8% option); build account deletion (promised on /privacy, no code); then billing with PayMongo.
+- **Engine gaps the guide found (section 5.11):** alerts found while Gmail is off become `skipped`
+  for good; `capped` is final; a word's first search fetches ~30 job pages; failed sends never show on
+  `/health`; a wrong master key fails every send while `/health` stays 200.
+- **Oracle Path B port clash:** V1's dashboard and V2's web unit both use port 8000
+  (`deploy/oracle/applyfirst-dash.service:14`, `applyfirst-saas-web.service:20`); move one first.
 
 1. **Look at the new homepage.** It has never been seen by a person. Start the
    preview (below), scroll slowly on a phone and a computer, and check the ruler drawing, the How it
    works line, the email spotlight and the slots surprise.
-2. **Walk `docs/LOCAL-TEST.md` end to end on localhost** with a real Google account. The OAuth
-   client works as of 2026-09-26 (sign-in and Connect Gmail both reached the app); the worker half
-   (Part E) and a real application email have not been tried yet.
+2. **Done 2026-09-27: `docs/LOCAL-TEST.md` end to end on localhost.** Sign-in, Connect Gmail,
+   onboarding, the worker and real application emails all worked. Still to try locally: a Gemini
+   credential on a PAID billing account, and reading one AI letter end to end.
 3. **Deploy (Path A, Fly.io beta)** with the four owner settings from "Launch blockers" (Gemini
    credential with billing on, alert webhook then `notify --test`, the SMTP settings then
    `reconnect --test`, UptimeRobot on `/health`).
@@ -740,6 +783,19 @@ public launch.
 - **NEW (2026-09-23): run the preview in the OWNER'S OWN PowerShell window, not as a background task.**
   Claude Code reaps background shells when the machine is low on memory, and it killed the preview
   twice in one session. A window the owner opened is never reaped.
+- **NEW (2026-09-25): port 8765 on the owner's PC is taken by an unrelated `node keytest.js`**,
+  so run the preview on **8766** (`--port 8766`). The preview's Google buttons always fail
+  (`invalid_client`); use the `/__dev/` state links, and `&flash=signed_in|gmail_connected` to see
+  the confirmation note.
+- **NEW (2026-09-26): how the owner runs the real app.** PowerShell window 1 runs the web app and
+  window 2 the worker, each with the same `$env:` block from docs/LOCAL-TEST.md (Git Bash needs
+  `export NAME='value'` and forward slashes instead). The encryption password was made with
+  `openssl rand -base64 32` in Git Bash. A pasted multi-line block ends on a `>>` prompt until one
+  more Enter. Settings typed in one window never reach another window.
+- **NEW (2026-09-27): the owner's project guide** is `docs/PROJECT-GUIDE.md` and the visual page
+  https://claude.ai/artifact/TnFz2jYasH1ZcoyPjYH4S3 (private). The page's source lives only in a
+  session scratchpad, so to change the page, edit the guide and rebuild the page from it in a new
+  session, then republish to the same URL.
 - **Before/after any template or CSS change, run the smoke** (`inputs/preserve_smoke.py`, 607 checks).
   Unit tests alone do NOT catch a missing CSRF field, a reworded asserted string, or a CSP violation.
 - **A "privacy guard" hook blocks any Bash/Read command whose TEXT contains `.env`, `key`, or
@@ -758,6 +814,23 @@ public launch.
   in `.noxa/memory/` — git-ignored, local only.
 
 # Failed attempts / gotchas worth keeping
+## New in the old-jobs fix and the guide (2026-09-27)
+- **A baseline that guards only the first poll is not a baseline.** The M3 tests polled the SAME
+  fake page twice and expected the second poll to send, so they locked the flood in. Tests that need
+  an alert must bring a job the baseline never saw, one minute later (the `clock` fixture in
+  `tests/conftest.py` moves `db._now_iso` forward; stamps are to the second).
+- **"After the user activated" was not enough.** The owner activated at 23:41:04 and the baseline
+  poll stored its 59 jobs at 23:45:46, after activation, so they still looked new. The rule needs
+  the word's baseline time too: `scraped_at > MAX(activated_at, keyword created_at, baselined_at)`.
+- **A word nobody watches must be baselined again when someone returns to it,** or a week of posts
+  floods the returning watcher (`db.is_keyword_baselined` compares `last_polled` with the earliest
+  current watcher's start).
+- **A schema bump makes rollback harder:** an older build refuses a v5 database. Stop the web app
+  and the worker together before starting new code.
+- **The Workflow tool refuses a script file with CRLF endings** ("control characters that would be
+  hidden in the approval dialog"). Convert to LF before re-running a saved workflow script.
+- **The privacy hook also blocks `.env` for the Grep tool** ("refusing to search inside secret
+  path"). Never read `.env`; ask the owner which settings are in it.
 ## New in the sign-up redesign (2026-09-25)
 - **A short footer can sit where the scroll reveal never looks.** `reveal.js` ignores the bottom
   10% of the screen and `app.css` hides `.footer__grid > *` until revealed. The journey footer is
@@ -899,9 +972,14 @@ public launch.
   the viewport mid-measurement. Re-navigate and re-check the page identity before trusting a reading.
 
 # Next Step — The single next thing to try
-**The sign-up redesign and the sign-in confirmation note are committed and pushed.** The next
-real step is finishing `docs/LOCAL-TEST.md` on localhost (the worker in Part E and one real
-application email), then rotating the Google client secret, then deploying.
+**Everything from the 2026-09-25..27 session is committed and pushed (HEAD `7873656`).** V2 has
+worked end to end on localhost with real emails. The next real steps, in order:
+1. Restart both local PowerShell windows together so the old-jobs fix runs (schema v5).
+2. Read one received application email end to end with the owner.
+3. Work down `docs/PROJECT-GUIDE.md` section 13's checklist, starting with the onlinejobs.ph
+   permission email, Gemini billing with thinking turned down, rotating the Google client secret,
+   a domain, and the business registration. Section 12 lists what each costs.
+4. Then deploy (Path A below) and put UptimeRobot on `/health`.
 
 **Otherwise, start the preview in your own PowerShell window and look at the new homepage.**
 Nobody has seen it.
