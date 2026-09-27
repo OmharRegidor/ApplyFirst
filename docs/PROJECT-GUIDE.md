@@ -4,7 +4,7 @@ Written on 27 September 2026 for the owner. It explains every part of Agad in pl
 
 - Every claim about the code comes from the files on disk today, including the alert-rule fix that is not committed yet. Each one carries a `path:line` link. Click it to open the file on that line.
 - Every outside fact carries a link to where it came from. Anything nobody could confirm on an official page is marked **UNVERIFIED**.
-- Words that may be new are explained where they first appear, and again in the [glossary](#13-glossary).
+- Words that may be new are explained where they first appear, and again in the [glossary](#14-glossary).
 
 ## Contents
 
@@ -19,9 +19,10 @@ Written on 27 September 2026 for the owner. It explains every part of Agad in pl
 9. [What to expect](#9-what-to-expect)
 10. [Scaling when traffic grows](#10-scaling-when-traffic-grows)
 11. [Getting paid](#11-getting-paid)
-12. [The MVP and the launch checklist](#12-the-mvp-and-the-launch-checklist)
-13. [Glossary](#13-glossary)
-14. [Sources](#14-sources)
+12. [Every bill to expect](#12-every-bill-to-expect)
+13. [The MVP and the launch checklist](#13-the-mvp-and-the-launch-checklist)
+14. [Glossary](#14-glossary)
+15. [Sources](#15-sources)
 
 ---
 
@@ -70,7 +71,8 @@ The two never share a database file. V2 borrows V1's job reader, letter writer, 
 2. Google's verification of the Gmail sending permission (section 9.2).
 3. Gemini on the paid tier, with its thinking, the hidden reasoning it is billed for, turned down (section 9.3).
 4. A way to take money (section 11).
-5. Account deletion, updated legal pages and a registered business (section 12).
+5. Account deletion, updated legal pages and a registered business (section 13).
+6. Money set aside for the bills, about PHP 4,900 to 15,000 once before launch and about PHP 330 to 5,420 a month after that, plus the AI letters (section 12).
 
 ---
 
@@ -346,7 +348,7 @@ Useful defaults, all changeable. 600 seconds between rounds ([`applyfirst/saas/c
 - **The Fly beta will cost about USD 4.30 a month, about PHP 270.** That is USD 4.05 for one shared-cpu-1x 512 MB machine in Singapore, USD 0.15 for the 1 GB volume and pennies of outbound data ([Fly pricing](https://docs.fly.io/about/pricing/)). The operations doc says USD 4.33 ([`docs/OPERATIONS.md:253-254`](../docs/OPERATIONS.md#L253-L254)). Fly has no ongoing free tier.
 - **Each AI letter costs about USD 0.003 to 0.007, about PHP 0.17 to 0.40**, depending on how much the model is allowed to think. This is an estimate from Gemini's price list, which charges per token, a piece of text about three quarters of a word. The token counts per letter are **UNVERIFIED** until measured ([Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing)).
 - **Sending through the Gmail API is free today** ([Gmail API quota](https://developers.google.com/workspace/gmail/api/reference/quota)).
-- **A domain name** is needed for Google's verification. Its price is **UNVERIFIED**.
+- **A domain name** is needed for Google's verification. A .com is about USD 10.46 a year at Cloudflare and a .ph is USD 48 at dotPH (section 12.2).
 
 All money in this guide uses PHP 62.50 per USD, the Bangko Sentral reference rate on 4 September 2026 ([BSP](https://www.bsp.gov.ph/Lists/RERB/Attachments/2349/04Sep2026.pdf)).
 
@@ -1448,7 +1450,7 @@ All three are built for selling software to foreigners in dollars, which is the 
 
 ### 11.3 Fees on one PHP 199 payment
 
-PayMongo's prices are "exclusive of VAT", so the figures add 12% VAT, the Philippine sales tax, on the fee. The 12% rate itself is **UNVERIFIED** in this research. Source is [PayMongo pricing](https://www.paymongo.com/pricing).
+PayMongo's prices are "exclusive of VAT", so the figures add 12% VAT, the Philippine sales tax, on the fee. The 12% rate is set by the TRAIN Act, Sec. 106 ([TRAIN Act](https://lawphil.net/statutes/repacts/ra2017/ra_10963_2017.html)). Source is [PayMongo pricing](https://www.paymongo.com/pricing).
 
 | Method | PayMongo rate | Fee on PHP 199 | You keep |
 |---|---|---|---|
@@ -1457,7 +1459,7 @@ PayMongo's prices are "exclusive of VAT", so the figures add 12% VAT, the Philip
 | GCash | 2.23% | PHP 4.97 | PHP 194.03 |
 | Local card | 3.125% + PHP 13.39 | PHP 21.96 | PHP 177.04 |
 
-Other PayMongo charges. Setup is free, a one-time identity check is PHP 30, the wallet upkeep is PHP 3 to 15 a month and each transfer to your bank is PHP 10 (same page). Money clears in 1 banking day for QR Ph, 2 for e-wallets and 3 for cards ([PayMongo payouts](https://docs.paymongo.com/docs/money-movement-payouts)).
+Other PayMongo charges. The Standard plan has no setup fee and no monthly fee, and each transfer from your PayMongo wallet to your bank is PHP 10 plus VAT (same page). The same page lists a PHP 30 identity check and PHP 3 to 15 a month of wallet upkeep, but those belong to PayMongo's Wallets product for businesses that hand wallets to their own customers, so they are probably not Agad costs (**UNVERIFIED**, ask PayMongo). Section 12.5 lists every charge on a payment. Money clears in 1 banking day for QR Ph, 2 for e-wallets and 3 for cards ([PayMongo payouts](https://docs.paymongo.com/docs/money-movement-payouts)).
 
 ### 11.4 The registration you need
 
@@ -1465,8 +1467,9 @@ Other PayMongo charges. Setup is free, a one-time identity check is PHP 30, the 
 - **A sole proprietor uploads** a DTI business name certificate, a government ID and BIR Form 2303. DTI is the Department of Trade and Industry, where business names are registered. BIR is the Bureau of Internal Revenue, the tax office, and Form 2303 is its certificate of registration ([Philippine entities](https://docs.paymongo.com/docs/account-settings-philippine-entities)).
 - **Approval** takes 3 to 7 business days per e-wallet and 5 to 10 for cards (account capabilities page).
 - **The bank account name must match** your registered business or personal name (payouts page).
+- **A catch for the Individual account.** The BIR says sellers "are not allowed to receive payments through their personal/individual accounts" ([BIR RMC 8-2024](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%208-2024.pdf)). How that applies to a PayMongo Individual account is **UNVERIFIED**, so ask an accountant before using one for the beta.
 
-Section 12.4 covers DTI and BIR.
+Section 13.4 covers DTI and BIR, and section 12 prices every bill that comes with them.
 
 ### 11.5 How it plugs into this app
 
@@ -1557,13 +1560,346 @@ For the first handful of beta users, a PayMongo payment link made in the dashboa
 
 ---
 
-## 12. The MVP and the launch checklist
+## 12. Every bill to expect
+
+**In short.** Before launch you pay about PHP 4,900 to 15,000 once, then about PHP 330 to 5,420 a month in fixed bills plus about PHP 15 to 37 a month for each active user's AI letters, and Agad covers its own monthly bills from about 3 to 40 paying users.
+
+Every number here has a link, or comes from the billing and scaling research with the arithmetic shown beside it. Anything nobody could confirm on an official page is marked **UNVERIFIED**. The tax parts are research, not tax advice, so book one paid hour with a Philippine accountant before the first sale.
+
+The ground rules behind every figure in this section.
+
+- Money is in pesos, with US dollars in brackets, at PHP 62.50 per USD ([BSP](https://www.bsp.gov.ph/Lists/RERB/Attachments/2349/04Sep2026.pdf)).
+- A paying user buys 12 passes a year, so one user brings in PHP 2,388 a year. That is a simplification. Someone who renews every 30 days buys about 12.2.
+- A typical user gets 3 letters a day and a heavy user gets 10, the daily cap. Both are guesses until real use is measured (**UNVERIFIED**).
+- You are a sole proprietor, meaning one person running a business under their own name, in Metro Manila, and Agad is your only income.
+- Your own SSS and PhilHealth are personal bills. Section 12.3 lists them, but every total leaves them out.
+
+### 12.1 The short answer
+
+Agad is cheap to run and pays for itself early, because its one big bill, Gemini, grows in step with the money coming in.
+
+| When | What it covers | What you pay |
+|---|---|---|
+| Once, before launch | Business papers, city permits, notary fees, the domain and a first Gemini top-up (section 12.2) | PHP 4,900 to 15,000 (USD 78 to 241) |
+| Each month of the beta, while nobody pays | Fixed bills (section 12.3) plus letters for each active tester (section 12.4) | PHP 330 to 5,420 (USD 5.25 to 87), plus PHP 15 to 37 (USD 0.24 to 0.59) per active tester. At Google's cap of 100 testers that is about PHP 1,850 to 9,050 (USD 30 to 145) |
+| Each month at 100 paying users | Every bill, including payment fees, yearly bills spread per month and tax (section 12.7) | PHP 3,000 to 10,800 (USD 48 to 173) of the PHP 19,900 (USD 318) coming in, so PHP 9,100 to 16,900 (USD 146 to 270) is left |
+| Each month at 1,000 paying users | The same, plus a Postgres database and income tax (section 12.7) | PHP 39,300 to 71,300 (USD 629 to 1,141) of the PHP 199,000 (USD 3,184) coming in, so PHP 127,700 to 159,700 (USD 2,043 to 2,555) is left |
+
+The low figures are the cheapest sensible setup with Gemini's thinking turned down. The high figures are a comfortable setup, with a paid mailbox, a paid monitor and an accountant, and with thinking left at default.
+
+**When Agad pays for itself.** About 3 paying users cover the cheapest setup and about 40 cover the comfortable one. Here is the arithmetic. Each paying user leaves about PHP 173 after the GCash fee of PHP 4.97, letters with thinking turned down at PHP 15 and up to 3% city business tax at PHP 6. The cheapest setup's monthly bills plus its yearly bills spread per month come to about PHP 507, and 507 divided by 173 is about 3. On the comfortable setup with thinking at default each user leaves about PHP 152, the bills come to about PHP 6,050, and that needs about 40 users. If most people pay by card, it is about 45.
+
+Those break-even numbers leave out the one-time costs. At 100 paying users even the high one-time figure comes back within about two months.
+
+### 12.2 One-time costs before launch
+
+Getting legal and online costs about PHP 4,900 to 15,000 once, and most of the spread comes from your city and from choosing a .com or a .ph address.
+
+| Item | PHP (USD) | What it is | Source |
+|---|---|---|---|
+| DTI business name, national scope | 2,030 (32.48) | PHP 2,000 plus PHP 30 documentary stamp tax (DST), a small national tax on official papers. National scope is the checklist's pick for an online business (section 13.1). Barangay scope is 230, city 530 and regional 1,030. Valid 5 years | [DTI BNRS FAQ](https://bnrs.dti.gov.ph/faq) |
+| Barangay clearance, first year | 200 to 1,000 (3.20 to 16) **UNVERIFIED** | Each barangay sets its own "reasonable fee". The range is only a commonly reported one | [LGC Sec. 152(c)](https://lawphil.net/statutes/repacts/ra1991/ra_7160_1991.html), [barangayclearance.com](https://barangayclearance.com/fees/) (secondary) |
+| Community tax certificate, the cedula | 5 plus 1 for every 1,000 of last year's income, at most 5,000 | Depends on your own income, so the total below leaves it out | [LGC Sec. 157](https://lawphil.net/statutes/repacts/ra1991/ra_7160_1991.html) |
+| Mayor's permit, the city business licence, first year | 900 to 5,000 (14.40 to 80) | Pasig charges 900 for a small office. Makati and Mandaluyong charge 5,000 for "IT", and Mandaluyong charges 1,000 for "others". Which box your city puts Agad in is **UNVERIFIED** | [Pasig Revenue Code](https://assets.pasigcity.gov.ph/storage/downloadables/2022/10/07/633fc0e8d82941665122536632bfacec71cf16638266382017%20Revised%20Pasig%20Revenue%20Code.pdf), [Makati Sec. 4A.01](https://www.makati.gov.ph/assets/uploads/staticmenu/files/invest/sec.4a.01.pdf), [Mandaluyong fees](https://mandaluyong.gov.ph/business/revised-business-tax-code-mayors-permit-fees/) |
+| Fire safety inspection fee | 500 to 750 (8 to 12) | 15% of all the fees the city charges for the permit, never under 500. The 750 counts the permit fee alone, so other city fees would push it higher | [Fire Code RIRR 2019, Sec. 12.0.0.4](https://archive.org/stream/ra-9514-rirr-rev-2019/RA9514-RIRR-rev-2019_djvu.txt) |
+| City business tax, first year | about 25 to 38 (under 1) | At most one twentieth of 1% of your starting capital, and cities may charge up to 50% more. Worked out on PHP 50,000 of capital | [LGC Secs. 143 and 151](https://lawphil.net/statutes/repacts/ra1991/ra_7160_1991.html) |
+| Sanitary, garbage and other city fees | **UNVERIFIED** | Makati lists garbage fees in its assessment. Pasig's code charges a yearly sanitary inspection fee, for example PHP 75 for a catch-all business under 50 sq m, read from a scanned copy. Which category fits Agad is **UNVERIFIED**, so the totals leave it out | [Makati business permit charter](https://www.makati.gov.ph/assets/uploads/staticmenu/docs/1581041920752.pdf), [Pasig Revenue Code](https://assets.pasigcity.gov.ph/storage/downloadables/2022/10/07/633fc0e8d82941665122536632bfacec71cf16638266382017%20Revised%20Pasig%20Revenue%20Code.pdf) |
+| BIR registration, Form 1901, which gives Form 2303 | 30 (0.48) | Stamp tax only. The old PHP 500 yearly fee ended on 22 January 2024 | [BIR checklist](https://web-services.bir.gov.ph/eappointment/files/checklist_of_documentary_requirements.pdf), [BIR EOPT flyer](https://bir-cdn.bir.gov.ph/BIR/pdf/flyer-eopt.pdf) |
+| BIR Registration Seal Badge for the website | 0 | Free, or 30 if you get it by updating your registration on ORUS. Show it by 31 October 2026 | [BIR RMC 38-2026](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2038-2026%20Digest.pdf), [BIR RMC 99-2026](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2099-2026.pdf) |
+| Books of accounts, a journal and a ledger | Registration free. Notebooks **UNVERIFIED** | Registered on ORUS, which gives a QR stamp for the first page | [BIR checklist](https://web-services.bir.gov.ph/eappointment/files/checklist_of_documentary_requirements.pdf) |
+| First registered invoices | **UNVERIFIED** | BIR Printed Invoices are sold at printing cost. A 2003 order said PHP 50 per booklet of 50, and today's price is unknown | [BIR checklist](https://web-services.bir.gov.ph/eappointment/files/checklist_of_documentary_requirements.pdf), [BIR RMO 13-2003](https://elibrary.judiciary.gov.ph/thebookshelf/showdocs/10/44460) |
+| Sworn declaration to PayMongo, which stops tax being held back (section 12.5) | 130 to 330 (2 to 5) | 30 stamp tax plus a notary fee of 100 to 300 (**UNVERIFIED**). A notary is a lawyer who watches you swear to a paper and stamps it | [Annex A form](https://www.rcbc.com/uploads/media/RR-16-2023-Sworn-Declaration.pdf), [BIR RMC 8-2024](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%208-2024.pdf), notary range from [Respicio](https://www.respicio.ph/commentaries/notarial-fees-for-document-notarization-in-the-philippines) (secondary) |
+| NPC sworn declaration, Annex 1 | 100 to 300 (1.60 to 4.80) | No NPC fee according to a secondary source, plus a notary fee. Both **UNVERIFIED** | [NPC Annex 1](https://privacy.gov.ph/wp-content/uploads/2023/05/Circular-2022-04-Annex-1-1.pdf), [Emerhub](https://emerhub.com/philippines/a-guide-to-npc-registration-in-the-philippines/) (secondary) |
+| PayMongo account | 0 | No setup fee on the Standard plan | [PayMongo pricing](https://www.paymongo.com/pricing) |
+| Google Cloud project, app verification and Search Console | 0 | Google lists no fee for any of them. CASA, the paid outside audit, is not needed for `gmail.send` | [Google verification FAQ](https://support.google.com/cloud/answer/13463817?hl=en), [Search Console](https://support.google.com/webmasters/answer/9128668?hl=en) |
+| Domain, first year | .com 654 (10.46), or 698 (11.17) from 1 November 2026. A .ph is 3,000 (48) | Cloudflare sells .com at the wholesale price with no markup, and the exact cents show only at checkout (**UNVERIFIED**). dotPH says taxes may be added at checkout | [Cloudflare Registrar](https://www.cloudflare.com/products/registrar/), [Verisign](https://investor.verisign.com/news-releases/news-release-details/verisign-reports-first-quarter-2026-results), [ICANN fees](https://www.icann.org/en/announcements/details/icann-accredited-registrars-approve-registrar-level-fees-for-fiscal-year-2026-21-07-2025-en), [dotPH FAQ](https://www.dot.ph/faqs) |
+| First Gemini top-up | 313 (5) at least | Credit you then spend on letters, not a fee. Unused credit expires after 12 months | [Gemini billing](https://ai.google.dev/gemini-api/docs/billing) |
+| Fly.io reservation, optional | 2,250 (36) | A year of machine credit paid up front. It covers the machine for 12 months and saves about USD 12.60 a year | [Fly pricing](https://docs.fly.io/about/pricing/) |
+| An hour with an accountant, recommended | **UNVERIFIED** | No published price was found | None found |
+
+| Total | Low | High |
+|---|---|---|
+| Government and paperwork, with the national DTI name | PHP 3,915 (USD 63) | PHP 9,478 (USD 152) |
+| Getting online | PHP 967 (USD 15) | PHP 5,563 (USD 89) |
+| **All one-time costs** | **about PHP 4,900 (USD 78)** | **about PHP 15,000 (USD 241)** |
+
+- **The low case** is Pasig's PHP 900 permit, the PHP 500 minimum fire fee, a PHP 200 barangay clearance, the first-year city tax, the BIR's PHP 30, the cheapest notary for both sworn papers, a .com and the Gemini top-up.
+- **The high case** is a PHP 5,000 "IT" permit, a PHP 750 fire fee, a PHP 1,000 clearance, the dearest notary, a .ph, the Gemini top-up and the Fly reservation. Without the optional reservation the high end is about PHP 12,800 (USD 205).
+- **A smaller DTI scope** saves up to PHP 1,800.
+- **Not counted**, because no confirmed price exists, are the cedula, the invoices, the notebooks, the sanitary and garbage fees and the accountant's hour.
+- **Your own city's figures are UNVERIFIED.** Quezon City's official pages, for example, list the steps and a 1 to 3 day wait but no peso amounts ([QC business guide](https://quezoncity.gov.ph/qcitizen-guides/opening-a-business-in-qc/)). Ask your city's permit office which category a home-based online subscription falls under.
+
+These totals are my arithmetic from the rows above.
+
+### 12.3 Monthly fixed costs
+
+The bills that arrive every month however many users you have come to about PHP 330 on the cheapest sensible setup and about PHP 5,420 on a comfortable one, and most of the gap is an accountant.
+
+| Bill | Cheapest sensible | Comfortable | Source |
+|---|---|---|---|
+| Fly.io machine, shared-cpu-1x 512 MB in Singapore, always on | PHP 253 (USD 4.05) | PHP 253 (USD 4.05) | [Fly pricing](https://docs.fly.io/about/pricing/) |
+| Fly disk, the 1 GB volume | PHP 9 (USD 0.15) | PHP 9 (USD 0.15) | [Fly pricing](https://docs.fly.io/about/pricing/) |
+| Domain, the yearly price spread over 12 months | PHP 55 (USD 0.87) for a .com | PHP 250 (USD 4.00) for a .ph | [Cloudflare Registrar](https://www.cloudflare.com/products/registrar/), [dotPH FAQ](https://www.dot.ph/faqs) |
+| Email for `support@` and `privacy@` | **FREE.** Cloudflare Email Routing forwards them to your Gmail, and Gmail's "send mail as" replies from them | PHP 438 (USD 7.00). Google Workspace Business Starter for 1 user on a yearly commitment, before tax. USD 6.30 for the first 12 months for new customers | [Email Routing](https://developers.cloudflare.com/email-routing/), [Gmail send-as](https://support.google.com/mail/answer/22370?hl=en), [Workspace pricing](https://workspace.google.com/intl/en_ph/pricing) |
+| Server mail for reconnect emails and alerts | **FREE.** A separate Gmail with an app password, about 500 emails a day | **FREE**, the same | [App passwords](https://support.google.com/accounts/answer/185833?hl=en), [Gmail limits](https://support.google.com/mail/answer/22839?hl=en) |
+| Uptime monitor on `/health` | **FREE.** UptimeRobot Free, a check every 5 minutes, business use allowed | PHP 563 (USD 9). UptimeRobot Solo, a check every 60 seconds, billed yearly. One page shows USD and another EUR, so the currency is **UNVERIFIED** | [UptimeRobot pricing](https://uptimerobot.com/pricing/), [UptimeRobot free plan](https://help.uptimerobot.com/en/articles/11604710-who-should-use-uptimerobot-s-free-plan) |
+| Worker check-in alarm, the dead-man's switch | **FREE.** Healthchecks.io, 20 checks | **FREE**, the same | [Healthchecks.io pricing](https://healthchecks.io/pricing/) |
+| Alerts to your phone | **FREE.** A Discord webhook. UptimeRobot Free cannot post to Slack, so Discord suits both | **FREE**, the same | [Discord webhooks](https://docs.discord.com/developers/resources/webhook), [UptimeRobot pricing](https://uptimerobot.com/pricing/) |
+| Backups copied off the machine | **FREE.** Cloudflare R2 up to 10 GB, and downloads are free on the day you restore | **FREE**, the same. Backblaze B2 is also free for the first 10 GB | [R2 pricing](https://developers.cloudflare.com/r2/pricing/), [B2 pricing](https://www.backblaze.com/cloud-storage/pricing) |
+| Code hosting | **FREE.** GitHub Free, private repos included | **FREE**, the same | [GitHub pricing](https://github.com/pricing) |
+| PayMongo monthly fee | **FREE.** None on the Standard plan | **FREE** | [PayMongo pricing](https://www.paymongo.com/pricing) |
+| PayMongo transfer to your bank, once a month | PHP 11 (USD 0.18) | PHP 11 (USD 0.18) | [PayMongo pricing](https://www.paymongo.com/pricing) |
+| Accountant or tax app | **FREE.** You file yourself on the BIR's eBIRForms, which has no fee the research could find (**UNVERIFIED**) | PHP 3,900 (USD 62). Taxumo's accountant retainer at PHP 3,000 plus its 8% plan at about PHP 900 | [Taxumo pricing](https://www.taxumo.com/pricing/) |
+| **Total a month** | **about PHP 330 (USD 5.25)** | **about PHP 5,420 (USD 87)** | My sum of the rows |
+
+- **A middle road.** Keep the cheap setup but pay for Taxumo's 8% plan alone, PHP 5,496 to 10,796 a year, which is about PHP 458 to 900 a month ([Taxumo pricing](https://www.taxumo.com/pricing/)). The month then comes to about PHP 790 to 1,230 (USD 13 to 20). A bookkeeper for freelancers costs PHP 2,500 to 5,000 a month by one firm's own guide (**UNVERIFIED**, [Loft](https://loft.ph/how-much-should-you-pay-for-bookkeeping-in-the-philippines/)).
+- **The Fly reservation** from section 12.2 turns the machine line into about PHP 188 (USD 3.00) a month, paid a year ahead ([Fly pricing](https://docs.fly.io/about/pricing/)).
+- **Fly has no free tier.** Its trial ends after 2 machine hours or 7 days, whichever comes first, and then a card must be on file. It bills monthly for each second the machine runs ([Fly free trial](https://docs.fly.io/about/free-trial/), [Fly billing](https://docs.fly.io/about/billing/)).
+- **Also free if you need them.** Brevo sends 300 emails a day as a spare mail sender ([Brevo pricing](https://www.brevo.com/pricing/)). Zoho Mail's free plan gives a real mailbox for up to 5 users, but whether a Philippine sign-up gets it is **UNVERIFIED** ([Zoho pricing](https://www.zoho.com/mail/zohomail-pricing.html)).
+- **Things you do not need.** A dedicated IPv4 address at USD 2 a month and paid Fly support from USD 29 a month ([Fly pricing](https://docs.fly.io/about/pricing/)), and PayMongo Storefront at PHP 349 a month ([PayMongo pricing](https://www.paymongo.com/pricing)). Tailscale Personal stays free for reaching your own V1, but it is "only suitable for non-commercial use". If it ever reaches Agad's machines, the honest plan is Standard at PHP 500 (USD 8) a user a month ([Tailscale pricing](https://tailscale.com/pricing)).
+- **Not in these totals.** Gemini grows with users (section 12.4). Payment fees come with each sale (section 12.5). Yearly bills like the Mayor's permit are in section 12.6, and spread over 12 months they add about PHP 180 to 625 a month before the city's tax on your sales.
+
+**Your own contributions.** As a self-employed person you likely also owe these every month. They are personal bills, not Agad's, so no total in this section includes them.
+
+| Bill | PHP a month | Source |
+|---|---|---|
+| SSS, self-employed | 750 to 5,250. That is 15% of a monthly salary credit you declare, between 5,000 and 35,000 | [Grant Thornton on SSS Circular 2024-006](https://www.grantthornton.com.ph/insights/articles-and-updates1/tax-notes/sss-implements-revised-contribution-rates-for-2025/) (secondary, SSS's own table is an image) |
+| PhilHealth, direct contributor | 500 to 5,000. That is 5% of monthly income, counted from at least 10,000 and at most 100,000 | [PhilHealth advisory PA2025-0002](https://www.philhealth.gov.ph/advisories/2025/PA2025-0002.pdf) |
+| Pag-IBIG | **UNVERIFIED** for self-employed members | Not confirmed |
+
+### 12.4 Costs that grow with each user
+
+Each active user costs about PHP 15 a month in AI letters with thinking turned down, and up to PHP 122 for a heavy user with thinking left on, while Gmail and data transfer cost next to nothing.
+
+Gemini charges by the token, a piece of text about three quarters of a word. The figures use the research's **UNVERIFIED** guess of 4,000 input tokens, 600 letter tokens and 1,500 thinking tokens per letter. The prices are USD 0.30 per million input tokens and USD 2.50 per million output tokens for both 2.5 Flash and 3.5 Flash-Lite, and thinking is billed as output ([Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), [thinking docs](https://ai.google.dev/gemini-api/docs/thinking)). So one letter costs about PHP 0.17 (USD 0.0027) with thinking turned down and about PHP 0.40 (USD 0.0065) at default.
+
+| Per user per month | Typical, 3 letters a day (90 a month) | Heavy, 10 a day (300 a month) | Source |
+|---|---|---|---|
+| Gemini, thinking turned down | PHP 15 (USD 0.24) | PHP 51 (USD 0.81) | [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), scaling research |
+| Gemini, thinking at default | PHP 37 (USD 0.59) | PHP 122 (USD 1.95) | same |
+| 12% Philippine VAT on Gemini, only until Google has your TIN | PHP 2 to 4 (USD 0.03 to 0.07) | PHP 6 to 15 (USD 0.10 to 0.23) | [Google Cloud taxes](https://docs.cloud.google.com/billing/docs/resources/vat-overview) |
+| Gmail API, 100 quota units a send | PHP 0, free today (9,000 units) | PHP 0 (30,000 units) | [Gmail API quota](https://developers.google.com/workspace/gmail/api/reference/quota) |
+| Fly outbound data, USD 0.04 per GB | under PHP 0.10, my estimate | under PHP 0.10, my estimate | [Fly pricing](https://docs.fly.io/about/pricing/) |
+| **Total, thinking turned down** | **about PHP 15 (USD 0.24)** | **about PHP 51 (USD 0.81)** | |
+| **Total, thinking at default** | **about PHP 37 (USD 0.59)** | **about PHP 122 (USD 1.95)** | |
+
+- **How the data estimate works.** Incoming data is free, so reading onlinejobs.ph costs nothing. What goes out is mostly each letter's request to Gemini and its email to Gmail. The code caps a profile message at 5,000 characters and a job at 8,000, so even at a generous 50 KB per letter a heavy user sends about 15 MB a month, which is about PHP 0.04. Real traffic is **UNVERIFIED** until you read it in [Fly's metrics](https://docs.fly.io/monitoring/metrics/).
+- **Each free trial costs money too.** 14 days at 3 letters a day is 42 letters, about PHP 7 to 17 (USD 0.11 to 0.27) per trial, and a trial pays nothing. My arithmetic.
+- **Hosting is not per user.** The Fly machine costs the same for 1 user or 100, about PHP 3 (USD 0.04) each at 100 users (section 9.6). It steps up near 1,000 users (section 10.4).
+- **Only people with valid access should cost anything.** The access rule in section 11.6 stops the worker from writing letters for people who stopped paying.
+
+### 12.5 Costs on each payment
+
+PayMongo keeps between PHP 3 and PHP 24 of each PHP 199 pass depending on how the person pays, moving money to your bank costs PHP 11.20 a time, and one notarized paper stops it from holding back tax too early.
+
+PayMongo's prices are "exclusive of VAT", so each fee below adds 12% VAT ([PayMongo pricing](https://www.paymongo.com/pricing), [TRAIN Act, Sec. 106](https://lawphil.net/statutes/repacts/ra2017/ra_10963_2017.html)). The ShopeePay, GrabPay and foreign card lines are my arithmetic from the same price page.
+
+| Method | PayMongo rate, before VAT | Fee on PHP 199, with VAT | You keep |
+|---|---|---|---|
+| QR Ph | 1.34% | PHP 2.99 | PHP 196.01 |
+| ShopeePay | 1.70% | PHP 3.79 | PHP 195.21 |
+| Maya | 1.79% | PHP 3.99 | PHP 195.01 |
+| GrabPay | 1.96% | PHP 4.37 | PHP 194.63 |
+| GCash | 2.23% | PHP 4.97 (USD 0.08) | PHP 194.03 |
+| Local card | 3.125% + PHP 13.39 | PHP 21.96 (USD 0.35) | PHP 177.04 |
+| Foreign card | 4.02% + PHP 13.39 | PHP 23.96 (USD 0.38) | PHP 175.04 |
+
+| Other charge | Amount | When | Source |
+|---|---|---|---|
+| Setup fee and monthly fee | PHP 0 | Never, on the Standard plan | [PayMongo pricing](https://www.paymongo.com/pricing) |
+| Payout into your PayMongo wallet | PHP 0 | Weekly on Wednesdays for new accounts. Verified business accounts default to what PayMongo calls bi-weekly, which its own table lists as every Tuesday and Friday. A monthly payout on a date you pick can be set in the dashboard | [PayMongo payouts](https://docs.paymongo.com/docs/money-movement-payouts) |
+| Transfer from the wallet to your bank | PHP 11.20 (USD 0.18), which is PHP 10 plus VAT | Each transfer. About PHP 11 a month on a monthly schedule, about PHP 49 a month if weekly and about PHP 97 a month on the Tuesday and Friday default. A bank transfer needs at least PHP 80 cleared | [PayMongo pricing](https://www.paymongo.com/pricing), [PayMongo payouts](https://docs.paymongo.com/docs/money-movement-payouts) |
+| Refund | No fee listed | Taken from your next payout if the money was already paid out. Whether PayMongo returns its own fee is **UNVERIFIED** | [PayMongo refunds](https://docs.paymongo.com/docs/payment-acceptance-refunds) |
+| Card dispute, a chargeback | PHP 800, returned if you win (**UNVERIFIED**, the help page now gives an error). PayMongo's own blog says PHP 400 to 1,500 is typical in the Philippines | Taken from your next payout | [PayMongo blog](https://www.paymongo.com/blog/what-is-a-chargeback) |
+| PHP 30 identity check and PHP 3 to 15 a month of wallet upkeep | Probably PHP 0 for you | They belong to PayMongo's Wallets product for businesses that hand wallets to their own customers (**UNVERIFIED** for your own payout wallet, ask PayMongo) | [PayMongo pricing](https://www.paymongo.com/pricing) |
+| Tax withheld by PayMongo | 0.5% of what it pays you, about PHP 1 per sale | See below. It is a credit, not an extra tax | [BIR RR 5-2025](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%205-2025.pdf), [PayMongo taxes](https://docs.paymongo.com/docs/account-settings-taxes) |
+
+**Pick a monthly payout.** If each payout moves on to your bank, the Tuesday and Friday default for a verified business account costs about PHP 97 a month in transfer fees instead of about PHP 11. Set a monthly date under Payouts in the PayMongo dashboard ([PayMongo payouts](https://docs.paymongo.com/docs/money-movement-payouts)). The PHP 97 is my arithmetic, 104 transfers a year at PHP 11.20.
+
+**Withholding, and how to avoid it.** Withholding means a payer holds back part of what it pays you and sends it to the BIR in your name.
+
+- **The rate** is 0.5% of what PayMongo pays you. RR 5-2025 restated the older "1% on half", so it is the same money ([BIR RR 5-2025](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%205-2025.pdf)).
+- **You get it back.** PayMongo gives you BIR Form 2307, the certificate of tax withheld, under Settings then Taxes, and you subtract it from your income tax ([PayMongo taxes](https://docs.paymongo.com/docs/account-settings-taxes)).
+- **The catch.** Without a sworn declaration on file, PayMongo withholds from your very first peso. The BIR says it is deducted "regardless of the actual total income or gross remittance" when the declaration is missing ([BIR RMC 8-2024](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%208-2024.pdf)).
+- **The fix.** Fill in the sworn declaration of gross remittances, swear to it before a notary with a PHP 30 stamp, have the BIR stamp it received, and give it to PayMongo with your Form 2303 when you open the account ([Annex A form](https://www.rcbc.com/uploads/media/RR-16-2023-Sworn-Declaration.pdf), [BIR RMC 8-2024](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%208-2024.pdf), [PayMongo taxes](https://docs.paymongo.com/docs/account-settings-taxes)). Then nothing is withheld until yearly payouts pass PHP 500,000, about 210 paying users ([BIR RR 16-2023](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%2016-2023.pdf)).
+- **Renew it by 20 January** every year (BIR RMC 8-2024).
+- **Past PHP 500,000** you cannot avoid it, but you still get every peso back as a credit.
+- **One more rule.** The BIR says sellers "are not allowed to receive payments through their personal/individual accounts" (BIR RMC 8-2024). A PayMongo Individual account for the beta may clash with that, which is **UNVERIFIED**, so ask your accountant.
+
+### 12.6 Taxes and yearly renewals
+
+Tick the 8% income tax option in your very first quarterly return and at 100 paying users you owe no income tax at all, while the city's permit and business tax every January become your biggest yearly bill.
+
+This part is research, not tax advice. Check it with an accountant before your first sale.
+
+**The two ways to pay income tax.**
+
+- **The default** is the graduated rates plus a 3% percentage tax. Graduated means the rate rises with your profit, from 0% on the first PHP 250,000 of profit up to 35%. Percentage tax is a separate 3% on every peso of sales, for businesses too small for VAT ([BIR RR 8-2018 digest](https://bir-cdn.bir.gov.ph/local/pdf/Digest%20RR%208-2018_copy.pdf), [BIR RMC 69-2023](https://bir-cdn.bir.gov.ph/local/pdf/RMC%20No.%2069-2023%20v2.pdf)).
+- **The 8% option** is one flat 8% on sales above PHP 250,000, and it replaces both. It is open to a sole proprietor with sales up to PHP 3,000,000 a year (BIR RR 8-2018 digest).
+- **How to choose it.** Tick 8% in your first quarterly return after you start. Miss that and you are on the graduated rates plus 3% for the whole year, with no way back (same digest).
+
+**The PHP 250,000 exemption.** Under the 8% option the first PHP 250,000 of sales each year is tax free, but only if Agad is your only income. The digest says it "is not applicable to mixed income earners", meaning people who also earn a salary. For them 8% applies to every peso of Agad sales.
+
+**Worked example, 100 paying users for a year.**
+
+| | 8% option | Graduated rates plus 3% |
+|---|---|---|
+| Sales in the year, 100 × PHP 199 × 12 | PHP 238,800 | PHP 238,800 |
+| Income tax | PHP 0, because sales stay under PHP 250,000 | PHP 0, because profit stays under PHP 250,000 |
+| Percentage tax | PHP 0, the 8% option replaces it | PHP 7,164, which is 3% of every peso |
+| **Tax for the year** | **PHP 0** | **PHP 7,164 (USD 115)** |
+| If you also earn a salary | PHP 19,104 (USD 306), 8% of all Agad sales | Depends on your salary, ask an accountant |
+
+So the 8% option saves PHP 7,164 at 100 users. At 1,000 paying users it is PHP 171,040 (USD 2,737) a year against about PHP 418,500 to 487,256 the other way, which saves roughly PHP 247,000 to 316,000. That comparison is my arithmetic from the business research, which takes off the running costs from section 10 and the GCash fee before applying the graduated table.
+
+**VAT only past PHP 3,000,000.** While yearly sales stay under PHP 3,000,000, about 1,257 paying users, you are a non-VAT "micro taxpayer" ([BIR EOPT flyer](https://bir-cdn.bir.gov.ph/BIR/pdf/flyer-eopt.pdf)). Cross it and four things change at once. You add 12% VAT, the 8% option ends, a certified public accountant (CPA) must audit your books every year, and BIR e-invoicing becomes mandatory ([BIR EOPT flyer](https://bir-cdn.bir.gov.ph/BIR/pdf/flyer-eopt.pdf), [TRAIN Act](https://lawphil.net/statutes/repacts/ra2017/ra_10963_2017.html), [BIR RR 11-2025](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%2011-2025.pdf)).
+
+**Yearly renewals.**
+
+| Renewal | When | PHP | Source |
+|---|---|---|---|
+| Mayor's permit | First 20 days of January | 900 to 5,000, by city and category | [LGC Sec. 167](https://lawphil.net/statutes/repacts/ra1991/ra_7160_1991.html), city codes in section 12.2 |
+| Barangay clearance | Before the Mayor's permit | 200 to 1,000 **UNVERIFIED** | [LGC Sec. 152(c)](https://lawphil.net/statutes/repacts/ra1991/ra_7160_1991.html) |
+| Cedula | With the permit | 5 plus 1 per 1,000 of last year's income, at most 5,000. About 244 at 100 users, about 2,393 at 1,000 | [LGC Sec. 157](https://lawphil.net/statutes/repacts/ra1991/ra_7160_1991.html) |
+| Fire safety inspection fee | With the permit | 500 to 750 | [Fire Code RIRR 2019](https://archive.org/stream/ra-9514-rirr-rev-2019/RA9514-RIRR-rev-2019_djvu.txt) |
+| City business tax on last year's sales | With the permit, or by quarter | In Pasig about 5,590 at 100 users on its contractor schedule, or 7,164 under its 3% catch-all. At 1,000 users about 17,910 or 71,640. Which schedule applies is **UNVERIFIED** | [Pasig Revenue Code](https://assets.pasigcity.gov.ph/storage/downloadables/2022/10/07/633fc0e8d82941665122536632bfacec71cf16638266382017%20Revised%20Pasig%20Revenue%20Code.pdf) |
+| Sworn declaration to PayMongo | By 20 January | 130 to 330 with the notary | [BIR RMC 8-2024](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%208-2024.pdf) |
+| Paying the city late | After 20 January | Up to 25% surcharge plus up to 2% a month | [LGC Sec. 168](https://lawphil.net/statutes/repacts/ra1991/ra_7160_1991.html) |
+| DTI business name | Every 5 years | The same as new, 2,030 on national scope. Renewing late costs 50% more | [DTI BNRS FAQ](https://bnrs.dti.gov.ph/faq) |
+| Domain | Each year on the day you bought it | .com 698 (USD 11.17) from 1 November 2026, .ph 3,000 (USD 48) | [Cloudflare Registrar](https://www.cloudflare.com/products/registrar/), [dotPH FAQ](https://www.dot.ph/faqs) |
+| NPC registration, only if you cross a trigger such as sensitive data of 1,000 people (section 13.4) | Yearly | 350 to 2,500 **UNVERIFIED** | [NPC Circular 2022-04](https://privacy.gov.ph/wp-content/uploads/2023/05/Circular-2022-04-1.pdf), [FilePino](https://www.filepino.com/dpo-dps-registration-renewal/) (secondary) |
+
+**BIR filing deadlines.**
+
+- **Three quarterly income tax returns a year.** They are due on or before 15 May, 15 August and 15 November for the first, second and third quarters ([BIR RR 8-2018 digest](https://bir-cdn.bir.gov.ph/local/pdf/Digest%20RR%208-2018_copy.pdf), [TRAIN Act](https://lawphil.net/statutes/repacts/ra2017/ra_10963_2017.html)). The fourth quarter goes in the yearly return.
+- **Every April, the yearly income tax return**, due by 15 April (same digest). When a date falls on a weekend or holiday, check the BIR's tax calendar for the moved day.
+- **Every quarter, only if you are not on 8%, the percentage tax return**, within 25 days after the quarter ends ([NIRC Sec. 128](https://lawphil.net/statutes/repacts/ra1997/ra_8424_1997.html)).
+- **Filing costs nothing** on eBIRForms as far as the research found (**UNVERIFIED**).
+- **If you do file late**, micro taxpayers pay lighter penalties, a 10% civil penalty instead of the normal rate and half the interest ([BIR EOPT flyer](https://bir-cdn.bir.gov.ph/BIR/pdf/flyer-eopt.pdf)).
+
+**Invoices and books.**
+
+- **One registered invoice per payment is the safe habit.** A non-VAT seller must invoice any sale of PHP 500 or more, any buyer who asks, and each day's small sales once they pass PHP 500 ([BIR RMC 77-2024](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2077-2024%20Digest.pdf)). The Internet Transactions Act wants invoices "for all sales" (section 13.4). At 100 users that is about 1,200 invoices a year, or 24 booklets of 50, at a price that is **UNVERIFIED**.
+- **No e-invoicing yet.** Micro taxpayers are exempt from mandatory e-invoicing and use registered manual invoices or a registered computer system instead ([BIR RR 11-2025](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%2011-2025.pdf)).
+- **Keep a journal and a ledger.** While quarterly sales stay at or under PHP 50,000, about 83 paying users, simplified books are allowed ([NIRC Sec. 232](https://lawphil.net/statutes/repacts/ra1997/ra_8424_1997.html)). The 8% option does not remove bookkeeping (BIR RR 8-2018 digest). Loose-leaf or computer-printed books need a free BIR permit, binding within 15 days after each year ends and a sworn statement for each year, so budget one more notary fee a year for them ([BIR checklist](https://web-services.bir.gov.ph/eappointment/files/checklist_of_documentary_requirements.pdf)). Bound notebooks avoid that.
+
+**One more thing to ask your accountant.** A Barangay Micro Business Enterprise (BMBE) is exempt from income tax on its operations, for businesses with assets up to PHP 3,000,000 ([RA 9178](https://lawphil.net/statutes/repacts/ra2002/ra_9178_2002.html)). Whether Agad qualifies, what registering costs and how it fits with the 8% option are all **UNVERIFIED**.
+
+### 12.7 Worked monthly examples
+
+At 100 paying users about 46 to 85 percent of the money is left after every bill, and at 1,000 users about 64 to 80 percent is left even after income tax.
+
+Both tables assume a steady month in year two, so the city's tax on last year's sales is included. Everyone pays by GCash, Agad is your only income, you chose the 8% option, Google has your TIN and your sworn declaration is on file. The lean column is the cheapest sensible setup with thinking turned down. The comfortable column is the comfortable setup with thinking at default and the dearest city case. Yearly bills are spread over 12 months. The figures are my arithmetic from the rows and sources above.
+
+**At 100 paying users.**
+
+| Line | Lean, PHP (USD) | Comfortable, PHP (USD) | From |
+|---|---|---|---|
+| **Money in**, 100 passes at PHP 199 | **19,900 (318.40)** | **19,900 (318.40)** | |
+| PayMongo fees, GCash at PHP 4.97 | 497 (7.95) | 497 (7.95) | section 12.5 |
+| Transfer to your bank, once | 11 (0.18) | 11 (0.18) | section 12.5 |
+| Fly.io machine, disk and data | 269 (4.30) | 269 (4.30) | section 3.9 |
+| Gemini, about 9,000 letters | 1,500 (24.00) | 3,625 (58.00) | section 10.3 |
+| Gmail API | 0 | 0 | section 12.4 |
+| Domain, spread | 55 (0.87) | 250 (4.00) | section 12.3 |
+| Email | 0 | 438 (7.00) | section 12.3 |
+| Uptime monitor, alerts and backups | 0 | 563 (9.00) | section 12.3 |
+| Accountant or tax app | 0 | 3,900 (62.40) | section 12.3 |
+| Yearly bills spread. Permit, barangay, fire fee, cedula, sworn declaration and a fifth of the DTI fee | 198 (3.17) | 644 (10.30) | section 12.6 |
+| City business tax on last year's sales, spread | 466 (7.46) | 597 (9.55) | section 12.6 |
+| Income tax, 8% option | 0 | 0 | section 12.6 |
+| **All costs** | **2,996 (47.94)** | **10,794 (172.70)** | |
+| **What is left** | **16,904 (270.46)** | **9,106 (145.70)** | |
+
+- **If every one of the 100 paid by local card**, fees rise from PHP 497 to PHP 2,196, about PHP 1,700 more.
+- **Without your TIN on the Google account**, add 12% VAT on Gemini, PHP 180 to 435.
+- **If Agad is not your only income**, 8% applies to every peso, about PHP 1,592 a month more.
+- **If you forget to tick 8%**, the 3% percentage tax adds PHP 597 a month for that whole year.
+
+**At 1,000 paying users.**
+
+| Line | Lean, PHP (USD) | Comfortable, PHP (USD) | From |
+|---|---|---|---|
+| **Money in**, 1,000 passes at PHP 199 | **199,000 (3,184)** | **199,000 (3,184)** | |
+| PayMongo fees, GCash at PHP 4.97 | 4,970 (79.52) | 4,970 (79.52) | section 12.5 |
+| Transfer to your bank, once | 11 (0.18) | 11 (0.18) | section 12.5 |
+| Fly.io, two 1 GB machines and data | 969 (15.50) | 969 (15.50) | section 10.4 |
+| Postgres, Supabase Pro or Fly Managed Postgres Basic | 1,563 (25.00) | 2,375 (38.00) | section 10.4 |
+| Gemini, about 90,000 letters, which needs Tier 2 | 15,188 (243) | 36,563 (585) | section 10.4 |
+| Gmail API | 0 | 0 | section 12.4 |
+| Domain, spread | 55 (0.87) | 250 (4.00) | section 12.3 |
+| Email | 0 | 438 (7.00) | section 12.3 |
+| Uptime monitor, alerts and backups | 0 | 563 (9.00) | section 12.3 |
+| Accountant or tax app | 458 (7.33), Taxumo's 8% plan alone | 3,900 (62.40) | section 12.3 |
+| Yearly bills spread, as above | 377 (6.03) | 823 (13.17) | section 12.6 |
+| NPC registration if the 1,000-person trigger applies, spread (**UNVERIFIED**) | 0 | 208 (3.33) | section 12.6 |
+| City business tax on last year's sales, spread | 1,493 (23.89) | 5,970 (95.52) | section 12.6 |
+| Income tax, 8% option, PHP 171,040 a year spread | 14,253 (228.05) | 14,253 (228.05) | section 12.6 |
+| **All costs** | **39,337 (629.39)** | **71,293 (1,140.69)** | |
+| **What is left** | **159,663 (2,554.61)** | **127,707 (2,043.31)** | |
+
+- **PayMongo withholds about PHP 970 a month here**, because yearly payouts pass PHP 500,000. That money is part of the income tax line, not extra.
+- **The Gemini bill sits just under or well past Tier 1's USD 250 cap**, so reach Tier 2 before you get here (section 12.8).
+- **If Agad is not your only income**, the 8% reaches every peso, about PHP 1,667 a month more.
+- **Your own SSS and PhilHealth** come out of what is left (section 12.3).
+
+### 12.8 Bills that could surprise you
+
+Most surprise bills come from Gemini, so set a spend cap and turn thinking down before the first real user, then read the rest of this list once.
+
+| Surprise | What it costs you | What to do |
+|---|---|---|
+| **Gemini's spending cap pauses every letter** | Tier 1 caps a billing account at USD 250 (PHP 15,625) a month. Reach it and Gemini pauses for every linked project until the 1st of the next month, and charges keep running for about 10 minutes after you cross it ([rate limits](https://ai.google.dev/gemini-api/docs/rate-limits), [Gemini billing](https://ai.google.dev/gemini-api/docs/billing)). Near 1,000 users the bill is USD 243 to 585 | Reach Tier 2 early. It needs USD 100 paid plus 3 days and lifts the cap to USD 2,000. Set your own lower spend cap per project as a safety net |
+| **The prepaid balance runs out** | New Gemini billing accounts are prepaid. When the balance hits zero, "all API keys in all projects linked to that billing account will stop working simultaneously". Unused credit expires after 12 months ([Gemini billing](https://ai.google.dev/gemini-api/docs/billing)) | Turn on auto-reload with a monthly auto-charge limit |
+| **Thinking tokens** | Gemini 2.5 Flash thinks by default and bills the thinking as output. That makes each letter about 2.4 times dearer, PHP 0.40 instead of PHP 0.17 ([thinking docs](https://ai.google.dev/gemini-api/docs/thinking), [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing)) | Turn thinking down in the request, or move to 3.5 Flash-Lite, which defaults to "minimal". Read real token counts from the API's usage field |
+| **Gmail API charges later in 2026** | Free today. Google plans charges above 80,000,000 quota units per project per day "later in 2026", with the price not yet announced and at least 90 days' notice. Agad at 10,000 users would use about 10,000,000 a day ([Gmail API quota](https://developers.google.com/workspace/gmail/api/reference/quota)) | Nothing now. Watch your Google Cloud email for the notice and keep the daily cap of 10 letters |
+| **Google adds 12% VAT** | Google has charged Philippine VAT on digital services since June 2025 unless it has your TIN. PHP 180 to 435 a month at 100 users ([Google Cloud taxes](https://docs.cloud.google.com/billing/docs/resources/vat-overview)) | Add your TIN to the Gemini billing account as soon as Form 2303 arrives |
+| **Fly outbound data** | USD 0.04 (PHP 2.50) per GB sent out, while incoming data is free. Copying a full 1 GB backup off the machine every day would be about 30 GB, about PHP 75 (USD 1.20) a month. My arithmetic ([Fly pricing](https://docs.fly.io/about/pricing/)) | Backups are already compressed, which keeps this small. Glance at the usage on each monthly Fly invoice |
+| **The disk grows** | Nothing deletes old jobs and alerts, about 940 MB a year on a 1 GB disk (section 3.6). A bigger disk is cheap at PHP 9.38 (USD 0.15) per GB a month, but backups stop first when free space drops under twice the database ([Fly pricing](https://docs.fly.io/about/pricing/)) | Delete old rows (section 13.1, item 10). Volume snapshots stay free up to 10 GB a month ([Fly cost management](https://docs.fly.io/about/cost-management/)) |
+| **A restricted Gmail scope forces CASA** | Adding `gmail.compose`, `gmail.insert`, `gmail.readonly` or `gmail.modify` brings CASA, a paid outside security audit repeated at least every 12 months. One Google-listed lab charges USD 675 to 4,500, PHP 42,188 to 281,250 ([restricted scope verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification), [TAC Security](https://tacsecurity.com/esof-appsec-ada-casa-faqs/)) | Never add a restricted scope. `gmail.send` alone needs no audit |
+| **Chargebacks** | A card owner asking their bank to reverse a payment reportedly costs PHP 800 per dispute, four times the sale (**UNVERIFIED**). PayMongo's blog says PHP 400 to 1,500 is typical ([PayMongo blog](https://www.paymongo.com/blog/what-is-a-chargeback)) | Refund anyone who complains straight away. It is almost always cheaper than a dispute |
+| **Withholding from the first peso** | Without the sworn declaration, PayMongo holds back 0.5% of every payout from day one ([BIR RMC 8-2024](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%208-2024.pdf)) | File it when you open the account and again by 20 January each year (section 12.5) |
+| **Missing the 8% election** | Forget to tick 8% in the first quarterly return and you pay the 3% percentage tax all year, PHP 7,164 at 100 users ([BIR RR 8-2018 digest](https://bir-cdn.bir.gov.ph/local/pdf/Digest%20RR%208-2018_copy.pdf)) | Tick it in the very first return |
+| **Paying the city late** | Up to 25% surcharge plus up to 2% a month ([LGC Sec. 168](https://lawphil.net/statutes/repacts/ra1991/ra_7160_1991.html)) | Renew in the first 20 days of January |
+| **Crossing PHP 3,000,000 of sales** | 12% VAT, the graduated rates, a yearly CPA audit and e-invoicing all arrive together, at about 1,257 paying users (section 12.6) | Talk to an accountant once you pass about 1,000 paying users |
+| **Your bank's foreign currency fee** | Fly, Gemini and a .com are billed in US dollars, and your card may add a fee. The amount depends on your card and is **UNVERIFIED** | Check your card's terms, or pay with a card that has no foreign fee |
+| **The .com price rise** | USD 10.46 now and USD 11.17 from 1 November 2026 ([Verisign](https://investor.verisign.com/news-releases/news-release-details/verisign-reports-first-quarter-2026-results), [Cloudflare Registrar](https://www.cloudflare.com/products/registrar/)) | Buy before 1 November. Paying several years ahead may hold the lower price, which is **UNVERIFIED** |
+
+### 12.9 A billing calendar
+
+Most months you only pay Fly, top up Gemini and move money to your bank, and the heavy dates are every January, each quarterly tax return and April.
+
+| When | Pay or file | Section |
+|---|---|---|
+| Every month | The Fly.io invoice by card, for each second the machine ran ([Fly billing](https://docs.fly.io/about/billing/)) | 12.3 |
+| Every month | Gemini top-ups by auto-reload. The tier cap resets on the 1st | 12.4, 12.8 |
+| Every month | One PayMongo transfer to your bank, PHP 11.20 | 12.5 |
+| Every month, if you use them | Google Workspace and the accountant's retainer | 12.3 |
+| Every month | Your own SSS and PhilHealth | 12.3 |
+| With every payment | One registered invoice | 12.6 |
+| 15 May, 15 August, 15 November | The quarterly income tax returns for the first three quarters. Tick 8% in the very first one | 12.6 |
+| Every quarter, only if not on 8% | The percentage tax return, within 25 days after the quarter ends | 12.6 |
+| Every quarter, if billed that way | The Taxumo plan | 12.3 |
+| By 20 January | Mayor's permit, barangay clearance, cedula, fire fee and the city's tax on last year's sales. A new sworn declaration to PayMongo | 12.6, 12.5 |
+| By 15 April | The yearly income tax return | 12.6 |
+| Once a year, on the day you bought it | Domain renewal, the Fly reservation if you bought one, and the end of any Gemini credit older than 12 months | 12.3, 12.2 |
+| Once a year, only if it applies | NPC registration if you cross a trigger, a sworn statement for loose-leaf books, and CASA only with a restricted scope | 12.6, 12.8 |
+| Every 5 years | DTI business name renewal, PHP 2,030 on national scope | 12.6 |
+| 31 October 2026 | BIR Registration Seal Badge on the website, the no-penalty deadline | 12.2 |
+| 1 November 2026 | The .com price rises to USD 11.17 | 12.8 |
+| Later in 2026 | Gmail API charges above 80,000,000 units a day may start, after 90 days' notice | 12.8 |
+| When yearly payouts pass PHP 500,000, about 210 paying users | PayMongo starts withholding 0.5% | 12.5 |
+| When yearly sales pass PHP 3,000,000, about 1,257 paying users | VAT registration, graduated income tax, a yearly CPA audit and e-invoicing | 12.6 |
+
+---
+
+## 13. The MVP and the launch checklist
 
 **In short.** A paid Agad needs about 15 to 20 working days of building plus 2 to 4 weeks of waiting on Google, the government and PayMongo, which can overlap, so a paid launch is about 4 to 6 weeks away. Those figures are estimates, and this section is research, not legal or tax advice.
 
 MVP means minimum viable product, the smallest version people would pay for. Agad's MVP is done when a stranger on an Android phone can find Agad, sign up, get useful applications in Gmail, pay after the trial, cancel or delete themselves, and you can run it alone without being woken at 3 in the morning.
 
-### 12.1 Must have before the first peso, in the order to do it
+### 13.1 Must have before the first peso, in the order to do it
 
 Sign-in, onboarding, watching and sending are already built. Start the slow, waiting-heavy items first so the waiting overlaps the building. Effort is for one developer who knows this code. S is about half a day, M is 1 to 2 days, L is 3 to 7 days.
 
@@ -1575,7 +1911,7 @@ Sign-in, onboarding, watching and sending are already built. Start the slow, wai
 | Week 1 | 4 | onlinejobs.ph politeness. Permission email, 5-second limit, honest browser name, a cadence the pages can keep | Not done | S, then wait for a reply |
 | Week 1 | 5 | Gemini billing on, thinking turned down, a spend cap | Billing off, no caps | S to M |
 | Week 1 | 6 | UptimeRobot on `/health`, the alert webhook, then `notify --test` | Code ready, not set up | S |
-| Week 2 | 7 | Legal pages and homepage footer updated (section 12.4) | Partly | M |
+| Week 2 | 7 | Legal pages and homepage footer updated (section 13.4) | Partly | M |
 | Week 2 | 8 | Self-serve account deletion, which revokes the Google pass and deletes the rows | Promised, no code | M |
 | Week 2 | 9 | Rate limits beyond `/auth/`, fix "start without Gmail and be skipped forever", pin library versions | Open | M |
 | Week 2 | 10 | Delete old `jobs` and `user_job_alerts` rows, copy backups off the machine, practise one restore and write it down | Never done | M |
@@ -1587,16 +1923,16 @@ Sign-in, onboarding, watching and sending are already built. Start the slow, wai
 | Weeks 3 and 4 | 16 | Billing with the 14-day trial, cancel, pause and an invoice email per charge (section 11) | Not built | L |
 | Weeks 3 and 4 | 17 | Test the whole paid path in PayMongo's test mode, then one real payment of your own ([testing](https://docs.paymongo.com/docs/payment-acceptance-testing)) | Not started | S |
 
-### 12.2 Can wait until after launch
+### 13.2 Can wait until after launch
 
 - Moving off SQLite or adding a second machine. The crawl pace, not the database, is the limit.
 - A self-serve data export button. Handle requests by email at first.
-- NPC registration and its seal, unless you cross a trigger in section 12.4.
+- NPC registration and its seal, unless you cross a trigger in section 13.4.
 - VAT registration, needed only above PHP 3,000,000 a year ([BIR EOPT flyer](https://bir-cdn.bir.gov.ph/BIR/pdf/flyer-eopt.pdf)).
 - A phone app, more job sites, analytics, referral codes and annual plans.
 - CASA. Never needed unless you add a restricted Gmail scope.
 
-### 12.3 The launch-day gate
+### 13.3 The launch-day gate
 
 All of these must be true.
 
@@ -1606,7 +1942,7 @@ All of these must be true.
 4. The uptime monitor has paged you at least once in a test.
 5. Every promise on `/privacy`, `/terms` and the homepage is true in the code.
 
-### 12.4 The legal basics
+### 13.4 The legal basics
 
 **Data Privacy Act (RA 10173) and the NPC, the National Privacy Commission.**
 
@@ -1621,10 +1957,10 @@ All of these must be true.
 
 - **DTI business name.** PHP 200 barangay, 500 city, 1,000 regional or 2,000 national scope, plus PHP 30 stamp tax, valid 5 years ([DTI BNRS FAQ](https://bnrs.dti.gov.ph/faq)).
 - **BIR registration** on ORUS with Form 1901 gives Form 2303, for PHP 30 stamp tax. The PHP 500 yearly fee was abolished from 22 January 2024 ([BIR EOPT flyer](https://bir-cdn.bir.gov.ph/BIR/pdf/flyer-eopt.pdf)).
-- **The 8% option.** A sole proprietor under PHP 3,000,000 a year can pay 8% on sales above PHP 250,000, instead of both the graduated income tax and the 3% percentage tax ([Grant Thornton](https://www.grantthornton.com.ph/insights/articles-and-updates1/lets-talk-tax/the-8-tax-for-self-employed-individuals/)). When exactly to elect it is **UNVERIFIED**, ask your Revenue District Office.
-- **Invoices.** Since 27 April 2024 the invoice is the proof of a sale of services ([BIR RMC 77-2024](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2077-2024%20Digest.pdf)). Whether you may email a PDF invoice without a BIR-registered system is **UNVERIFIED**, ask an accountant.
-- **Registration Seal Badge.** Online businesses must show a free BIR badge on their website ([BIR RMC 38-2026](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2038-2026%20Digest.pdf)). The no-penalty deadline of 31 October 2026 comes from a news report of RMC 99-2026 ([Manila Times](https://www.manilatimes.net/2026/09/26/business/top-business/bir-sets-oct-deadline-for-registration-badges/2433272)), not from the circular itself.
-- **Gateway withholding.** Payment providers withhold 1% on half of what they pay you once yearly payouts pass PHP 500,000, about 210 paying users. It is a credit against your income tax ([BIR RR 16-2023](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%2016-2023.pdf)).
+- **The 8% option.** A sole proprietor under PHP 3,000,000 a year can pay 8% on sales above PHP 250,000, instead of both the graduated income tax and the 3% percentage tax ([Grant Thornton](https://www.grantthornton.com.ph/insights/articles-and-updates1/lets-talk-tax/the-8-tax-for-self-employed-individuals/)). You elect it in your first quarterly return after you start. Miss that and you are on the graduated rates for the whole year. The PHP 250,000 tax-free part applies only if Agad is your only income ([BIR RR 8-2018 digest](https://bir-cdn.bir.gov.ph/local/pdf/Digest%20RR%208-2018_copy.pdf)). Section 12.6 works through both options.
+- **Invoices.** Since 27 April 2024 the invoice is the proof of a sale of services ([BIR RMC 77-2024](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2077-2024%20Digest.pdf)). Whether you may email a PDF invoice without a BIR-registered system is **UNVERIFIED**, ask an accountant. While yearly sales stay under PHP 3,000,000 you are a micro taxpayer, so BIR e-invoicing is not mandatory and you use registered manual invoices or a registered computer system instead ([BIR RR 11-2025](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%2011-2025.pdf)).
+- **Registration Seal Badge.** Online businesses must show a free BIR badge on their website ([BIR RMC 38-2026](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2038-2026%20Digest.pdf)). The no-penalty deadline is 31 October 2026 ([BIR RMC 99-2026](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2099-2026.pdf), also reported by the [Manila Times](https://www.manilatimes.net/2026/09/26/business/top-business/bir-sets-oct-deadline-for-registration-badges/2433272)).
+- **Gateway withholding.** Payment providers withhold 0.5% of what they pay you ([BIR RR 5-2025](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%205-2025.pdf)), the same money as the older "1% on half" ([BIR RR 16-2023](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%2016-2023.pdf)). With a BIR-received sworn declaration on file they wait until yearly payouts pass PHP 500,000, about 210 paying users. Without one they withhold from the first peso ([BIR RMC 8-2024](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%208-2024.pdf)). It is a credit against your income tax. Section 12.5 shows how to file the declaration.
 
 **Internet Transactions Act (RA 11967).** Selling a service to online consumers through your own site makes Agad an "e-retailer". The homepage must show your business name, a physical address, a phone number and an email, you must issue invoices for all sales, and you need a complaints process where a complaint counts as unresolved after 7 calendar days ([RA 11967](https://elibrary.judiciary.gov.ph/thebookshelf/showdocs/2/96902), Secs. 4, 23 and 24). The homepage has none of the business details today.
 
@@ -1632,7 +1968,7 @@ All of these must be true.
 
 ---
 
-## 13. Glossary
+## 14. Glossary
 
 **In short.** Every technical word this guide uses, in one plain line each, in alphabetical order.
 
@@ -1643,16 +1979,22 @@ All of these must be true.
 | AES-256-GCM | A standard lock for data that also notices if any byte was changed |
 | Alert | One row that means "send this job to this person" |
 | API | A door one program offers so other programs can use it |
+| Barangay clearance | A yearly paper from your barangay that you need before the Mayor's permit |
 | Baseline | A quiet first search that stores what is already posted and tells nobody |
 | Basecoat | A small ready-made style kit with the shadcn/ui look, trimmed for the sign-up pages |
 | BIR | The Bureau of Internal Revenue, the Philippine tax office |
 | Blind | When onlinejobs.ph returns nothing, even for the canary search |
+| BMBE | Barangay Micro Business Enterprise, a small-business registration that can remove income tax. Ask an accountant whether Agad fits |
+| Break-even | The number of paying users at which the money coming in covers the monthly bills |
 | Cache | A saved copy of work already done, here finished letters |
 | Caddy | A front-door web server that handles the padlock certificate by itself |
 | Canary | A test you trust to always work, so its failure points at the other side |
 | CASA | Google's paid yearly security audit, needed only for restricted Gmail scopes |
+| Cedula | The community tax certificate, a small yearly tax paper from your city |
+| Chargeback | A card owner asking their bank to reverse a payment. PayMongo charges a fee for each one |
 | Cloudflare | A service many sites sit behind that can spot and block robots |
 | Cookie | A small note a site asks the browser to keep and send back each visit |
+| CPA | Certified public accountant. One must audit your books every year once sales pass PHP 3,000,000 |
 | Crawl-delay | A robots.txt line asking robots to wait that many seconds between requests |
 | CSP | Content Security Policy, a rule list telling the browser where a page may load things from |
 | CSRF | A trick where another site makes your browser press a button on ours. Stopped by a secret token |
@@ -1660,16 +2002,23 @@ All of these must be true.
 | Data key (DEK) | The fresh key made for each Gmail pass, itself locked by the master key |
 | Dead-man's switch | An alarm that fires when an expected signal stops |
 | Docker image | A sealed box holding Python, the libraries and our code |
+| Documentary stamp tax (DST) | A small national tax on official papers, usually PHP 30 |
 | DPO | Data Protection Officer, the person answerable for privacy |
 | DTI | The Department of Trade and Industry, where business names are registered |
+| E-invoicing | Sending each invoice's details to the BIR electronically. Not mandatory for micro taxpayers |
+| eBIRForms | The BIR's own software for filing tax returns yourself |
+| Egress | Data a server sends out to the internet. Fly charges for it, and incoming data is free |
 | Environment variable | A named setting handed to a program when it starts |
 | Exit code | A number a program leaves behind to say why it stopped |
 | Fan-out | Turning one job into one alert for each person who should get it |
 | FastAPI | The Python toolkit the web app is built with |
+| Fire safety inspection fee | A yearly fee paid with the Mayor's permit, 15% of the city's fees and at least PHP 500 |
 | Fly.io | The hosting service chosen for the beta |
 | Form 2303 | The BIR's certificate of registration, which payment companies ask for |
+| Form 2307 | The certificate of tax withheld that PayMongo gives you, which you subtract from your income tax |
 | Gemini | Google's AI, which tailors each letter |
 | `gmail.send` | The Google permission to send email as a person, and nothing else |
+| Graduated rates | The normal income tax table, where the rate rises from 0% to 35% as profit grows |
 | Hash, fingerprint | A short code made from some text that changes completely if any letter changes |
 | HMAC | A seal made with a secret, so only someone with the secret can make a matching one |
 | Hosted Checkout | PayMongo's own payment page, which our app sends the buyer to |
@@ -1681,24 +2030,34 @@ All of these must be true.
 | Linter, type checker | Tools that scan code for mistakes without running it. This project has neither |
 | Log event | One line a program writes about what just happened |
 | Master key | The one key that locks every data key. It never enters the database |
+| Mayor's permit | The yearly city business licence, renewed in the first 20 days of January |
+| Micro taxpayer | The BIR's name for a business with yearly sales under PHP 3,000,000. It brings lighter rules and penalties |
 | Middleware | Code that every request and reply passes through |
 | Migration | One numbered step that builds or changes the database layout |
+| Mixed income earner | Someone with both a salary and business income. The PHP 250,000 tax-free part of the 8% option does not apply to them |
 | MVP | Minimum viable product, the smallest version people would pay for |
 | Nonce | A one-time value Google must copy into its ID card, proving the card is fresh |
+| Notary | A lawyer who watches you swear to a document and stamps it |
 | NPC | The National Privacy Commission of the Philippines |
 | OAuth | Google's way for a person to let an app do something without sharing their password |
 | ORUS | The BIR's online registration system |
+| Pag-IBIG | The national housing savings fund that members pay into every month |
 | PayMongo | A Philippine payment company, the recommended way to take money |
+| Payout | PayMongo moving your cleared sales into your PayMongo wallet |
+| Percentage tax | A 3% tax on sales for businesses too small for VAT. The 8% option replaces it |
+| PhilHealth | The national health insurance, which self-employed people pay into every month |
 | PKCE | A secret whose fingerprint goes to Google first and the secret itself later, proving the same app finished the sign-in |
 | Poller, sender | In the scaling plan, the one program that reads the site, and the programs that write and send letters |
 | Port | A numbered door on a machine that one program listens at |
 | Postgres | A database server that several machines can share |
+| Prepay | Paying Google first and letting each letter draw the balance down. Gemini works this way for new accounts |
 | Proxy | A front-door server that takes each visitor's request and passes it to the app |
 | QR Ph | The national QR payment standard, the cheapest PayMongo method |
 | Quota unit | Google's way of counting API use. One Gmail send is 100 units |
 | Rate limit | A cap on how many requests one address may make in a time window |
 | Redirect | The server telling the browser to go to another address at once |
 | Refresh token | A long-lived pass from Google that lets the worker send later |
+| Reservation block | Fly's yearly prepaid machine credit, USD 36 for USD 5 of credit a month |
 | robots.txt | A file where a site tells robots its rules |
 | Round | One full pass of the worker, also called a cycle |
 | Route | An address the web app answers, with a function behind it |
@@ -1708,9 +2067,13 @@ All of these must be true.
 | Shell | A command line typed straight into a machine |
 | Smoke script | A quick end-to-end check that draws every page and submits every form |
 | SMTP | The ordinary way one mail server hands email to another |
+| Sole proprietor | One person running a business under their own name, with no company formed |
+| Spend cap | A monthly limit on AI spending. Reaching Google's cap pauses Gemini until the 1st |
 | SQL | The database's own command language |
 | SQLite | A database that is just one file on disk |
+| SSS | The Social Security System, which self-employed people pay into every month |
 | State | A one-time ticket that proves Google's answer belongs to this browser |
+| Sworn declaration | A notarized statement. The one for PayMongo stops tax being held back until yearly payouts pass PHP 500,000 |
 | System user | An account with no login that a program runs as |
 | systemd | Linux's built-in manager that starts and restarts programs |
 | Tailscale | A private network between your own devices |
@@ -1719,6 +2082,8 @@ All of these must be true.
 | Tenant | One customer's private slice of a shared system |
 | Testing mode | Google's beta setting, 100 test users and 7-day Gmail connections |
 | Thinking tokens | The AI's hidden reasoning, billed like normal output |
+| Tier | One of Google's levels for a Gemini account, each with its own monthly spending cap |
+| TIN | Tax Identification Number, which BIR registration gives you |
 | Token | For AI pricing, a piece of text about three quarters of a word |
 | Unit file | systemd's instruction card for one program |
 | UTC | World time. The Philippines is 8 hours ahead |
@@ -1731,12 +2096,14 @@ All of these must be true.
 | Watch word | A search term a person added. The code calls it a keyword |
 | Watchdog | A timer that ends a program that stopped making progress |
 | Webhook | A secret web address one service posts messages to |
+| Withholding | Tax a payer holds back from what it pays you and sends to the BIR in your name |
 | Worker | The background program that searches, writes and sends |
+| 8% option | A flat 8% income tax on sales above PHP 250,000 that replaces the graduated rates and the 3% percentage tax |
 | 200, 302, 400, 403, 404, 429, 503 | Web answer codes. OK, go elsewhere, bad request, forbidden, not found, slow down, not healthy |
 
 ---
 
-## 14. Sources
+## 15. Sources
 
 **In short.** Every outside fact above links to one of these pages, grouped by topic. They were read and fact-checked on 27 September 2026.
 
@@ -1754,15 +2121,27 @@ All of these must be true.
 
 **Hosting and databases**
 
-[Fly.io pricing](https://docs.fly.io/about/pricing/) · [Fly.io free trial](https://docs.fly.io/about/free-trial/) · [Fly.io volumes](https://docs.fly.io/volumes/overview/) · [Fly.io LiteFS](https://docs.fly.io/litefs/) · [Fly.io Managed Postgres plans](https://docs.fly.io/mpg/) · [Fly.io Managed Postgres overview](https://docs.fly.io/postgres/) · [Fly.io regions](https://docs.fly.io/reference/regions/) · [Fly.io metrics](https://docs.fly.io/monitoring/metrics/) · [SQLite write-ahead logging](https://www.sqlite.org/wal.html) · [SQLite, appropriate uses](https://www.sqlite.org/whentouse.html) · [Supabase pricing](https://supabase.com/pricing) · [Supabase compute sizes](https://supabase.com/docs/guides/platform/compute-and-disk) · [Neon pricing](https://neon.com/pricing) · [Oracle Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) · [Healthchecks.io pricing](https://healthchecks.io/pricing/) · [BSP reference exchange rate, 4 September 2026](https://www.bsp.gov.ph/Lists/RERB/Attachments/2349/04Sep2026.pdf)
+[Fly.io pricing](https://docs.fly.io/about/pricing/) · [Fly.io free trial](https://docs.fly.io/about/free-trial/) · [Fly.io billing](https://docs.fly.io/about/billing/) · [Fly.io cost management](https://docs.fly.io/about/cost-management/) · [Fly.io volumes](https://docs.fly.io/volumes/overview/) · [Fly.io LiteFS](https://docs.fly.io/litefs/) · [Fly.io Managed Postgres plans](https://docs.fly.io/mpg/) · [Fly.io Managed Postgres overview](https://docs.fly.io/postgres/) · [Fly.io regions](https://docs.fly.io/reference/regions/) · [Fly.io metrics](https://docs.fly.io/monitoring/metrics/) · [SQLite write-ahead logging](https://www.sqlite.org/wal.html) · [SQLite, appropriate uses](https://www.sqlite.org/whentouse.html) · [Supabase pricing](https://supabase.com/pricing) · [Supabase compute sizes](https://supabase.com/docs/guides/platform/compute-and-disk) · [Neon pricing](https://neon.com/pricing) · [Oracle Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) · [Healthchecks.io pricing](https://healthchecks.io/pricing/) · [BSP reference exchange rate, 4 September 2026](https://www.bsp.gov.ph/Lists/RERB/Attachments/2349/04Sep2026.pdf)
 
 **Payments**
 
-[PayMongo pricing](https://www.paymongo.com/pricing) · [PayMongo Subscriptions product page](https://www.paymongo.com/products/accept-payments/subscriptions) · [PayMongo Subscriptions docs](https://docs.paymongo.com/docs/payment-acceptance-subscriptions) · [PayMongo account capabilities](https://docs.paymongo.com/docs/account-settings-account-capabilities) · [PayMongo Philippine entities](https://docs.paymongo.com/docs/account-settings-philippine-entities) · [PayMongo Hosted Checkout](https://docs.paymongo.com/docs/payment-channels-hosted-checkout) · [PayMongo Hosted Checkout quick start](https://docs.paymongo.com/docs/payment-channels-hosted-checkout-quick-start) · [PayMongo webhook setup](https://docs.paymongo.com/docs/developer-tools-webhook-setup-management) · [PayMongo signature best practices](https://docs.paymongo.com/docs/developer-tools-best-practices-1) · [PayMongo developer best practices](https://docs.paymongo.com/docs/developer-tools-best-practices) · [PayMongo webhook concepts](https://docs.paymongo.com/docs/developer-tools-webhooks-key-concepts) · [PayMongo webhook events](https://docs.paymongo.com/docs/developer-tools-webhooks-events) · [PayMongo payouts](https://docs.paymongo.com/docs/money-movement-payouts) · [PayMongo testing](https://docs.paymongo.com/docs/payment-acceptance-testing) · [Xendit GCash](https://docs.xendit.co/docs/gcash) · [Xendit subscriptions](https://docs.xendit.co/docs/subscriptions-overview) · [Xendit create plan](https://docs.xendit.co/apidocs/create-recurring-plan) · [Xendit Philippine business documents](https://docs.xendit.co/docs/philippines-business-documents) · [Xendit webhooks](https://docs.xendit.co/docs/handling-webhooks) · [HitPay, recurring billing in the Philippines](https://hitpayapp.com/blog/recurring-billing-philippines) · [Stripe global availability](https://stripe.com/global) · [Stripe payment method support](https://docs.stripe.com/payments/payment-methods/payment-method-support) · [Stripe pricing](https://stripe.com/pricing) · [Stripe Atlas](https://stripe.com/atlas) · [IRS Form 5472 instructions](https://www.irs.gov/instructions/i5472) · [Stripe Managed Payments eligibility](https://docs.stripe.com/payments/managed-payments/eligibility) · [Paddle pricing](https://www.paddle.com/pricing) · [Paddle supported currencies](https://developer.paddle.com/concepts/sell/supported-currencies/) · [Lemon Squeezy pricing](https://www.lemonsqueezy.com/pricing) · [Lemon Squeezy 2026 update](https://www.lemonsqueezy.com/blog/2026-update) · [MDN, CSP form-action](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/form-action)
+[PayMongo pricing](https://www.paymongo.com/pricing) · [PayMongo Subscriptions product page](https://www.paymongo.com/products/accept-payments/subscriptions) · [PayMongo Subscriptions docs](https://docs.paymongo.com/docs/payment-acceptance-subscriptions) · [PayMongo account capabilities](https://docs.paymongo.com/docs/account-settings-account-capabilities) · [PayMongo Philippine entities](https://docs.paymongo.com/docs/account-settings-philippine-entities) · [PayMongo Hosted Checkout](https://docs.paymongo.com/docs/payment-channels-hosted-checkout) · [PayMongo Hosted Checkout quick start](https://docs.paymongo.com/docs/payment-channels-hosted-checkout-quick-start) · [PayMongo webhook setup](https://docs.paymongo.com/docs/developer-tools-webhook-setup-management) · [PayMongo signature best practices](https://docs.paymongo.com/docs/developer-tools-best-practices-1) · [PayMongo developer best practices](https://docs.paymongo.com/docs/developer-tools-best-practices) · [PayMongo webhook concepts](https://docs.paymongo.com/docs/developer-tools-webhooks-key-concepts) · [PayMongo webhook events](https://docs.paymongo.com/docs/developer-tools-webhooks-events) · [PayMongo payouts](https://docs.paymongo.com/docs/money-movement-payouts) · [PayMongo taxes](https://docs.paymongo.com/docs/account-settings-taxes) · [PayMongo refunds](https://docs.paymongo.com/docs/payment-acceptance-refunds) · [PayMongo blog, what is a chargeback](https://www.paymongo.com/blog/what-is-a-chargeback) · [PayMongo testing](https://docs.paymongo.com/docs/payment-acceptance-testing) · [Xendit GCash](https://docs.xendit.co/docs/gcash) · [Xendit subscriptions](https://docs.xendit.co/docs/subscriptions-overview) · [Xendit create plan](https://docs.xendit.co/apidocs/create-recurring-plan) · [Xendit Philippine business documents](https://docs.xendit.co/docs/philippines-business-documents) · [Xendit webhooks](https://docs.xendit.co/docs/handling-webhooks) · [HitPay, recurring billing in the Philippines](https://hitpayapp.com/blog/recurring-billing-philippines) · [Stripe global availability](https://stripe.com/global) · [Stripe payment method support](https://docs.stripe.com/payments/payment-methods/payment-method-support) · [Stripe pricing](https://stripe.com/pricing) · [Stripe Atlas](https://stripe.com/atlas) · [IRS Form 5472 instructions](https://www.irs.gov/instructions/i5472) · [Stripe Managed Payments eligibility](https://docs.stripe.com/payments/managed-payments/eligibility) · [Paddle pricing](https://www.paddle.com/pricing) · [Paddle supported currencies](https://developer.paddle.com/concepts/sell/supported-currencies/) · [Lemon Squeezy pricing](https://www.lemonsqueezy.com/pricing) · [Lemon Squeezy 2026 update](https://www.lemonsqueezy.com/blog/2026-update) · [MDN, CSP form-action](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/form-action)
 
 **Philippine law, tax and business**
 
-[Data Privacy Act of 2012, RA 10173](https://privacy.gov.ph/data-privacy-act/) · [NPC Circular 2022-04](https://privacy.gov.ph/wp-content/uploads/2023/05/Circular-2022-04-1.pdf) · [NPC Circular 2022-04 Annex 1](https://privacy.gov.ph/wp-content/uploads/2023/05/Circular-2022-04-Annex-1-1.pdf) · [NPC FAQs](https://privacy.gov.ph/pips-and-pics/faqs/) · [NPC Advisory 2021-01](https://privacy.gov.ph/wp-content/uploads/2021/02/NPC-Advisory-2021-01-FINAL.pdf) · [NPC Circular 16-03, breach management](https://privacy.gov.ph/wp-content/uploads/2022/01/sgd-npc-circular-16-03-personal-data-breach-management.pdf) · [DTI BNRS FAQ](https://bnrs.dti.gov.ph/faq) · [BIR flyer on the Ease of Paying Taxes Act](https://bir-cdn.bir.gov.ph/BIR/pdf/flyer-eopt.pdf) · [BIR RMC 77-2024 digest, invoicing](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2077-2024%20Digest.pdf) · [BIR RMC 38-2026 digest, Registration Seal Badge](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2038-2026%20Digest.pdf) · [Manila Times, BIR sets October deadline for registration badges](https://www.manilatimes.net/2026/09/26/business/top-business/bir-sets-oct-deadline-for-registration-badges/2433272) · [BIR RR 16-2023, withholding by payment providers](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%2016-2023.pdf) · [Grant Thornton, the 8% tax option](https://www.grantthornton.com.ph/insights/articles-and-updates1/lets-talk-tax/the-8-tax-for-self-employed-individuals/) · [Internet Transactions Act, RA 11967](https://elibrary.judiciary.gov.ph/thebookshelf/showdocs/2/96902) · [PayMongo guide to registering an online business](https://www.paymongo.com/blog/how-to-register-online-business-philippines)
+[Data Privacy Act of 2012, RA 10173](https://privacy.gov.ph/data-privacy-act/) · [NPC Circular 2022-04](https://privacy.gov.ph/wp-content/uploads/2023/05/Circular-2022-04-1.pdf) · [NPC Circular 2022-04 Annex 1](https://privacy.gov.ph/wp-content/uploads/2023/05/Circular-2022-04-Annex-1-1.pdf) · [NPC FAQs](https://privacy.gov.ph/pips-and-pics/faqs/) · [NPC Advisory 2021-01](https://privacy.gov.ph/wp-content/uploads/2021/02/NPC-Advisory-2021-01-FINAL.pdf) · [NPC Circular 16-03, breach management](https://privacy.gov.ph/wp-content/uploads/2022/01/sgd-npc-circular-16-03-personal-data-breach-management.pdf) · [DTI BNRS FAQ](https://bnrs.dti.gov.ph/faq) · [BIR flyer on the Ease of Paying Taxes Act](https://bir-cdn.bir.gov.ph/BIR/pdf/flyer-eopt.pdf) · [BIR RMC 77-2024 digest, invoicing](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2077-2024%20Digest.pdf) · [BIR RMC 38-2026 digest, Registration Seal Badge](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2038-2026%20Digest.pdf) · [Manila Times, BIR sets October deadline for registration badges](https://www.manilatimes.net/2026/09/26/business/top-business/bir-sets-oct-deadline-for-registration-badges/2433272) · [BIR RR 16-2023, withholding by payment providers](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%2016-2023.pdf) · [Grant Thornton, the 8% tax option](https://www.grantthornton.com.ph/insights/articles-and-updates1/lets-talk-tax/the-8-tax-for-self-employed-individuals/) · [Internet Transactions Act, RA 11967](https://elibrary.judiciary.gov.ph/thebookshelf/showdocs/2/96902) · [PayMongo guide to registering an online business](https://www.paymongo.com/blog/how-to-register-online-business-philippines) · [BIR RR 5-2025, withholding restated as 0.5%](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%205-2025.pdf) · [BIR RMC 8-2024, sworn declaration and personal accounts](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%208-2024.pdf) · [Sworn declaration form, Annex A, hosted by RCBC](https://www.rcbc.com/uploads/media/RR-16-2023-Sworn-Declaration.pdf) · [BIR RR 8-2018 digest, the 8% option and tax table](https://bir-cdn.bir.gov.ph/local/pdf/Digest%20RR%208-2018_copy.pdf) · [BIR RMC 69-2023, percentage tax back to 3%](https://bir-cdn.bir.gov.ph/local/pdf/RMC%20No.%2069-2023%20v2.pdf) · [BIR RR 11-2025 digest, e-invoicing and micro taxpayers](https://bir-cdn.bir.gov.ph/BIR/pdf/RR%2011-2025.pdf) · [BIR RMC 99-2026, Seal Badge deadline](https://bir-cdn.bir.gov.ph/BIR/pdf/RMC%20No.%2099-2026.pdf) · [BIR RMO 13-2003, printed invoice price in 2003](https://elibrary.judiciary.gov.ph/thebookshelf/showdocs/10/44460) · [BIR checklist of documentary requirements, July 2025](https://web-services.bir.gov.ph/eappointment/files/checklist_of_documentary_requirements.pdf) · [TRAIN Act, RA 10963](https://lawphil.net/statutes/repacts/ra2017/ra_10963_2017.html) · [National Internal Revenue Code, RA 8424](https://lawphil.net/statutes/repacts/ra1997/ra_8424_1997.html) · [Local Government Code, RA 7160](https://lawphil.net/statutes/repacts/ra1991/ra_7160_1991.html) · [Fire Code RIRR 2019, archived copy](https://archive.org/stream/ra-9514-rirr-rev-2019/RA9514-RIRR-rev-2019_djvu.txt) · [BMBE Act, RA 9178](https://lawphil.net/statutes/repacts/ra2002/ra_9178_2002.html) · [PhilHealth advisory PA2025-0002](https://www.philhealth.gov.ph/advisories/2025/PA2025-0002.pdf)
+
+**City permits**
+
+[Makati Revenue Code, Sec. 4A.01](https://www.makati.gov.ph/assets/uploads/staticmenu/files/invest/sec.4a.01.pdf) · [Makati business permit charter](https://www.makati.gov.ph/assets/uploads/staticmenu/docs/1581041920752.pdf) · [Mandaluyong Mayor's permit fees](https://mandaluyong.gov.ph/business/revised-business-tax-code-mayors-permit-fees/) · [Pasig 2017 Revised Revenue Code](https://assets.pasigcity.gov.ph/storage/downloadables/2022/10/07/633fc0e8d82941665122536632bfacec71cf16638266382017%20Revised%20Pasig%20Revenue%20Code.pdf) · [Quezon City, opening a business](https://quezoncity.gov.ph/qcitizen-guides/opening-a-business-in-qc/)
+
+**Domains, email, monitoring and tools**
+
+[Cloudflare Registrar](https://www.cloudflare.com/products/registrar/) · [Verisign first quarter 2026 results, .com price rise](https://investor.verisign.com/news-releases/news-release-details/verisign-reports-first-quarter-2026-results) · [ICANN registrar fees for 2026](https://www.icann.org/en/announcements/details/icann-accredited-registrars-approve-registrar-level-fees-for-fiscal-year-2026-21-07-2025-en) · [dotPH FAQ](https://www.dot.ph/faqs) · [Cloudflare Email Routing](https://developers.cloudflare.com/email-routing/) · [Gmail, send mail from another address](https://support.google.com/mail/answer/22370?hl=en) · [Google app passwords](https://support.google.com/accounts/answer/185833?hl=en) · [Zoho Mail pricing](https://www.zoho.com/mail/zohomail-pricing.html) · [Google Workspace pricing, Philippines](https://workspace.google.com/intl/en_ph/pricing) · [Brevo pricing](https://www.brevo.com/pricing/) · [Cloudflare R2 pricing](https://developers.cloudflare.com/r2/pricing/) · [Backblaze B2 pricing](https://www.backblaze.com/cloud-storage/pricing) · [UptimeRobot pricing](https://uptimerobot.com/pricing/) · [UptimeRobot, who the free plan is for](https://help.uptimerobot.com/en/articles/11604710-who-should-use-uptimerobot-s-free-plan) · [Discord webhooks](https://docs.discord.com/developers/resources/webhook) · [GitHub pricing](https://github.com/pricing) · [Tailscale pricing](https://tailscale.com/pricing) · [Taxumo pricing](https://www.taxumo.com/pricing/) · [Google Search Console](https://support.google.com/webmasters/answer/9128668?hl=en) · [Google OAuth verification FAQ](https://support.google.com/cloud/answer/13463817?hl=en) · [TAC Security CASA FAQ](https://tacsecurity.com/esof-appsec-ada-casa-faqs/) · [Google Cloud taxes, Philippine VAT](https://docs.cloud.google.com/billing/docs/resources/vat-overview)
+
+**Secondary sources for bills, used only where marked**
+
+[Respicio, notarial fees](https://www.respicio.ph/commentaries/notarial-fees-for-document-notarization-in-the-philippines) · [barangayclearance.com fee guide](https://barangayclearance.com/fees/) · [Emerhub, NPC registration guide](https://emerhub.com/philippines/a-guide-to-npc-registration-in-the-philippines/) · [FilePino, NPC renewal fees](https://www.filepino.com/dpo-dps-registration-renewal/) · [Loft, bookkeeping cost guide](https://loft.ph/how-much-should-you-pay-for-bookkeeping-in-the-philippines/) · [Grant Thornton on the 2025 SSS rates](https://www.grantthornton.com.ph/insights/articles-and-updates1/tax-notes/sss-implements-revised-contribution-rates-for-2025/)
 
 **Inside the repo**
 
