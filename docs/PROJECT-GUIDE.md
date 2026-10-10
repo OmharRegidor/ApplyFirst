@@ -558,7 +558,7 @@ flowchart TD
     S["Round starts<br/>watchdog armed"] --> P["AI instructions changed?<br/>then wipe the saved letters"]
     P --> W["List every watch word<br/>of every activated user, once each"]
     W --> N{"Another word?"}
-    N -->|yes| G["Polite pause<br/>1.0 to 2.5 s"]
+    N -->|yes| G["Polite pause<br/>5 to 6.5 s"]
     G --> Q["Search onlinejobs.ph<br/>for this word"]
     Q -->|"search failed"| N
     Q --> B{"Does this word<br/>need a baseline?"}
@@ -611,7 +611,7 @@ ORDER BY k.keyword
 
 `DISTINCT` compares exactly, so "Shopify" and "shopify" are two searches ([`applyfirst/saas/db.py:198`](../applyfirst/saas/db.py#L198)).
 
-1. **Polite pauses.** 1.0 to 2.5 seconds between words and 0.3 to 0.8 seconds after each full job page ([`applyfirst/saas/worker.py:57-58`](../applyfirst/saas/worker.py#L57-L58)). onlinejobs.ph asks for 5 seconds (section 9.1).
+1. **Polite pauses.** 5 to 6.5 seconds before every request to onlinejobs.ph, searches and full job pages alike ([`applyfirst/saas/worker.py:57-58`](../applyfirst/saas/worker.py#L57-L58)). That keeps the 5 seconds the site asks for (section 9.1).
 2. **The search.** It opens the same address you get by typing the word into the site's search box ([`applyfirst/sources/onlinejobsph.py:55-57`](../applyfirst/sources/onlinejobsph.py#L55-L57)) and reads each job card from the page ([`applyfirst/sources/onlinejobsph.py:120-161`](../applyfirst/sources/onlinejobsph.py#L120-L161)).
 3. **A failed search** is logged as `search_failed` and the word is skipped for this round ([`applyfirst/saas/worker.py:264-266`](../applyfirst/saas/worker.py#L264-L266)).
 4. **Storing.** The `jobs` table is shared by everyone. A job already stored is not fetched again ([`applyfirst/saas/worker.py:114-118`](../applyfirst/saas/worker.py#L114-L118)). A new one gets its full page fetched once ([`applyfirst/saas/worker.py:122`](../applyfirst/saas/worker.py#L122)).
@@ -1272,7 +1272,7 @@ What the guard tests protect, a few examples. A stranger gets "not found" on som
 
 **What the code does today.**
 
-- It waits only 1.0 to 2.5 seconds between searches and 0.3 to 0.8 seconds after each job page ([`applyfirst/saas/worker.py:57-58`](../applyfirst/saas/worker.py#L57-L58)). That is faster than the site asks.
+- V2's worker waits 5 to 6.5 seconds before every request, searches and job pages alike ([`applyfirst/saas/worker.py:57-58`](../applyfirst/saas/worker.py#L57-L58)). That keeps the 5 seconds the site asks for. V1 on the Oracle server still waits only 1.0 to 2.5 seconds between searches ([`applyfirst/pipeline.py:45`](../applyfirst/pipeline.py#L45)).
 - It calls itself a normal Chrome browser ([`applyfirst/sources/base.py:18-21`](../applyfirst/sources/base.py#L18-L21)). That hides that Agad is a robot. It may delay a block, but it looks worse if the site owner notices.
 
 **What it means.** If onlinejobs.ph blocks Agad's one address, every user stops getting jobs at the same moment. The site sits behind Cloudflare, which scores every request for how robotic it looks ([Cloudflare bot score](https://developers.cloudflare.com/bots/concepts/bot-score/)). Whether the site has bot blocking switched on is **UNVERIFIED**. Whether the terms bind a visitor who never signed up is a legal question, **UNVERIFIED**, ask a lawyer. No public API or job feed was found, which is also **UNVERIFIED**. Rotating addresses to dodge a block would be deliberately evading the owner's decision, and this guide does not recommend it.
@@ -1371,8 +1371,8 @@ Today the worker searches once per distinct watch word ([`applyfirst/saas/db.py:
 
 ### 10.3 Stage A, about 100 users (now)
 
-- **What breaks first.** Google's 100-user Testing cap and weekly disconnects. The worker already crawls faster than the site asks. Free-tier Gemini would break the privacy promise. Gemini 2.5 may not work on a new project.
-- **The change.** One shared speed limit of one request every 5 seconds, plus an honest browser name and a daily robots.txt check. Build the newest-list reader (section 10.6) and run it next to today's one for a week. Submit the Google verification. Turn on Gemini billing, turn thinking down and test 3.5 Flash-Lite. Email onlinejobs.ph.
+- **What breaks first.** Google's 100-user Testing cap and weekly disconnects. The worker keeps the site's 5-second pace, so one round covers only about 83 different watch words before it runs late. Free-tier Gemini would break the privacy promise. Gemini 2.5 may not work on a new project.
+- **The change.** An honest browser name and a daily robots.txt check. The 5-second pace is already in. Build the newest-list reader (section 10.6) and run it next to today's one for a week. Submit the Google verification. Turn on Gemini billing, turn thinking down and test 3.5 Flash-Lite. Email onlinejobs.ph.
 - **Plan B, if the newest list misses too much.** Clean up words (lowercase, trim, merge "va" and "virtual assistant") and search each word on a schedule set by how many people watch it. Words with 5 or more watchers every 10 minutes, 2 to 4 every 20, and 1 every 30 to 60, all inside the 120-per-10-minutes budget.
 - **Monthly cost.** USD 28 to 62, PHP 1,750 to 3,875. That is Fly USD 4.30 plus Gemini USD 24 to 58 for about 9,000 letters.
 - **Effort.** About 1 to 2 weeks, plus Google's review and a week of side-by-side testing.
@@ -1908,7 +1908,7 @@ Sign-in, onboarding, watching and sending are already built. Start the slow, wai
 | Week 1 | 1 | Rotate the Google client secret shown in a screenshot | Not done | S |
 | Week 1 | 2 | Own domain, HTTPS, verified in Google Search Console | Not done | S |
 | Week 1 | 3 | Business paperwork. DTI name (national scope), barangay clearance and Mayor's permit, BIR on ORUS with the 8% option, Form 2303 and the Seal Badge | Not started | S of your time, 1 to 3 weeks of waiting (**UNVERIFIED**, depends on your city) |
-| Week 1 | 4 | onlinejobs.ph politeness. Permission email, 5-second limit, honest browser name, a cadence the pages can keep | Not done | S, then wait for a reply |
+| Week 1 | 4 | onlinejobs.ph politeness. Permission email, 5-second limit, honest browser name, a cadence the pages can keep | 5-second limit done, the rest not done | S, then wait for a reply |
 | Week 1 | 5 | Gemini billing on, thinking turned down, a spend cap | Billing off, no caps | S to M |
 | Week 1 | 6 | UptimeRobot on `/health`, the alert webhook, then `notify --test` | Code ready, not set up | S |
 | Week 2 | 7 | Legal pages and homepage footer updated (section 13.4) | Partly | M |

@@ -323,7 +323,7 @@ stateDiagram-v2
 every 4–7 min (jittered):
   unique_keywords = SELECT DISTINCT keyword FROM user_keywords WHERE is_active
   for kw in unique_keywords:
-      sleep 1.0–2.5s        # politeness between keyword fetches
+      sleep 5–6.5s          # robots.txt Crawl-delay: 5, before every request
       listings = scrape(kw)
       first = kw never searched before          # its baseline: what is already posted
               or nobody watching kw now was watching at its last search   # back after a gap
@@ -407,7 +407,7 @@ CLI is **untouched** through all of this — separate process, separate `applyfi
 | P0-3 | **Cross-tenant data leak from one missing `WHERE user_id = …`** — **risk elevated on SQLite-MVP** because Postgres RLS defense-in-depth is unavailable until M6 | Custodio: `tenant_scope()` helper + CI-enforced integration test asserting **404 (not 403)** for cross-tenant access + lint rule banning bare `.query(Model)` outside the helper. **Compensating control:** every PR that touches data access requires a passing cross-tenant test in CI — no exceptions. RLS lights up automatically at M6. |
 | P0-3b | **SQLite WAL contention** under web+worker concurrent writes — silent degradation to serialized writes; in the worst case, `SQLITE_BUSY` after busy_timeout exhausts | Gab: `PRAGMA journal_mode=WAL` + `PRAGMA busy_timeout=10000` (10 s) on every connection; log `sqlite3.OperationalError: database is locked` retry counts; **the first sustained retry curve = the M6 Postgres trigger.** |
 | P0-4 | **OAuth login-CSRF account takeover** (skipped `state` validation) | Custodio: `state` server-side, validated before token exchange, mismatch = 400 + session invalidation |
-| P0-5 | **onlinejobs.ph IP ban kills the product for everyone** | Manny + Gab: shared single-IP poll, 4–7 min jitter, 1–2.5 s politeness between keywords, dead-man's switch on 3 consecutive empty cycles |
+| P0-5 | **onlinejobs.ph IP ban kills the product for everyone** | Manny + Gab: shared single-IP poll, 4–7 min jitter, 5–6.5 s before every request (robots.txt Crawl-delay: 5), dead-man's switch on 3 consecutive empty cycles |
 | P0-6 | **OAuth refresh silently revoked (30-day inactivity, security review)** → user's emails stop arriving with no notice | Manny: health-check refresh on every poll; on failure, send fallback transactional alert to the user's Google email + dashboard banner with "Reconnect Gmail" CTA |
 | P0-7 | **Oracle reclaims an "idle" Always-Free VM** | Gab: weekly `rsync` of `/opt/applyfirst` + DB dump to a second location (e.g., $5 Hetzner standby) |
 

@@ -54,8 +54,8 @@ _WATCHDOG_EVERY = 30              # seconds between watchdog checks
 _OWNER_ALERT_COOLDOWN = 6 * 3600  # debounce owner alerts: at most one per 6 hours
 _ALERT_RETRY = 15 * 60            # ...but an alert no channel accepted is tried again this soon
 _AI_FAIL_STREAK = 2               # consecutive all-failed AI cycles before the owner is paged
-_KEYWORD_PAUSE = (1.0, 2.5)      # polite gap between keyword fetches
-_DETAIL_PAUSE = (0.3, 0.8)       # polite gap after a detail fetch
+_PAGE_PAUSE = (5.0, 6.5)         # gap before every onlinejobs.ph request, search or job page:
+                                 # their robots.txt asks for Crawl-delay: 5
 _MAX_DESCRIPTION = 8000          # clamp scraped job text: the daily cap limits CALLS, not
                                  # TOKENS — a pathological post must not balloon cost/DB rows
 # When every watched term comes back empty, one search for this is the tie-breaker between "the
@@ -118,12 +118,12 @@ def _get_or_create_job(conn, raw, source, *, fetch_detail: bool, polite: bool) -
         return existing
     description = raw.preview or ""
     if fetch_detail:
+        _pause(_PAGE_PAUSE, polite)   # before, so the page right after a search waits too
         try:
             description = source.fetch_detail(raw).description
         except Exception as exc:  # a single bad detail page must not kill the cycle
             log.event(_LOG, "detail_fetch_failed", level=logging.WARNING,
                       url=raw.url, error=str(exc)[:200])
-        _pause(_DETAIL_PAUSE, polite)
     posted = raw.posted_at.isoformat() if raw.posted_at else None
     return db.insert_job(
         conn, onlinejobs_id=raw.external_id, title=raw.title, url=raw.url,
@@ -255,7 +255,7 @@ def run_once(conn, source, cfg, master_key, *,
     result.keywords = len(keywords)
     for i, kw in enumerate(keywords):
         if i:
-            _pause(_KEYWORD_PAUSE, polite)   # at the top, so a failed search still gets its gap
+            _pause(_PAGE_PAUSE, polite)   # at the top, so a failed search still gets its gap
         # Every attempt is progress, a failed search included. A site that times out on each
         # term must read as blind, not as a hung worker for the watchdog to kill.
         try:
@@ -281,7 +281,7 @@ def run_once(conn, source, cfg, master_key, *,
             beat()
 
     if result.keywords and not result.jobs_seen:
-        _pause(_KEYWORD_PAUSE, polite)
+        _pause(_PAGE_PAUSE, polite)
         result.site_ok = _site_answers(source)
         beat()
 

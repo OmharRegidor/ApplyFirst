@@ -284,28 +284,28 @@ genuinely uncapped cost in the system, and you cannot see it.
 Not the database. Not the server. **The worker.**
 
 It searches onlinejobs.ph once per *distinct* watch word across all users, one after another, with
-a 1.0 to 2.5 second pause between each. The pauses alone consume the whole 600 second interval at
-about 344 words. Adding realistic network time, a cycle overruns its own interval at roughly
-**185 distinct words**, or about 102 on the Oracle unit's 330 second interval.
+a 5 to 6.5 second pause before every request. The pauses alone consume the whole 600 second
+interval at about 104 words. Adding realistic network time, a cycle overruns its own interval at
+roughly **83 distinct words**, or about 45 on the Oracle unit's 330 second interval.
 
 How many users that is depends entirely on overlap. If the average user brings 2 new words it is
-about 100 users. If they bring 8 each it is about 25.
+about 40 users. If they bring 8 each it is about 10.
 
 **The failure is silent.** Nothing crashes. `run_once` sleeps the full interval *after* the cycle
 finishes, so the real cadence becomes cycle time plus interval. Rounds simply get slower while
 every page keeps promising "about every 10 minutes".
 
 **There is an earlier spike.** On a word's first ever poll the worker still fetches the detail page
-of every job on the results page, about 30 of them, before discarding them. One user adding the
-20-word maximum can add about 15 minutes to a single cycle. That can happen on your second user.
+of every job on the results page, about 30 of them, each behind its own 5 second pause. One user
+adding the 20-word maximum can add about 70 minutes to a single cycle. That can happen on your second user.
 
 **Backlogs are unbounded.** After any outage every pending alert is processed serially in one
 cycle, with no per-cycle limit. A thousand pending alerts is over an hour of blocked loop during
 which nobody gets anything new.
 
 **onlinejobs.ph asks for 5 seconds between requests.** Their `robots.txt` says `Crawl-delay: 5` and
-the worker waits 1.0 to 2.5. Honouring it would roughly halve the capacity above. Ignoring it is
-what gets one shared IP blocked, which takes every user dark at once, detected 18 to 30 minutes
+since 4 October 2026 the worker keeps it, which is why the capacity above is about half what it
+was. Going faster is what gets one shared IP blocked, which takes every user dark at once, detected 18 to 30 minutes
 later by the dead-man switch.
 
 **SQLite is not the bottleneck** at any scale the worker permits. Measured at about 595 single-row

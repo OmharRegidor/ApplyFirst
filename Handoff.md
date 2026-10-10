@@ -630,12 +630,13 @@ counts **slots not API calls** (engine `retries=2`); **nothing caps spend across
 **thinking tokens are unbounded** (no `thinkingBudget` anywhere in `applyfirst/tailor/llm.py`).
 
 **The scaling wall is the worker, not the database.** It polls once per *distinct* watch word across
-all tenants, serially, pausing 1.0–2.5 s between each. A cycle overruns the 600 s interval at **~185
-distinct words** (~102 at Oracle's 330 s), roughly 25–100 users depending on overlap. It fails
+all tenants, serially, pausing 5–6.5 s before every request (robots.txt `Crawl-delay: 5`, kept since
+2026-10-04). A cycle overruns the 600 s interval at **~83 distinct words** (~45 at Oracle's 330 s),
+roughly 10–40 users depending on overlap. It fails
 **silently** — `run_once` sleeps the full interval *after* the cycle, so cadence just drifts while
 pages keep promising "about every 10 minutes". A word's first poll detail-fetches every job on the
-page, so one user adding the 20-word maximum adds ~15 min to a single cycle. onlinejobs.ph
-`robots.txt` declares `Crawl-delay: 5` and we wait 1.0–2.5. SQLite is **not** the bottleneck.
+page, so one user adding the 20-word maximum adds ~70 min to a single cycle. SQLite is **not** the
+bottleneck.
 
 **Other gaps** (OPERATIONS.md §8): account deletion is promised on the privacy page with **no code
 behind it**; a wrong master secret breaks every send forever while `/health` stays 200; `jobs` and
