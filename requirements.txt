@@ -1,5 +1,5 @@
 httpx>=0.27
-selectolax>=0.3.21
+selectolax>=0.3.21,<1.0   # 1.0 removed the selectolax.parser backend this code imports
 python-dotenv>=1.0
 pydantic>=2.0
 PyYAML>=6.0
