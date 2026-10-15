@@ -23,6 +23,8 @@ class Settings:
     db: str = "applyfirst.db"
     poll_interval: int = 300
     keywords: list[str] = field(default_factory=list)
+    # only jobs whose title holds one of these words are emailed (empty = every job)
+    title_words: list[str] = field(default_factory=list)
     profile_path: str = "profile.yaml"
     # email
     email_enabled: bool = False
@@ -44,10 +46,13 @@ def load_settings() -> Settings:
     load_dotenv()  # reads ./.env if present; no-op otherwise
     raw_keywords = os.getenv("APPLYFIRST_KEYWORDS", "")
     keywords = [k.strip() for k in raw_keywords.split(",") if k.strip()]
+    raw_title_words = os.getenv("APPLYFIRST_TITLE_WORDS", "")
+    title_words = [w.strip().lower() for w in raw_title_words.split(",") if w.strip()]
     return Settings(
         db=os.getenv("APPLYFIRST_DB", "applyfirst.db"),
         poll_interval=int(os.getenv("APPLYFIRST_POLL_INTERVAL_SECONDS", "300")),
         keywords=keywords,
+        title_words=title_words,
         profile_path=os.getenv("APPLYFIRST_PROFILE", "profile.yaml"),
         email_enabled=_as_bool(os.getenv("EMAIL_ENABLED")),
         smtp_host=os.getenv("SMTP_HOST", "smtp.gmail.com"),

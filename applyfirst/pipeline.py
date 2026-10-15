@@ -33,6 +33,16 @@ class CycleResult:
     emailed: int = 0
     email_errors: int = 0
     baselined: int = 0
+    off_topic: int = 0
+
+
+def title_matches(title: str | None, words: list[str] | None) -> bool:
+    """True when no title words are set, or the job title holds one of them (any case).
+    Keeps a broad search word from emailing jobs outside the candidate's field."""
+    if not words:
+        return True
+    low = (title or "").lower()
+    return any(w in low for w in words)
 
 
 def _safe_filename(name: str) -> str:
@@ -42,7 +52,8 @@ def _safe_filename(name: str) -> str:
 
 def run_cycle(store, source, notifier=None, engine=None, profile=None,
               fetch_details: bool = True, verbose: bool = True,
-              keyword_pause: tuple[float, float] = (1.0, 2.5)) -> CycleResult:
+              keyword_pause: tuple[float, float] = (1.0, 2.5),
+              title_words: list[str] | None = None) -> CycleResult:
     result = CycleResult()
     keywords = store.active_keywords()
 
@@ -69,6 +80,11 @@ def run_cycle(store, source, notifier=None, engine=None, profile=None,
             row = store.get_job(raw_job.source, raw_job.external_id)
             if row is None:
                 continue
+            if not title_matches(row["title"], title_words):
+                result.off_topic += 1
+                if verbose:
+                    print(f"     - skipped, title off topic: {row['title']}")
+                continue
             subject, text, html, attachments = _compose_for(store, row, engine, profile, verbose)
             if notifier is not None:
                 try:
@@ -88,7 +104,8 @@ def run_cycle(store, source, notifier=None, engine=None, profile=None,
     except Exception:
         pass
     log.event(_LOG, "cycle_complete", new=result.new_total, emailed=result.emailed,
-              email_errors=result.email_errors, baselined=result.baselined)
+              email_errors=result.email_errors, baselined=result.baselined,
+              off_topic=result.off_topic)
     return result
 
 

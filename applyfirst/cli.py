@@ -114,7 +114,7 @@ def cmd_poll(args: argparse.Namespace) -> int:
         source = OnlineJobsPHSource()
         try:
             res = run_cycle(store, source, notifier=notifier, engine=engine, profile=profile,
-                            fetch_details=not args.no_detail)
+                            fetch_details=not args.no_detail, title_words=s.title_words)
         finally:
             source.close()
         tail = "" if notifier is None else f", emailed={res.emailed}"
@@ -157,7 +157,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             print(f"--- cycle {cycle} ---")
             try:
                 _maybe_daily_backup(store, db_path)
-                res = run_cycle(store, source, notifier=notifier, engine=engine, profile=profile)
+                res = run_cycle(store, source, notifier=notifier, engine=engine, profile=profile,
+                                title_words=s.title_words)
                 summary = f"  new={res.new_total} emailed={res.emailed}"
                 if res.email_errors:
                     summary += f" email_errors={res.email_errors}"
