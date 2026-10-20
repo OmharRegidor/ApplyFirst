@@ -16,6 +16,7 @@ from applyfirst import log
 from applyfirst.profile import Profile
 from applyfirst.screening import detect_screening_hints
 from applyfirst.tailor.contract import ResumeOverrides, ScreeningQA, TailoredPackage
+from applyfirst.tailor.plain import plain_package
 from applyfirst.tailor.prompt import RESUME_ON_REQUEST, build_system_prompt, build_user_prompt
 
 _LOG = log.get_logger("tailor")
@@ -96,7 +97,7 @@ class TailoringEngine:
             for attempt in range(1, self.retries + 1):
                 try:
                     raw = self.provider.generate(system, user)
-                    package = parse_package(raw)
+                    package = plain_package(parse_package(raw))
                     return TailorResult(package, getattr(self.provider, "name", "llm"), True)
                 except Exception as exc:
                     # Why it failed, without str(exc): an HTTP error's text can carry the
