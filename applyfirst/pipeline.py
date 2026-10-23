@@ -137,7 +137,8 @@ def _compose_for(store, row, engine, profile, verbose):
             print(f"     AI: {res.provider} · {len(res.package.screening_questions)} answer(s)"
                   + (" · resume.pdf" if attachments else ""))
         subject, text, html = build_tailored_email(
-            row, res.package, res.ai_available, pdf_name, pdf_failed=attachments is None)
+            row, res.package, res.ai_available, pdf_name, pdf_failed=attachments is None,
+            fill_link=True)
         return subject, text, html, attachments
 
     # No profile configured → pre-AI alert.

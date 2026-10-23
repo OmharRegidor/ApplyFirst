@@ -8,8 +8,19 @@ Two builders:
 
 from __future__ import annotations
 
+import base64
 import html as _html
+import json
 from typing import Mapping
+from urllib.parse import urldefrag
+
+from applyfirst.sources.onlinejobsph import _ID_RE
+
+# The Chrome extension (extension/lib/payload.js) reads this marker and these caps.
+_FRAGMENT_KEY = "agad"
+_MAX_SUBJECT = 200          # UTF-16 units, the same count as JS String.length
+_MAX_MESSAGE = 5000
+_MAX_JOB_ID_DIGITS = 12
 
 
 def _get(job: Mapping, key: str):
@@ -28,6 +39,34 @@ def _meta(job: Mapping):
         _get(job, "posted_at") or "?",
         _get(job, "matched_keyword") or "—",
     )
+
+
+def _utf16_len(text: str) -> int:
+    return len(text.encode("utf-16-le")) // 2
+
+
+def build_apply_link(url: str, subject: str | None, message: str | None) -> str:
+    """The job URL with the Subject and Message tucked after ``#agad=`` for the extension.
+
+    Returns the plain ``url`` when the job id can't be read, both texts are empty, or a
+    text is over its cap. The part after ``#`` is not sent to onlinejobs.ph, but Gmail's
+    link wrapper and browser history can keep the full link. It only holds the same
+    Subject and Message already in this email.
+    """
+    base = urldefrag(url).url
+    match = _ID_RE.search(base)
+    subj, msg = subject or "", message or ""
+    if not match or len(match.group(1)) > _MAX_JOB_ID_DIGITS or not (subj or msg):
+        return url
+    try:
+        if _utf16_len(subj) > _MAX_SUBJECT or _utf16_len(msg) > _MAX_MESSAGE:
+            return url
+        raw = json.dumps({"v": 1, "j": match.group(1), "s": subj, "m": msg},
+                         ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    except UnicodeEncodeError:  # a lone surrogate, which JS would encode differently
+        return url
+    payload = base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+    return f"{base}#{_FRAGMENT_KEY}={payload}"
 
 
 def build_job_email(job: Mapping, hints: list[str]) -> tuple[str, str, str]:
@@ -76,7 +115,10 @@ def build_job_email(job: Mapping, hints: list[str]) -> tuple[str, str, str]:
 
 def build_tailored_email(job: Mapping, package, ai_available: bool,
                          pdf_filename: str | None = None,
-                         pdf_failed: bool = False) -> tuple[str, str, str]:
+                         pdf_failed: bool = False, *,
+                         fill_link: bool = False) -> tuple[str, str, str]:
+    """``fill_link`` (V1 only) puts the Subject and Message into the HTML Apply button's
+    link for the Chrome extension. Off by default, so the SaaS email never changes."""
     title, url, etype, salary, posted, keyword = _meta(job)
 
     subject = f"🆕 {title} [{etype}] — onlinejobs.ph"
@@ -109,6 +151,8 @@ def build_tailored_email(job: Mapping, package, ai_available: bool,
     text = "\n".join(lines)
 
     esc = _html.escape
+    href = (build_apply_link(url, package.application_subject, package.cover_letter)
+            if fill_link else url)
     warn = "" if ai_available else ('<p style="color:#b45309">AI unavailable — answers blank; '
                                     "edit before sending.</p>")
     token = ""
@@ -148,7 +192,7 @@ def build_tailored_email(job: Mapping, package, ai_available: bool,
         f'<h2 style="margin:0 0 4px">{esc(title)}</h2>'
         f'<p style="color:#555;margin:0 0 8px">{esc(etype)} · {esc(salary)} · posted '
         f'{esc(str(posted))} UTC · matched &ldquo;{esc(keyword)}&rdquo;</p>'
-        f'<p><a href="{esc(url)}" style="background:#0B6BC7;color:#fff;padding:9px 16px;'
+        f'<p><a href="{esc(href)}" style="background:#0B6BC7;color:#fff;padding:9px 16px;'
         'border-radius:6px;text-decoration:none;display:inline-block">Apply on onlinejobs.ph</a></p>'
         f'{warn}{token}{subj_html}'
         '<h3 style="margin:16px 0 6px">Message — ready-to-paste cover letter</h3>'

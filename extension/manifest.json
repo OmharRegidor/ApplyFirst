@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Agad Apply Fill",
+  "version": "1.0.0",
+  "description": "Fills the onlinejobs.ph Apply pop-up with the Subject and Message from your Agad email. You still press Send.",
+  "permissions": ["storage", "clipboardWrite"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://www.onlinejobs.ph/*"],
+      "js": ["lib/payload.js", "content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}
