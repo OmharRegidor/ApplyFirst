@@ -85,8 +85,8 @@ def test_saas_prompts_carry_no_owner_strings_or_resume_claim():
 
 def test_default_call_keeps_the_v1_resume_path():
     system = build_system_prompt("warm")                        # no kwarg: V1 behaviour
-    assert 'a "Tailored resume attached." note' in system
-    assert "note that the tailored resume is attached" in system
+    assert "never a line saying the resume is attached" in system
+    assert "leave the resume out of the message" in system
     assert '"role_id": "id from the profile"' in system        # full resume_overrides schema
     assert RESUME_ON_REQUEST not in system
     assert "Voice: warm" in system
@@ -106,7 +106,7 @@ def test_v1_profile_keeps_its_own_format_and_resume_note():
     # ... and the rules tell it to keep every section and the subject format.
     assert "every section heading and list" in system
     assert "keep the candidate's own format" in system
-    assert "Tailored resume attached." in system
+    assert "never a line saying the resume is attached" in system
     assert "Voice: warm, concise" in system
 
 
@@ -122,7 +122,7 @@ def test_v1_pipeline_still_tells_the_model_a_resume_is_attached():
     _, _, _, attachments = pipeline._compose_for(NullStore(), row, TailoringEngine(provider=rec),
                                                  _v1_profile(), verbose=False)
     (system, _), = rec.calls
-    assert 'a "Tailored resume attached." note' in system
+    assert "never a line saying the resume is attached" in system
     assert attachments and attachments[0][2] == "application/pdf"
 
 
@@ -186,7 +186,7 @@ def test_engine_sends_the_resume_note_only_when_asked():
     TailoringEngine(provider=rec).build(JOB, _v1_profile())
     TailoringEngine(provider=rec).build(JOB, _saas_profile(), resume_attached=False)
     (sys_default, _), (sys_saas, user_saas) = rec.calls
-    assert 'a "Tailored resume attached." note' in sys_default
+    assert "never a line saying the resume is attached" in sys_default
     assert hits(sys_saas + user_saas, RESUME_CLAIMS) == []
     assert hits(sys_saas + user_saas, OWNER_MARKERS) == []
 
